@@ -254,7 +254,9 @@ unresolved. `emf.osgi` already ships both halves, so `emf.search` builds neither
 
 So: **XMI is the authoring format, the EObject registry is the deployment path, and the
 aspect plane is how a model bundle carries its own mapping** — which is exactly the
-resolution O7 proposed, now with concrete machinery behind it.
+resolution O7 proposed, now with concrete machinery behind it. Implementing that resolution —
+including which of the two wins when both exist, and what a mapping change does to a unit whose
+index was written under the previous one — is S23 (#32).
 
 The metamodel stays a self-contained tree (registry → unit → document → fields) rather
 than being decomposed into per-element aspect fragments. Two reasons: composite mappings
