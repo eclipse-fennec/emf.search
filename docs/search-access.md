@@ -47,13 +47,9 @@ Bnd workspace, same conventions as `emf.persistence-jpa` (`cnf/`, bnd libraries,
 reusable CI workflows from `eclipse-fennec/.github`).
 
 **Lucene comes from the OSGi-repackaged `org.geckoprojects.libraries:org.apache.lucene.*`
-bundles** built in the `org.gecko.libraries` workspace — and the target is **Lucene 10**.
-That workspace is being moved to 10 right now (status 2026-08-05), so the concrete version
-is pinned in `cnf/ext/central.mvn` only once the snapshot is on Central; until then S1
-(#4) cannot add the coordinates. What is published today is *not* the target and is listed
-only for orientation: `org.geckoprojects.libraries` 9.12.0 (release, Maven Central) and
-9.12.3-SNAPSHOT (Central snapshots), plus the older `org.geckoprojects.search` set up to
-9.11.1 that `org.gecko.search` used.
+bundles** built in the `org.gecko.libraries` workspace, pinned in `cnf/ext/central.mvn` at
+**10.5.0-SNAPSHOT** (Central snapshots, published 2026-08-05). They supersede the older
+`org.geckoprojects.search` set up to 9.11.1 that `org.gecko.search` used.
 
 Bundles available in that workspace: `core` (core + analysis-common),
 `analysis.icu/morfologik/opennlp/phonetic`, `backward.codecs`, `codecs`, `classification`,
@@ -67,9 +63,9 @@ Spatial4j/JTS shapes (WKT parsing) and geo3d, so S9 confirms this before pulling
 KNN vector search (wave 2) also needs no extra bundle — it is in `core`.
 
 **Lucene 10 caveat for this document:** the design (§5, §7) is version-independent, but the
-concrete class and method names cited here were written against the 9.x API and must be
-re-verified against 10 when the bundles land — that check belongs to S1. Lucene 10's Java 21
-baseline matches the workspace (`javac.source/target: 21`), so that part is free.
+concrete class and method names cited here were written against the 9.x API and are still to
+be re-verified against 10 — that check belongs to S1 (#4) and has not run yet. Lucene 10's
+Java 21 baseline matches the workspace (`javac.source/target: 21`), so that part is free.
 
 | Bundle | Content |
 |---|---|
