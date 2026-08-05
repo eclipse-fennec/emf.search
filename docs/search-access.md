@@ -416,9 +416,9 @@ why, with a serialized bracket as the documented upgrade path (S22, #30).
 **Both of those refusals currently have nowhere to be declared.** `QueryFeature` is
 query-side only; there is no command vocabulary in the capability model, so an unsupported
 command can only throw. That is a gap in the intermediate layer, not in this backend, and it
-is filed as #31 to be raised in `emf.persistence-jpa` — including the sharper question the
-materialization case forces: whether a capability answer may be *per EClass* rather than per
-backend.
+is filed as #31 here and raised upstream as **emf.persistence-jpa#114** — including the
+sharper question the materialization case forces: whether a capability answer may be *per
+EClass* rather than per backend.
 
 ## 6. Suggest — own API, shared machinery
 
