@@ -1,0 +1,424 @@
+# Search access — blueprint for the `emf.search` repository
+
+**Status:** working blueprint (2026-08-05, feature scope extended the same day — §7
+feature radar, waves). The repository decision, roles and the persistence-side
+prerequisites are settled (discussion 2026-08-05 in `emf.persistence-jpa`); the task
+breakdown in §8 is cut as GitHub issues (#1 foundation, #2 wave-1 features, #3 gated/wave 2 —
+see the issue number on each task). Companions (all in
+`eclipse-fennec/emf.persistence-jpa`, `docs/unified-persistence/`):
+`query-ir-redesign.md` (Expression IR, capability discipline),
+`query-processor-spi.md` (per-backend translation), `timeseries-access.md` (stream
+store — the v2 index feed), `geo-vocabulary.md` (emf.persistence-jpa#101, concept round
+pending). Prerequisites landed there: emf.persistence-jpa#99 (TCK as consumable API),
+emf.persistence-jpa#100 (SCORE vocabulary).
+
+## 1. Mission
+
+Lucene as a **capability-honest search backend** for the Fennec persistence stack —
+replacing the retired `org.gecko.search` architecture, whose pain points define the
+anti-goals:
+
+| gecko.search (old) | emf.search (new) |
+|---|---|
+| consumer hand-builds `IndexContextObject`s per ADD/MODIFY/REMOVE | index maintenance behind the `Resource`/store contract, v2 fed by the change stream |
+| EObject→Document mapping hand-coded per use case (`ContextObjectFactory`) | declarative mapping model (`esearch.ecore`), processor pipeline like eorm |
+| queries are raw Lucene `Query` objects, results are raw `Document`s | canonical query IR in, EObjects/rows out — `QueryProcessor` SPI, capability-refused where Lucene cannot |
+| per-index manual DS wiring (service + analyzer + descriptor) | one whiteboard configuration per index unit (the `JPAUnit`/`mongo.database.alias` pattern) |
+| suggest as a parallel second stack | suggest as one module with its own API, sharing model + lifecycle |
+
+Two usage roles, both first-class:
+
+- **Standalone index** ("only a Lucene index, nothing else"): the backend is a
+  `QueryableResource`/`PersistenceResource` — documents are saved into and queried from
+  the index directly. Honest contract limits: NRT visibility instead of
+  read-your-writes transactions, reference contracts largely refused.
+- **Secondary index** next to JPA/Mongo (the dominant case): v2, fed by the CHANGELOG
+  stream of the timeseries/stream stack (`timeseries-access.md` cut 1) — `append` →
+  incremental index update, `replay` → rebuild from scratch; query routing sends
+  full-text predicates to Lucene and materializes hits via keyed finds in the primary
+  store.
+
+Consumer motivation: OData `$search` (unserved today), model-atlas search, plus every
+consumer that needs ranked full-text over EMF models.
+
+## 2. Repository layout
+
+Bnd workspace, same conventions as `emf.persistence-jpa` (`cnf/`, bnd libraries,
+reusable CI workflows from `eclipse-fennec/.github`). Lucene 9.x via OSGi-repackaged
+bundles — **for now** the `org.geckoprojects.libraries:org.apache.lucene.*` bundles
+(Lucene 9.12.3) built in the `org.gecko.libraries` workspace, which supersede the older
+`org.geckoprojects.search:org.apache.lucene.*` 9.12.0 set that `org.gecko.search` used.
+Available there: `core` (core + analysis-common), `analysis.icu/morfologik/opennlp/
+phonetic`, `backward.codecs`, `codecs`, `classification`, `expressions`, `facet`,
+`grouping`, `highlighter`, `join`, `memory`, `misc`, `monitor`, `queries`, `queryparser`,
+`spatial` (spatial3d + spatial-extras), `suggest`, `benchmark`. Wave 1 (§7) needs `core`,
+`queries`, `queryparser`, `facet`, `suggest`, `highlighter`, `join`, `grouping` and
+`memory`; wave 2 adds `analysis.*`, `monitor` and `classification`. **`spatial` is
+probably not needed for geo** — `LatLonPoint`/`LatLonDocValuesField`/`LatLonShape` and
+polygon queries live in `core`; the `spatial` bundle is only required for Spatial4j/JTS
+shapes (WKT parsing) and geo3d, so S9 confirms this before pulling it in. KNN vector
+search (wave 2) also needs no extra bundle — it is in `core`. Where the Lucene bundles
+are sourced from long term is an open point, not a design constraint.
+
+| Bundle | Content |
+|---|---|
+| `org.eclipse.fennec.search.model` | `esearch.ecore` — the mapping metamodel (§4), generated EMF code. Plain EMF, no OSGi. |
+| `org.eclipse.fennec.search.lucene` | the backend **as a plain-Java library**: index lifecycle, mapping processors, `QueryProcessor` (`backend=lucene`), highlighting (§6.1) and similarity (§6.2) — the latter two need the live searcher plus the executed query, so they stay here instead of becoming siblings of `search.suggest`. Constructible from ordinary code, no framework required. |
+| `org.eclipse.fennec.search.lucene.osgi` | the thin OSGi layer: `Resource.Factory` component, ConfigAdmin factory config per index unit, whiteboard publication (the `mongo.database.alias` pattern), analyzer/provider services |
+| `org.eclipse.fennec.search.lucene.osgi.tests` | OSGi integration tests (`testOSGi`) — wiring only, see §2.2 |
+| `org.eclipse.fennec.search.suggest` (+ `.osgi`, `.osgi.tests`) | suggest/completion as its own API + impl (§6) — deliberately NOT query-IR vocabulary; same plain-core/thin-OSGi split |
+| `org.eclipse.fennec.search.index` | v2: stream-fed secondary-index maintenance + query routing (§1) — depends on `persistence.stream`, starts only after its P1 |
+| `org.eclipse.fennec.search.tck` | TCK binding: consumes the published `org.eclipse.fennec.persistence.tck` (emf.persistence-jpa#99) + search-specific cases. The TCK is plain JUnit 5, so the binding runs in the normal `test` task. |
+| `org.eclipse.fennec.search.workspace.library` | bnd workspace library (`-library: fennecSearch`) publishing these bundles plus their Maven closure, mirroring `fennecUtil`/`fennecPersistence` |
+
+### 2.1 Related repositories
+
+| Repository | Role for `emf.search` |
+|---|---|
+| `eclipse-fennec/emf.persistence-jpa` | the contracts consumed here (§3) and the home of the design companions listed at the top. Also the reference implementation to imitate: `persistence.orm`'s processor/mapping-context pipeline (§4), the Mongo backend's capability refusals and 3VL negation push-down (§5.1). |
+| `eclipse-fennec/emf.osgi` | the EMF-in-OSGi runtime the backend plugs into — `ResourceSet`/`ResourceSetFactory` and `EPackage`/`Resource.Factory` as OSGi services instead of the static EMF registries, plus the EMF codegen used for `esearch.ecore` (S2). |
+| `eclipse-fennec/emf.codec` | EMF (de)serialization framework. Two precedents: its `_type` discriminator (`TypeConfig`/`ConfigProperty.TYPE_KEY`, default `_type`) for the type field in §5, and its config-resolution/annotation-scope model for how §4 mapping declarations are attached and overridden. |
+| `geckoprojects-org/org.gecko.search` | the retired predecessor whose pain points are the §1 anti-goals. Worth mining, not copying: the Lucene lifecycle mechanics (`LuceneIndexImpl`/`DefaultLuceneIndex` writer + `SearcherManager` NRT handling, `CommitCallback`, the prototype-scoped searcher service factory, the suggest module's `SuggestionService`). What is replaced wholesale: `IndexContextObject`/`ContextObjectFactory` as the consumer-facing API, hand-coded `EObject`→`Document` mapping, raw `Query` in / raw `Document` out. |
+| `geckoprojects-org/org.gecko.libraries` | the OSGi-repackaged Lucene bundles (§2). |
+
+### 2.2 Engineering conventions
+
+**OSGi-ready, OSGi-optional.** The stack targets OSGi, but every piece must work without
+it. Concretely:
+
+- No `org.osgi.*` import in a core bundle. Index units, analyzer registries, embedding
+  providers and mapping registries are configured through plain constructors/builders and
+  config records; DS `@Designate`/`@ObjectClassDefinition` types map onto those records in
+  the `.osgi` bundle, they do not replace them.
+- Every lookup that OSGi answers with a whiteboard needs a non-OSGi answer too — a
+  programmatic registry argument, or `ServiceLoader` where a global default is genuinely
+  wanted. The precedent is `MetadataServiceFactory.create()` in `emf.osgi`: an explicit
+  bootstrap for plain Java next to the service-driven one for OSGi.
+- Conversely, plain-Java design must not break dynamics: no static singletons or
+  `EPackage.Registry.INSTANCE` reliance that a second index unit or a bundle restart would
+  corrupt. State belongs to the unit instance.
+- `.osgi` bundles inline their core packages (the emf.util pattern) so a consumer needs
+  one bundle at runtime.
+
+**Test strategy: plain JUnit as far as it goes.** Mapping, translation, 3VL negation,
+block-join semantics, facets, suggest, highlighting, scoring and the whole TCK binding are
+plain JUnit 5 (+ AssertJ, Mockito) against an in-memory `ByteBuffersDirectory` or
+`MemoryIndex` — they need no framework and stay fast. `testOSGi` is reserved for what only
+a running framework can prove: component activation and configuration, `Resource.Factory`
+discovery through a Fennec `ResourceSet`, whiteboard binding of multiple units, service
+dynamics on unit removal, and resolvability of the bundle set. A rule of thumb for review:
+if an OSGi test asserts *search behaviour* rather than *wiring*, the assertion belongs in
+a plain-JUnit test. Note the known `.osgi.tests` gotcha from emf.util — the per-project
+`build.gradle` must point `testOSGi` at the resolved bndrun.
+
+**Documentation is part of the task, not a follow-up.** Every issue below delivers
+hand-written markdown in `docs/` (the source of truth) and, when the page is user-facing,
+an entry in the `docs-site` allowlist so it appears in the published VitePress site. The
+emf.util wiring is the template: `docs/*.md` → `docs-site/guides.mjs` (`GUIDES`/
+`EXAMPLES`) → `sync-guides.mjs` copies the allowlisted pages before each build and
+rewrites links to unpublished internal docs (like this blueprint) to GitHub blob URLs.
+Internal design docs stay in `docs/` unpublished — that is a feature, not an omission.
+
+**CI is the reusable Fennec pipeline.** The workflows in `.github/workflows` delegate to
+the pinned reusables in `eclipse-fennec/.github` (verify / release / docs / scorecard /
+dependency-review); the docs job publishes the VitePress site. Repo-local CI logic is
+avoided — if something is missing, it is fixed in the reusable, not forked here.
+
+## 3. Dependency contract with emf.persistence-jpa
+
+One direction only: `emf.search` consumes **published** artifacts (bnd repos / DIM
+snapshots; the `fennecPersistence` workspace-library pattern, see the
+emf.persistence-jpa README §consuming). Everything below is API there as of 2026-08-05:
+
+- Expression IR + `query.model`, the `QueryProcessor` SPI, `QueryCapabilities`/
+  `QueryFeature`, validation (`QueryValidator`, `ExpressionAnalyzer`).
+- `PersistenceResource`/`QueryableResource` contracts (`persistence`, `persistence.query`).
+- The TCK as subclass API with bundled model fixtures (emf.persistence-jpa#99): extend
+  `AbstractPersistenceTCK`, implement `setUpBackend`/`createBackendResourceSet`/`uriFor`,
+  declare variance via the `supports*()` hooks.
+- `QueryFeature.SCORE` + the `Score` expression (emf.persistence-jpa#100) — the first
+  vocabulary item that exists *for* this repo.
+- Geo vocabulary lands there after the emf.persistence-jpa#101 concept round;
+  `emf.search` implements it in G-P3 of `geo-vocabulary.md`.
+
+**Ground rule:** missing query vocabulary is never invented in `emf.search` — it goes
+to `emf.persistence-jpa` as an IR issue (the SCORE/geo route). Protocol- or
+engine-specific machinery (analyzers, suggest, highlighting) stays here.
+
+## 4. The mapping model (`esearch.ecore`) — "eorm for the index"
+
+Declarative EClass→index mapping, processed by a pipeline in the style of
+`persistence.orm`'s `Processor`/`MappingContext`:
+
+- **Index level** (per EClass): index name, default analyzer, NRT refresh policy,
+  commit policy.
+- **Field level** (per EAttribute): indexed/stored/tokenized, per-field analyzer,
+  DocValues (sorting/faceting), facet dimension, boost. Absent a declaration, a
+  convention default applies (id → StringField stored, strings → TextField, numerics →
+  point + DocValues) so small models need no mapping at all.
+- **References**: `EMBED` (denormalize the target's mapped fields under a prefix —
+  containment-shaped, the Mongo-embedding analogue), `NESTED` (index the target as a
+  child document in the parent's block, queried via block join — §5.2, the option that
+  keeps per-child predicate correlation that `EMBED` loses) or `ID_ONLY` (store the
+  target id; no joins — queries over `ID_ONLY` references are capability-refused exactly
+  like Mongo's cross-document paths, diagnostic code analog `CODE_NON_EMBEDDED_PATH`).
+- **Rank signals** (per EAttribute): `FeatureField` declaration for static
+  popularity/recency signals that shape the score without leaking arithmetic into the
+  query IR (§5.3).
+- **Interval attributes**: a pair of numeric/temporal features declared as one
+  `LongRange`/`DoubleRange` field, so validity intervals get real
+  `INTERSECTS`/`WITHIN`/`CONTAINS` semantics instead of two hand-written comparisons.
+- **Materialization** (per index): whether the full EObject is stored in the index —
+  serialized through `emf.codec` — so role 1 can return complete objects without a
+  primary store, and whether term vectors are stored (highlighting/similarity cost).
+- **Index-level ordering**: an optional index sort (`IndexWriterConfig#setIndexSort`)
+  over a DocValues field, enabling early termination for the dominant sort — the
+  time-ordered case of the v2 feed.
+- Registration on the metadata/aspect plane per EPackage (the pattern shared with
+  TrackingConfig/IngestMapping in `timeseries-access.md` §6 — one registry plane).
+
+Deferred to wave 2 but reserved in the metamodel so it does not become a breaking
+change: **vector fields** (source features, embedding-provider id, dimensions, similarity
+function, embedding-model version) — §7.
+
+## 5. Query translation — capability profile
+
+`QueryProcessor` with `backend=lucene`, IR → Lucene `Query`:
+
+| Declared | Translation |
+|---|---|
+| WHERE_EQ / IN | `TermQuery` / `TermInSetQuery` (keyword fields), point queries (numerics) |
+| WHERE_COMPARISON / WHERE_RANGE | point range queries; DocValues where unindexed |
+| WHERE_STRING_MATCH (+CASE_INSENSITIVE) | contains/startsWith/endsWith → wildcard/prefix/regexp on keyword fields; analyzed match on text fields; LIKE → `RegexpQuery` via the shared like→regex translation |
+| IS_NULL | `FieldExistsQuery` (negated for isNull) |
+| LOGICAL_AND/OR/NOT | `BooleanQuery`; **NOT via negation push-down, not bare MUST_NOT** (§5.1) |
+| SORT / LIMIT / SKIP | `Sort` over DocValues; `searchAfter`/`TopDocs` paging |
+| SCORE (emf.persistence-jpa#100) | relevance sort (`Sort.RELEVANCE`) and projected score column |
+| COUNT | `IndexSearcher.count` |
+| GROUP_BY subset + AGG_COUNT | facets (taxonomy or SSDV) — declared only for the shapes facets actually answer (single group key, count aggregate); everything else refused |
+| GROUP_BY with representative rows | `lucene-grouping` (`GroupingSearch`) — the shape facets cannot answer: top-N documents *per* group rather than counts |
+| EXISTS / FOR_ALL over `NESTED` references | block join (§5.2) — `ToParentBlockJoinQuery` for EXISTS, negation-of-EXISTS for FOR_ALL; still refused over `EMBED` (no per-child correlation) and `ID_ONLY` |
+| Geo predicates (emf.persistence-jpa#101) | `LatLonPoint`/`LatLonShape` queries from `core` — distance, bbox, polygon; sort by distance via `LatLonDocValuesField#newDistanceSort` |
+| Interval predicates over declared range fields | `LongRange`/`DoubleRange` queries (`INTERSECTS`/`WITHIN`/`CONTAINS`) |
+| TYPE_CHECK / TYPE_FILTER | type discriminator field (the codec `_type` analogue, written by the mapper) |
+
+Refused (capability, not error): EXISTS/FOR_ALL over `EMBED`/`ID_ONLY` references,
+FIELD_TO_FIELD, ARITHMETIC/functions pushdown, PIPELINE beyond the facet/grouping subset,
+EXPAND, and joins other than the index-time block join of §5.2 (no term joins across
+index units, no equi-joins). The refusals are the honesty of the backend — consumers
+route those to the primary store (role 2) or restructure.
+
+### 5.1 The 3VL lesson carries over
+
+Lucene's `MUST_NOT` is two-valued and matches documents where the field is missing —
+exactly Mongo's `$nor`/`$ne` situation (emf.persistence-jpa#97). The same recipe
+applies verbatim: negation push-down (De Morgan, operator inversion),
+`FieldExistsQuery` as the non-null guard on negated comparisons/IN/matches,
+null-poisoned comparisons never match, negated or not. Quantifier duality was n/a in the
+first cut and becomes relevant with §5.2: over `NESTED` references, ¬∃ ↔ ∀¬ has to be
+handled at the block-join boundary — a parent with *no* matching child and a parent with
+no children at all are different answers, and `ToParentBlockJoinQuery` inside a
+`MUST_NOT` conflates them unless the parent filter guards it. The TCK cases pinning the
+scalar part (`queryNotOverNullableComparisonExcludesNullRows`,
+`queryNegationDistributesThreeValuedOverJunctions`) run against the binding via the
+published TCK — they are the acceptance test for this section; the nested-quantifier
+cases are S11's own.
+
+### 5.2 Block joins — the one join that is honest
+
+`lucene-join`'s block join is not a query-time join: parent and children are written as
+one contiguous document block, so the "join" is an index-time fact. That is exactly the
+shape of EMF containment, which is why `NESTED` (§4) is worth having next to `EMBED`:
+`EMBED` flattens a multi-valued target into parallel field values and therefore loses
+correlation (a query for `child.a = 1 AND child.b = 2` matches an object whose *different*
+children satisfy the two predicates); `NESTED` keeps it. Consequences to accept
+deliberately:
+
+- **Atomicity**: a block is only replaceable as a whole. Any change to one child
+  reindexes the parent and all its children (`IndexWriter#updateDocuments`). For
+  containment that is defensible — the parent owns the children anyway — but it makes
+  partial updates impossible and interacts with the v2 stream feed (a CHANGELOG entry for
+  one child becomes a parent-scoped reindex).
+- **Ordering**: children must precede the parent in the block, and the parent filter must
+  be a reliable `BitSetProducer`; the mapper owns both invariants.
+- **Scope**: only containment. Non-containment references stay `ID_ONLY`/refused —
+  cross-block joins would reintroduce exactly the query-time join this section is not
+  offering.
+
+Because it changes the document *shape*, the `NESTED` decision belongs in S4 even though
+the query side lands in S11 — retrofitting blocks onto a flat index is a reindex of
+everything.
+
+### 5.3 Score shaping without arithmetic pushdown
+
+Static rank signals (popularity, recency, a curated boost) are declared in the mapping
+model as `FeatureField`s and applied via `FeatureField#newSaturationQuery`/
+`newLogQuery`. This deliberately keeps the ARITHMETIC refusal intact: the consumer never
+expresses a scoring formula in the IR, it selects declared signals. `lucene-expressions`
+(JavaScript compiled over DocValues) would be the general escape hatch and is **not**
+part of the plan — it is a code-execution surface driven by query input, and it would
+re-open the door the refusal closes.
+
+## 6. Suggest — own API, shared machinery
+
+Suggest/completion (Lucene `suggest` module: analyzing/fuzzy suggesters, weighted
+completion fields) is **not** query-IR vocabulary — it is its own small service API in
+`search.suggest`: suggestion sources declared in the mapping model (field + weight +
+context), built from the same index lifecycle, exposed as a DS service per index unit.
+The old stack's separate-suggest-stack mistake is avoided by sharing the mapping model
+and lifecycle, not by forcing suggest through the query IR.
+
+### 6.1 Highlighting
+
+Same reasoning, different coupling: the `UnifiedHighlighter` needs the executed query and
+the live searcher, so highlighting lives inside `search.lucene` rather than in a sibling
+bundle — but it gets its own small API instead of being pushed into the query IR.
+
+The open contract question is where highlights *go*. The result contract is "EObjects or
+rows out", and an EObject has no slot for per-hit passages. Three options, to be decided
+in S12: (a) a search-local result type that carries `EObject` + score + highlights,
+returned by a `search.lucene`-specific entry point; (b) highlights as projected columns in
+the row shape, which needs per-hit metadata in the IR result model — an
+`emf.persistence-jpa` issue; (c) a side-channel map keyed by object id. Option (a) is the
+default recommendation: it keeps the ground rule of §3 intact (no search-only vocabulary
+in the shared IR) and mirrors what suggest already does.
+
+### 6.2 Similarity (`MoreLikeThis`)
+
+"Objects similar to this one" without embeddings — `lucene-queries`' `MoreLikeThis` over
+term statistics of the already-indexed corpus. Exposed as a search-local API for the same
+reason as 6.1, and worth having *before* vectors: it is the honest baseline that makes the
+wave-2 KNN work measurable, and it costs almost nothing beyond declaring which fields
+carry term vectors (§4).
+
+## 7. Feature radar
+
+The Lucene surface beyond §5, split into the waves agreed on 2026-08-05. "Needs IR" marks
+what cannot be built here alone because it requires query vocabulary in
+`emf.persistence-jpa` (§3 ground rule).
+
+**Wave 1** — part of the v1 line, tasks in §8:
+
+| Feature | Bundle | Needs IR? | Note |
+|---|---|---|---|
+| Block join over containment | `join` | no — uses existing EXISTS/FOR_ALL | §5.2; document-shape decision belongs in S4 |
+| Geo predicates + distance sort | `core` | **yes** — emf.persistence-jpa#101, concept round still pending | now a wave-1 blocker, not a late add-on (§8) |
+| Facets | `facet` | no — GROUP_BY/AGG_COUNT subset | taxonomy vs. SSDV decision in S7 |
+| Suggest | `suggest` | no — own API (§6) | |
+| Highlighting | `highlighter` | depends on the result-carrier decision (§6.1) | |
+| Grouping with representatives | `grouping` | likely — "top-N per group" is a result shape, not a predicate | clarify against the pipeline vocabulary before implementing |
+| `MoreLikeThis` | `queries` | no — own API (§6.2) | |
+| `FeatureField` rank signals | `queries` | no — declared in the mapping model | §5.3 |
+| Interval/range fields | `core` | **yes** — interval semantics are new vocabulary | fallback without IR: two scalar comparisons, correct but slower and less expressive |
+| Stored EObject via `emf.codec` | `core` | no | makes role 1 self-sufficient |
+| Index sorting + early termination | `core` | no | pairs with the existing `searchAfter` paging |
+| Live commit data (checkpointing) | `core` | no | the stream offset lives in the Lucene commit — the mechanism S10 needs to resume honestly |
+| `MemoryIndex` test harness | `memory` | no | single-document index; folded into S4's definition of done rather than its own issue |
+
+**Wave 2** — reserved, not scheduled:
+
+| Feature | Why it waits |
+|---|---|
+| KNN / vector search + hybrid retrieval | Biggest single change: needs an `EmbeddingProvider` SPI (indexing becomes slow and fallible), new IR vocabulary for similarity search with a k and a prefilter, and a decision whether the IR carries a vector or a text to embed. KNN is a top-k retriever, not a predicate — it does not compose with `BooleanQuery` the way `WHERE_EQ` does, and the capability must say so. Practical constraints: 1024 dimensions by default (a custom `KnnVectorsFormat`/codec is required for 1536-dim models), and an embedding-model change is a full reindex, so the model version is index metadata. The metamodel slot is reserved in §4 so this stays additive. RAG shape, if it comes: chunk-as-child-document + block join (§5.2) for parent rollup, BM25 and KNN fused by hand — Lucene 9.x has no native RRF. |
+| Standing queries / reverse search (`monitor`) | Structurally the best fit in the whole list — a registered query is an Expression IR EObject, so it is persistable, versionable and transportable over the typed-event/pushstream stack — but it only pays off together with the v2 change feed (S10), and it is a second execution model (documents pass queries) that deserves its own concept round. |
+| Analysis-chain enrichment (`analysis.icu`, `.phonetic`, `.opennlp`, synonym graphs) | Index-time NLP (NER into facet fields, lemmatization) and phonetic matching are per-domain decisions, not backend decisions. Attractive Fennec angle for later: maintain the thesaurus/synonym set *as an EMF model* on the same registry plane as the mapping model. |
+| `classification` | Auto-tagging from an existing index; nearly free once the index exists, but no consumer asks for it yet. |
+
+Explicitly out for now: **`lucene-replicator`** (multi-node read replicas) and
+`lucene-expressions` (§5.3).
+
+## 8. Task breakdown (proposed issue set)
+
+Issue-sized in the spirit of the emf.persistence-jpa #76–#84 wave. S1–S10 keep the IDs
+from the first cut; S11–S19 are the wave-1 additions from §7.
+
+**Definition of done, for every task** (§2.2): plain-JUnit coverage of the behaviour;
+`testOSGi` only where the assertion is about wiring; a markdown page in `docs/` plus its
+`docs-site` allowlist entry when the page is user-facing; green reusable CI.
+
+**Foundation (strictly sequential — each needs the previous):**
+
+1. **S1 (#4) — workspace bootstrap**: bnd workspace (cnf, libraries, `fennecPersistence`
+   consumption, Lucene OSGi bundles), CI via the reusable workflows, license/dash setup,
+   and the `docs-site` scaffolding (VitePress + `guides.mjs` allowlist + `sync-guides.mjs`,
+   the emf.util wiring) so every later task has somewhere to publish. Also replaces the
+   `emf.util` leftovers in `docs/`.
+2. **S2 (#5) — `esearch.ecore` + codegen** (`search.model`): the §4 metamodel — including
+   `NESTED`, rank signals, interval attributes, materialization and index-sort
+   declarations, and the *reserved* (unimplemented) vector-field slot — genmodel,
+   conventions documented.
+3. **S3 (#6) — index lifecycle** (`search.lucene`): unit configuration (directory path,
+   analyzer registry) as DS factory config, `IndexWriter`/`SearcherManager` NRT
+   lifecycle, whiteboard publication per unit (the `mongo.database.alias` pattern).
+4. **S4 (#7) — mapping processors + `Resource.Factory`**: EObject→Document via the §4 model
+   (processor pipeline), save/delete/load-by-id through the `PersistenceResource`
+   contract, honest contract notes (NRT visibility, id required). **Carries the block
+   decision of §5.2** — the document shape must accommodate parent/child blocks even
+   though the query side is S11. `MemoryIndex`-based mapping tests are part of the
+   definition of done.
+5. **S5 (#8) — `QueryProcessor` + TCK binding**: §5 translation including the 3VL negation
+   push-down, capability declaration, `search.tck` binding extending the published
+   `AbstractPersistenceTCK` with the `supports*()` variance + search-specific cases.
+6. **S11 (#9) — block join over containment** (§5.2): `NESTED` mapping, block writes
+   (`updateDocuments`), `ToParentBlockJoinQuery` for EXISTS/FOR_ALL, capability upgrade
+   from refused to supported-for-containment, reindex semantics documented. Prioritised
+   directly after S5 because it changes the index, not just the translation.
+
+**Wave 1, parallelizable after S5 (S11 first where it touches the document shape):**
+
+7. **S6 (#10) — SCORE**: relevance sort + projected score (emf.persistence-jpa#100
+   vocabulary), ordinal conformance cases (higher score sorts first on constructed
+   corpora).
+8. **S7 (#11) — facets**: the GROUP_BY/AGG_COUNT subset of §5, taxonomy vs. SSDV decision.
+9. **S8 (#12) — suggest** (`search.suggest`): §6 API + mapping-model extension + impl.
+10. **S9 (#13) — geo**: `GeoWithin`/`GeoDistance` over `LatLonPoint`/`LatLonShape` from `core`
+    plus distance sort — G-P3 of `geo-vocabulary.md`. **Now a wave-1 item, so
+    emf.persistence-jpa#101 becomes a wave-1 blocker**: the concept round there has to be
+    scheduled, not awaited. S9 also confirms whether the `spatial` bundle is needed at all
+    (§2).
+11. **S12 (#14) — highlighting**: `UnifiedHighlighter` + the result-carrier decision of §6.1.
+12. **S13 (#15) — similarity**: `MoreLikeThis` API (§6.2), term-vector declaration in the
+    mapping model.
+13. **S14 (#16) — rank signals**: `FeatureField` declaration and saturation/log queries (§5.3).
+14. **S15 (#17) — interval fields**: `LongRange`/`DoubleRange` mapping and
+    `INTERSECTS`/`WITHIN`/`CONTAINS` translation. **Blocked on a new IR issue** for
+    interval vocabulary in `emf.persistence-jpa` — to be raised now; the two-scalar
+    fallback ships meanwhile.
+15. **S16 (#18) — self-sufficient hits**: full EObject stored in the index via `emf.codec`, so
+    role 1 materializes without a primary store.
+16. **S17 (#19) — sorted index**: `setIndexSort` for the dominant sort order, early
+    termination, `searchAfter` paging hardened against it.
+17. **S18 (#20) — checkpointing**: `IndexWriter#setLiveCommitData` carrying the applied change
+    offset; recovery/resume semantics tested. Prerequisite for an honest S10.
+18. **S19 (#21) — grouping with representatives**: `GroupingSearch` for top-N per group.
+    Needs the result-shape question of §7 answered against the pipeline vocabulary first.
+
+**Gated (starts when its prerequisite lands):**
+
+19. **S10 (#22) — v2 secondary index** (`search.index`, after `timeseries-access.md` P1):
+    stream-fed maintenance (append→update, replay→rebuild), query routing full-text →
+    Lucene → keyed finds, consistency notes (index lag is visible and documented). Builds
+    on S18 for resume and interacts with S11's parent-scoped reindex.
+
+**Wave 2** (§7, reserved — no issues cut yet): KNN/vector search + hybrid retrieval,
+standing queries via `monitor`, analysis-chain enrichment, `classification`.
+
+Issues to raise in `emf.persistence-jpa` for wave 1: interval vocabulary (S15), the
+result shape for grouping representatives (S19), possibly per-hit metadata if §6.1
+lands on option (b) — plus the escalation of #101 for S9.
+
+## 9. Non-goals
+
+- No Elasticsearch/OpenSearch backend — this is embedded Lucene; a remote search
+  engine would be a different backend with its own concept.
+- No query-IR forks or search-only vocabulary in this repository (§3 ground rule).
+- No transactional guarantees beyond Lucene's commit semantics — the standalone role
+  documents NRT visibility instead of pretending otherwise.
+- v1 indexes a single EPackage universe per unit; cross-unit federation is out of scope.
+- **No replication.** Multi-node read replicas (`lucene-replicator`) stay out for now —
+  a single index unit is owned by a single writer. This also keeps the bundle out of the
+  `org.gecko.libraries` set, where it does not currently exist.
+- No query-time joins beyond the index-time block join of §5.2, and no scoring formulas
+  from query input (`lucene-expressions`, §5.3).
+- No embedding computation in this repository even in wave 2 — vectors come from an
+  `EmbeddingProvider` service, they are not produced here.
