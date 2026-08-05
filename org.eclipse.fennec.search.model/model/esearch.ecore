@@ -563,8 +563,16 @@
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="One configuration entry of a custom analyzer."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="key" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="value" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="key" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Parameter name, as understood by the resolved analyzer factory."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="value" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Parameter value as a string; conversion is the factory's job."/>
+      </eAnnotations>
+    </eStructuralFeatures>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="FieldUse">
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
@@ -627,6 +635,9 @@
     </eLiterals>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="RefreshMode">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="When index writes become visible to searchers."/>
+    </eAnnotations>
     <eLiterals name="NEAR_REAL_TIME">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Searchers are refreshed on an interval; writes become visible within it."/>
@@ -644,15 +655,49 @@
     </eLiterals>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="FacetKind">
-    <eLiterals name="SORTED_SET"/>
-    <eLiterals name="TAXONOMY" value="1"/>
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Facet implementation. The choice has a unit-level consequence, so it is not purely a field concern."/>
+    </eAnnotations>
+    <eLiterals name="SORTED_SET">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Sorted-set doc values. Needs no side index and therefore nothing extra to keep in sync — the default."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="TAXONOMY" value="1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Taxonomy index. Supports hierarchical dimensions, at the price of a second directory with its own lifecycle and commit."/>
+      </eAnnotations>
+    </eLiterals>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="NumericKind">
-    <eLiterals name="AUTO"/>
-    <eLiterals name="INT" value="1"/>
-    <eLiterals name="LONG" value="2"/>
-    <eLiterals name="FLOAT" value="3"/>
-    <eLiterals name="DOUBLE" value="4"/>
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Point encoding of a numeric or temporal attribute."/>
+    </eAnnotations>
+    <eLiterals name="AUTO">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Derive the encoding from the attribute's EDataType."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="INT" value="1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="32-bit integer point."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="LONG" value="2">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="64-bit integer point."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="FLOAT" value="3">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="32-bit floating-point point."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="DOUBLE" value="4">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="64-bit floating-point point."/>
+      </eAnnotations>
+    </eLiterals>
     <eLiterals name="DATE" value="5">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Temporal value encoded as epoch milliseconds."/>
@@ -660,37 +705,129 @@
     </eLiterals>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="RangeKind">
-    <eLiterals name="AUTO"/>
-    <eLiterals name="LONG" value="1"/>
-    <eLiterals name="DOUBLE" value="2"/>
-    <eLiterals name="DATE" value="3"/>
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Encoding of an interval field."/>
+    </eAnnotations>
+    <eLiterals name="AUTO">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Derive the encoding from the bound attributes' EDataType."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="LONG" value="1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Integer interval."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="DOUBLE" value="2">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Floating-point interval."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="DATE" value="3">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Temporal interval, encoded as epoch milliseconds."/>
+      </eAnnotations>
+    </eLiterals>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="RankFunction">
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="How a rank signal is folded into the score. All three saturate, so a large signal cannot dominate textual relevance."/>
     </eAnnotations>
-    <eLiterals name="SATURATION"/>
-    <eLiterals name="LOG" value="1"/>
-    <eLiterals name="SIGMOID" value="2"/>
+    <eLiterals name="SATURATION">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="value / (value + pivot) — the general-purpose choice. The contribution approaches but never reaches its maximum, so a large signal cannot outweigh textual relevance."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="LOG" value="1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Logarithmic — for signals spanning orders of magnitude, such as view counts."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="SIGMOID" value="2">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Sigmoid with the declared pivot and exponent — a sharper transition around the pivot than SATURATION."/>
+      </eAnnotations>
+    </eLiterals>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="VectorSimilarity">
-    <eLiterals name="COSINE"/>
-    <eLiterals name="DOT_PRODUCT" value="1"/>
-    <eLiterals name="EUCLIDEAN" value="2"/>
-    <eLiterals name="MAXIMUM_INNER_PRODUCT" value="3"/>
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Similarity function for k-nearest-neighbour search. Reserved for wave 2 together with VectorFieldMapping."/>
+    </eAnnotations>
+    <eLiterals name="COSINE">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Angle between the vectors; the usual choice for text embeddings."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="DOT_PRODUCT" value="1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Inner product. Only meaningful for unit-length vectors."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="EUCLIDEAN" value="2">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="L2 distance."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="MAXIMUM_INNER_PRODUCT" value="3">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Inner product without the unit-length requirement."/>
+      </eAnnotations>
+    </eLiterals>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="SuggesterKind">
-    <eLiterals name="ANALYZING"/>
-    <eLiterals name="FUZZY" value="1"/>
-    <eLiterals name="COMPLETION" value="2"/>
-    <eLiterals name="FREE_TEXT" value="3"/>
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Suggester implementation backing a suggestion source."/>
+    </eAnnotations>
+    <eLiterals name="ANALYZING">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Analyzed prefix completion: suggestions match what the analyzer produced, so case and token differences are tolerated."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="FUZZY" value="1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Analyzing completion with edit-distance tolerance, for typo-tolerant input."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="COMPLETION" value="2">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Prefix completion over a weighted FST — the fastest option, and the one that supports filter contexts."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="FREE_TEXT" value="3">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="N-gram based next-word prediction rather than completion of a known entry."/>
+      </eAnnotations>
+    </eLiterals>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="AnalyzerKind">
-    <eLiterals name="STANDARD"/>
-    <eLiterals name="KEYWORD" value="1"/>
-    <eLiterals name="SIMPLE" value="2"/>
-    <eLiterals name="WHITESPACE" value="3"/>
-    <eLiterals name="STOP" value="4"/>
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Which analyzer to use: one of Lucene's built-ins, or CUSTOM to resolve one from the registry by name."/>
+    </eAnnotations>
+    <eLiterals name="STANDARD">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Unicode text segmentation with lowercasing — the default."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="KEYWORD" value="1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The whole value becomes one token."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="SIMPLE" value="2">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Split at non-letters, lowercased."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="WHITESPACE" value="3">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Split at whitespace only, no lowercasing."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="STOP" value="4">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Simple analysis plus stop-word removal; language selects the stop list."/>
+      </eAnnotations>
+    </eLiterals>
     <eLiterals name="CUSTOM" value="5">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Resolved from the analyzer registry by name, with the declared parameters."/>
