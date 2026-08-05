@@ -62,10 +62,12 @@ Wave 1 (§7) needs `core`, `queries`, `queryparser`, `facet`, `suggest`, `highli
 Spatial4j/JTS shapes (WKT parsing) and geo3d, so S9 confirms this before pulling it in.
 KNN vector search (wave 2) also needs no extra bundle — it is in `core`.
 
-**Lucene 10 caveat for this document:** the design (§5, §7) is version-independent, but the
-concrete class and method names cited here were written against the 9.x API and are still to
-be re-verified against 10 — that check belongs to S1 (#4) and has not run yet. Lucene 10's
-Java 21 baseline matches the workspace (`javac.source/target: 21`), so that part is free.
+**Lucene 10 check (done, S3):** the class and method names cited here were written against
+the 9.x API and have been verified against 10.5 — `IndexWriter.setLiveCommitData`,
+`SearcherManager`, `ControlledRealTimeReopenThread`, `updateDocuments` for blocks,
+`FieldExistsQuery`, `LatLonPoint`, `FeatureField`, `LongRange` and `KnnFloatVectorQuery` all
+exist. One deprecation to carry: `new MatchAllDocsQuery()` gives way to
+`MatchAllDocsQuery.INSTANCE`. Lucene 10's Java 21 baseline matches the workspace.
 
 | Bundle | Content |
 |---|---|
@@ -148,7 +150,9 @@ emf.persistence-jpa README §consuming). Everything below is API there as of 202
 
 - Expression IR + `query.model`, the `QueryProcessor` SPI, `QueryCapabilities`/
   `QueryFeature`, validation (`QueryValidator`, `ExpressionAnalyzer`).
-- `PersistenceResource`/`QueryableResource` contracts (`persistence`, `persistence.query`).
+- `PersistenceResource`/`QueryableResource`/`CommandResource` contracts (`persistence`,
+  `persistence.query`) and the write vocabulary of `command.model` — `InsertCommand`,
+  `DeleteCommand` (selector), `UpdateCommand` (selector + ChangeSet template).
 - The TCK as subclass API with bundled model fixtures (emf.persistence-jpa#99): extend
   `AbstractPersistenceTCK`, implement `setUpBackend`/`createBackendResourceSet`/`uriFor`,
   declare variance via the `supports*()` hooks.
@@ -382,6 +386,40 @@ expresses a scoring formula in the IR, it selects declared signals. `lucene-expr
 part of the plan — it is a code-execution surface driven by query input, and it would
 re-open the door the refusal closes.
 
+### 5.4 Write commands
+
+Commands, expressions and the query API are one intermediate layer: the same write
+vocabulary has to work over JPA, Mongo and Lucene, and a backend that cannot honour part of
+it says so through capabilities rather than through a surprise at runtime. `execute(Command)`
+is therefore not an afterthought next to `Resource.save()` — it is how the layer expresses
+writes that are addressed by a *selector* rather than by an object.
+
+| Command | Over Lucene |
+|---|---|
+| `InsertCommand` | map each payload object, `addDocument`/`updateDocument` on its id term |
+| `DeleteCommand` | translate the selector with the `QueryProcessor`, then `deleteDocuments(Query)` — Lucene deletes by query natively, so this maps cleanly |
+| `UpdateCommand` | **conditional**: possible only where the document mapping declares materialization (§4, S16) |
+
+The update case is the interesting one and it is not a matter of effort. Lucene has no
+partial update: changing one field means rewriting the document, so the backend must be able
+to reconstruct it first. With the stored EObject present it can — read, apply the ChangeSet,
+re-map, replace. Without it, the index holds only the mapped fields, and rebuilding from
+those would silently drop everything unmapped. A lossy write is worse than a refusal, so the
+answer without materialization is a refusal (S21, #29).
+
+A write bracket (`CommandResource.begin()`) has no clean Lucene equivalent either.
+`IndexWriter.rollback()` discards *all* uncommitted work in the unit, not the calling
+thread's share of it, so a bracket is only sound while a single writer owns the unit —
+a condition the backend cannot enforce by itself. The v1 recommendation is to refuse and say
+why, with a serialized bracket as the documented upgrade path (S22, #30).
+
+**Both of those refusals currently have nowhere to be declared.** `QueryFeature` is
+query-side only; there is no command vocabulary in the capability model, so an unsupported
+command can only throw. That is a gap in the intermediate layer, not in this backend, and it
+is filed as #31 to be raised in `emf.persistence-jpa` — including the sharper question the
+materialization case forces: whether a capability answer may be *per EClass* rather than per
+backend.
+
 ## 6. Suggest — own API, shared machinery
 
 Suggest/completion (Lucene `suggest` module: analyzing/fuzzy suggesters, weighted
@@ -515,7 +553,13 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
     offset; recovery/resume semantics tested. Prerequisite for an honest S10.
 18. **S19 (#21) — grouping with representatives**: `GroupingSearch` for top-N per group.
     Needs the result-shape question of §7 answered against the pipeline vocabulary first.
-19. **S20 (#28) — computed field values** (§4.2): feature paths and m2x OCL sources as
+19. **S21 (#29) — write commands**: `CommandResource` — insert, delete-by-selector, and
+    update where materialization allows it (§5.4).
+20. **S22 (#30) — write bracket**: what `CommandTransaction` means over Lucene; refusal
+    recommended for v1 (§5.4).
+21. **#31 — command capabilities** (upstream): the capability model has no write
+    vocabulary; to be raised in `emf.persistence-jpa`, with the per-EClass question.
+22. **S20 (#28) — computed field values** (§4.2): feature paths and m2x OCL sources as
     field values, virtual fields, static dependency extraction. Starts after S5, and its
     dependency output is what S10 needs (#22).
 
