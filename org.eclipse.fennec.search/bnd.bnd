@@ -9,6 +9,7 @@ Bundle-Description: Lucene index units for the Fennec search backend — writer 
 
 -buildpath: \
 	org.eclipse.fennec.search.model;version=snapshot,\
+	org.eclipse.fennec.persistence;version=latest,\
 	org.apache.lucene.core;version=latest,\
 	org.osgi.annotation.bundle;version=latest,\
 	org.osgi.annotation.versioning;version=latest
