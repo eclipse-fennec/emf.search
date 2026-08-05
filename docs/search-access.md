@@ -189,6 +189,17 @@ look like, not where they live.
   `VectorFieldMapping`. Absent a declaration, a convention default applies (id → stored
   keyword, strings → text, numerics → point + DocValues) so small models need no mapping at
   all: a declaration is an override, never a prerequisite.
+- **Multiple projections per attribute** (`FieldMapping.subFields`): one attribute usually
+  wants more than one index field — analyzed text for relevance *and* an unanalyzed keyword
+  for equality, sorting and faceting, or a second analyzer for another language. The
+  enclosing mapping is the primary projection and sub-fields hang off it, so
+  primary-vs-secondary is structural rather than a flag; a sub-field inherits the attribute
+  and its name is relative (`title` + `keyword` → `title.keyword`). Because this makes
+  translation ambiguous — which projection answers a given predicate? — `FieldMapping.use`
+  (`MATCH`, `EXACT`, `RANGE`, `SORT`, `FACET`, `HIGHLIGHT`, `SIMILARITY`) declares it where
+  the field kind alone does not: two projections claiming the same use for one attribute are
+  refused at mapping time instead of being resolved by declaration order. Sub-fields
+  multiply index size, so they are always declared, never derived.
 - **References**: `EMBED` (denormalize the target's mapped fields under a prefix —
   containment-shaped, the Mongo-embedding analogue), `NESTED` (index the target as a
   child document in the parent's block, queried via block join — §5.2, the option that

@@ -6,48 +6,17 @@
     importerID="org.eclipse.emf.importer.ecore" complianceLevel="21.0" copyrightFields="false"
     operationReflection="true" importOrganizing="true" oSGiCompatible="true">
   <foreignModel>esearch.ecore</foreignModel>
-  <genPackages prefix="ESearch" basePackage="org.eclipse.fennec.search" disposableProviderFactory="true"
-      ecorePackage="esearch.ecore#/">
-    <genClasses ecoreClass="esearch.ecore#//SearchMappingRegistry">
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//SearchMappingRegistry/units"/>
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//SearchMappingRegistry/analyzers"/>
-    </genClasses>
-    <genClasses ecoreClass="esearch.ecore#//IndexUnitMapping">
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/refresh"/>
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/commit"/>
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/sort"/>
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/documents"/>
-    </genClasses>
-    <genClasses ecoreClass="esearch.ecore#//DocumentMapping">
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/materialization"/>
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/fields"/>
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/references"/>
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/suggestions"/>
-    </genClasses>
-    <genClasses image="false" ecoreClass="esearch.ecore#//FieldMapping">
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//FieldMapping/facet"/>
-    </genClasses>
-    <genClasses ecoreClass="esearch.ecore#//TextFieldMapping"/>
-    <genClasses ecoreClass="esearch.ecore#//KeywordFieldMapping"/>
-    <genClasses ecoreClass="esearch.ecore#//NumericFieldMapping"/>
-    <genClasses ecoreClass="esearch.ecore#//GeoPointFieldMapping"/>
-    <genClasses ecoreClass="esearch.ecore#//RangeFieldMapping"/>
-    <genClasses ecoreClass="esearch.ecore#//RankSignalFieldMapping"/>
-    <genClasses ecoreClass="esearch.ecore#//VectorFieldMapping"/>
-    <genClasses ecoreClass="esearch.ecore#//ReferenceMapping"/>
-    <genClasses ecoreClass="esearch.ecore#//Materialization"/>
-    <genClasses ecoreClass="esearch.ecore#//FacetMapping"/>
-    <genClasses ecoreClass="esearch.ecore#//SuggestSource"/>
-    <genClasses ecoreClass="esearch.ecore#//RefreshPolicy"/>
-    <genClasses ecoreClass="esearch.ecore#//CommitPolicy"/>
-    <genClasses ecoreClass="esearch.ecore#//IndexSort">
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexSort/entries"/>
-    </genClasses>
-    <genClasses ecoreClass="esearch.ecore#//SortEntry"/>
-    <genClasses ecoreClass="esearch.ecore#//AnalyzerDefinition">
-      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//AnalyzerDefinition/parameters"/>
-    </genClasses>
-    <genClasses ecoreClass="esearch.ecore#//AnalyzerParameter"/>
+  <genPackages prefix="ESearch" basePackage="org.eclipse.fennec.search" resource="XMI"
+      disposableProviderFactory="true" fileExtensions="esearch" ecorePackage="esearch.ecore#/">
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//FieldUse">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//FieldUse/MATCH"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//FieldUse/EXACT"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//FieldUse/RANGE"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//FieldUse/SORT"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//FieldUse/FACET"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//FieldUse/HIGHLIGHT"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//FieldUse/SIMILARITY"/>
+    </genEnums>
     <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//ReferenceStrategy">
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//ReferenceStrategy/ID_ONLY"/>
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//ReferenceStrategy/EMBED"/>
@@ -101,5 +70,128 @@
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//AnalyzerKind/STOP"/>
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//AnalyzerKind/CUSTOM"/>
     </genEnums>
+    <genClasses ecoreClass="esearch.ecore#//SearchMappingRegistry">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//SearchMappingRegistry/units"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//SearchMappingRegistry/analyzers"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//IndexUnitMapping">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/ePackage"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//IndexUnitMapping/name"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//IndexUnitMapping/typeField"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//IndexUnitMapping/autoMap"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/defaultAnalyzer"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/refresh"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/commit"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/sort"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/documents"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//DocumentMapping">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/eClass"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//DocumentMapping/typeName"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/idFeature"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//DocumentMapping/autoMap"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/analyzer"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/materialization"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/fields"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/references"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/suggestions"/>
+    </genClasses>
+    <genClasses image="false" ecoreClass="esearch.ecore#//FieldMapping">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//FieldMapping/feature"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FieldMapping/name"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FieldMapping/indexed"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FieldMapping/stored"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FieldMapping/docValues"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FieldMapping/boost"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//FieldMapping/facet"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FieldMapping/use"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//FieldMapping/subFields"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//TextFieldMapping">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//TextFieldMapping/analyzer"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//TextFieldMapping/termVectors"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//KeywordFieldMapping">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//KeywordFieldMapping/normalizer"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//NumericFieldMapping">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//NumericFieldMapping/kind"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//GeoPointFieldMapping">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//GeoPointFieldMapping/latitude"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//GeoPointFieldMapping/longitude"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//RangeFieldMapping">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//RangeFieldMapping/lowerBound"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//RangeFieldMapping/upperBound"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//RangeFieldMapping/kind"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//RankSignalFieldMapping">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//RankSignalFieldMapping/function"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//RankSignalFieldMapping/pivot"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//RankSignalFieldMapping/exponent"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//VectorFieldMapping">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//VectorFieldMapping/sources"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//VectorFieldMapping/provider"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//VectorFieldMapping/dimensions"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//VectorFieldMapping/similarity"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//VectorFieldMapping/modelVersion"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//ReferenceMapping">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//ReferenceMapping/eReference"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//ReferenceMapping/strategy"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//ReferenceMapping/prefix"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//ReferenceMapping/depth"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//ReferenceMapping/target"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//ReferenceMapping/includes"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//Materialization">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//Materialization/storeObject"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//Materialization/fieldName"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//Materialization/format"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//FacetMapping">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FacetMapping/dimension"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FacetMapping/kind"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FacetMapping/hierarchical"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FacetMapping/multiValued"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//SuggestSource">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//SuggestSource/name"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//SuggestSource/feature"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//SuggestSource/weight"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//SuggestSource/contexts"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//SuggestSource/kind"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//SuggestSource/analyzer"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//RefreshPolicy">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//RefreshPolicy/mode"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//RefreshPolicy/intervalMillis"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//CommitPolicy">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//CommitPolicy/maxUncommittedDocs"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//CommitPolicy/maxIntervalMillis"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//CommitPolicy/commitOnClose"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//IndexSort">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexSort/entries"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//SortEntry">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//SortEntry/feature"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//SortEntry/descending"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//SortEntry/missingLast"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//AnalyzerDefinition">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//AnalyzerDefinition/name"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//AnalyzerDefinition/kind"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//AnalyzerDefinition/language"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//AnalyzerDefinition/serviceFilter"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//AnalyzerDefinition/parameters"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//AnalyzerParameter">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//AnalyzerParameter/key"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//AnalyzerParameter/value"/>
+    </genClasses>
   </genPackages>
 </genmodel:GenModel>
