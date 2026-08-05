@@ -83,7 +83,7 @@ class AnalyzerRegistryTest {
 
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("analysis")
 				.analyzers(whitespace)
-				.refresh(RefreshPolicy.manual())
+				.refresh(RefreshTrigger.manual())
 				.build())) {
 
 			org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();

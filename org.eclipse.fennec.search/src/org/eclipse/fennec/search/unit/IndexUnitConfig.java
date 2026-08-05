@@ -12,86 +12,95 @@
  ********************************************************************/
 package org.eclipse.fennec.search.unit;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Objects;
 
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 
 /**
  * Everything an {@link IndexUnit} needs to open, as one plain value.
  * <p>
- * This is the runtime half of a unit's configuration — where the index lives, which
- * analyzers it may use, how it refreshes and commits. The declarative half (which EClass
- * becomes which document, which attribute becomes which field) is the {@code esearch}
- * mapping model and is deliberately not repeated here.
+ * This is the runtime half of a unit's configuration: where the index lives, what may be
+ * done with it, what a searcher sees, when it is reopened and when the writer commits. The
+ * declarative half — which EClass becomes which document, which attribute becomes which
+ * field — is the {@code esearch} mapping model and is deliberately not repeated here.
  * <p>
- * In OSGi a Configuration Admin factory configuration is mapped onto this record; in plain
- * Java it is built directly. The record is the single shape the unit understands, so
- * neither path is privileged.
+ * Three axes are kept apart on purpose, because collapsing them is how index
+ * configurations end up promising something they do not do:
+ * <ul>
+ * <li>{@link AccessMode} — may this unit write, and does it open a searcher at all;</li>
+ * <li>{@link Visibility} — can a searcher see uncommitted writes, or only commits;</li>
+ * <li>{@link RefreshTrigger} — when is the searcher reopened.</li>
+ * </ul>
  *
- * @param name      the unit name — the alias a consumer selects
- * @param directory where the index lives; the unit takes ownership and closes it
- * @param analyzers the analyzers this unit may use
- * @param refresh   when writes become visible
- * @param commit    when the writer commits
- * @param indexSort optional physical index order enabling early termination, or {@code null};
- *                  fixed at index creation, so changing it later requires a rebuild
+ * @param name       the unit name — the alias a consumer selects
+ * @param location   where the index lives
+ * @param analyzers  the analyzers this unit may use
+ * @param access     what the unit may do with the index
+ * @param visibility what a searcher of this unit sees
+ * @param refresh    when the searcher is reopened
+ * @param commit     when the writer commits
+ * @param indexSort  optional physical index order enabling early termination, or {@code null};
+ *                   fixed at index creation, so changing it later requires a rebuild
  * @author Data In Motion Consulting
  */
-public record IndexUnitConfig(String name, Directory directory, AnalyzerRegistry analyzers,
-		RefreshPolicy refresh, CommitPolicy commit, Sort indexSort) {
+public record IndexUnitConfig(String name, IndexLocation location, AnalyzerRegistry analyzers,
+		AccessMode access, Visibility visibility, RefreshTrigger refresh, CommitPolicy commit,
+		Sort indexSort) {
 
 	public IndexUnitConfig {
 		Objects.requireNonNull(name, "name");
 		if (name.isBlank()) {
 			throw new IllegalArgumentException("name must not be blank");
 		}
-		Objects.requireNonNull(directory, "directory");
+		Objects.requireNonNull(location, "location");
 		Objects.requireNonNull(analyzers, "analyzers");
+		Objects.requireNonNull(access, "access");
+		Objects.requireNonNull(visibility, "visibility");
 		Objects.requireNonNull(refresh, "refresh");
 		Objects.requireNonNull(commit, "commit");
-	}
-
-	/** A builder for a unit on the given directory. */
-	public static Builder builder(String name, Directory directory) {
-		return new Builder(name, directory);
-	}
-
-	/** A builder for a unit on a file-system directory. */
-	public static Builder builder(String name, Path path) {
-		try {
-			return new Builder(name, FSDirectory.open(Objects.requireNonNull(path, "path")));
-		} catch (IOException e) {
-			throw new UncheckedIOException("Cannot open index directory " + path, e);
+		if (access == AccessMode.BULK_LOAD && refresh.mode() != RefreshTrigger.Mode.MANUAL) {
+			throw new IllegalArgumentException(
+					"BULK_LOAD opens no searcher, so a refresh trigger other than MANUAL cannot be honoured");
 		}
 	}
 
-	/**
-	 * A builder for an in-memory unit. Useful for tests and for indexes that are rebuilt
-	 * on every start; nothing survives {@link IndexUnit#close()}.
-	 */
-	public static Builder inMemory(String name) {
-		return new Builder(name, new ByteBuffersDirectory());
+	/** A builder with the defaults: read/write, near-real-time, background refresh, commit on close. */
+	public static Builder builder(String name, IndexLocation location) {
+		return new Builder(name, location);
 	}
 
-	/** Builder with the defaults: standard analyzer, near-real-time refresh, commit on close. */
+	/** Shorthand for a unit on a file-system directory. */
+	public static Builder builder(String name, Path path) {
+		return new Builder(name, IndexLocation.path(path));
+	}
+
+	/** Shorthand for a unit on an already-open directory. */
+	public static Builder builder(String name, Directory directory) {
+		return new Builder(name, IndexLocation.directory(directory));
+	}
+
+	/** Shorthand for an in-memory unit; nothing survives {@link IndexUnit#close()}. */
+	public static Builder inMemory(String name) {
+		return new Builder(name, IndexLocation.inMemory());
+	}
+
+	/** Builder for {@link IndexUnitConfig}. */
 	public static final class Builder {
 
 		private final String name;
-		private final Directory directory;
+		private final IndexLocation location;
 		private AnalyzerRegistry analyzers = AnalyzerRegistry.standard();
-		private RefreshPolicy refresh = RefreshPolicy.nearRealTime();
+		private AccessMode access = AccessMode.READ_WRITE;
+		private Visibility visibility = Visibility.NRT;
+		private RefreshTrigger refresh = RefreshTrigger.background();
 		private CommitPolicy commit = CommitPolicy.onClose();
 		private Sort indexSort;
 
-		private Builder(String name, Directory directory) {
+		private Builder(String name, IndexLocation location) {
 			this.name = name;
-			this.directory = directory;
+			this.location = location;
 		}
 
 		public Builder analyzers(AnalyzerRegistry analyzers) {
@@ -99,7 +108,17 @@ public record IndexUnitConfig(String name, Directory directory, AnalyzerRegistry
 			return this;
 		}
 
-		public Builder refresh(RefreshPolicy refresh) {
+		public Builder access(AccessMode access) {
+			this.access = Objects.requireNonNull(access, "access");
+			return this;
+		}
+
+		public Builder visibility(Visibility visibility) {
+			this.visibility = Objects.requireNonNull(visibility, "visibility");
+			return this;
+		}
+
+		public Builder refresh(RefreshTrigger refresh) {
 			this.refresh = Objects.requireNonNull(refresh, "refresh");
 			return this;
 		}
@@ -116,7 +135,8 @@ public record IndexUnitConfig(String name, Directory directory, AnalyzerRegistry
 		}
 
 		public IndexUnitConfig build() {
-			return new IndexUnitConfig(name, directory, analyzers, refresh, commit, indexSort);
+			return new IndexUnitConfig(name, location, analyzers, access, visibility, refresh, commit,
+					indexSort);
 		}
 	}
 }

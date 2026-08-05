@@ -79,7 +79,7 @@ class IndexUnitTest {
 	@Test
 	void manualRefreshMakesWritesVisibleOnlyWhenAsked() throws Exception {
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("manual")
-				.refresh(RefreshPolicy.manual()).build())) {
+				.refresh(RefreshTrigger.manual()).build())) {
 
 			unit.addDocument(document("1", "hello"));
 
@@ -94,7 +94,7 @@ class IndexUnitTest {
 	@Test
 	void nearRealTimeMakesWritesVisibleWithoutAnExplicitRefresh() throws Exception {
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("nrt")
-				.refresh(RefreshPolicy.nearRealTime(Duration.ofMillis(50))).build())) {
+				.refresh(RefreshTrigger.background(Duration.ofMillis(50))).build())) {
 
 			unit.addDocument(document("1", "hello"));
 
@@ -115,7 +115,7 @@ class IndexUnitTest {
 	@Test
 	void onCommitRefreshMakesWritesVisibleWhenTheWriterCommits() throws Exception {
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("on-commit")
-				.refresh(RefreshPolicy.onCommit()).build())) {
+				.refresh(RefreshTrigger.onCommit()).build())) {
 
 			unit.addDocument(document("1", "hello"));
 			assertThat(countAll(unit)).isZero();
@@ -129,7 +129,7 @@ class IndexUnitTest {
 	@Test
 	void anAcquiredSearcherIsNotDisturbedByConcurrentWrites() throws Exception {
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("snapshot")
-				.refresh(RefreshPolicy.manual()).build())) {
+				.refresh(RefreshTrigger.manual()).build())) {
 
 			unit.addDocument(document("1", "first"));
 			unit.refresh();
@@ -184,7 +184,7 @@ class IndexUnitTest {
 	void theDocumentTriggerCommitsAndResetsTheCounter() throws Exception {
 		Directory directory = new ByteBuffersDirectory();
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.builder("count-trigger", directory)
-				.refresh(RefreshPolicy.manual())
+				.refresh(RefreshTrigger.manual())
 				.commit(CommitPolicy.afterDocuments(3))
 				.build())) {
 
@@ -218,7 +218,7 @@ class IndexUnitTest {
 	@Test
 	void updateReplacesTheMatchingDocument() throws Exception {
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("update")
-				.refresh(RefreshPolicy.manual()).build())) {
+				.refresh(RefreshTrigger.manual()).build())) {
 
 			unit.addDocument(document("1", "before"));
 			unit.updateDocument(new Term("id", "1"), document("1", "after"));
@@ -233,7 +233,7 @@ class IndexUnitTest {
 	@Test
 	void aBlockIsWrittenAndReplacedAsAWhole() throws Exception {
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("block")
-				.refresh(RefreshPolicy.manual()).build())) {
+				.refresh(RefreshTrigger.manual()).build())) {
 
 			// children first, parent last — the block-join layout. The delete term has to
 			// match EVERY document of the block, not just the parent: updateDocuments
@@ -253,7 +253,7 @@ class IndexUnitTest {
 	@Test
 	void aBlockDeleteTermThatOnlyMatchesTheParentOrphansTheChildren() throws Exception {
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("orphans")
-				.refresh(RefreshPolicy.manual()).build())) {
+				.refresh(RefreshTrigger.manual()).build())) {
 
 			unit.updateDocuments(new Term("id", "parent"),
 					List.of(document("child-1", "a"), document("child-2", "b"), document("parent", "p")));
@@ -281,7 +281,7 @@ class IndexUnitTest {
 	@Test
 	void deleteRemovesTheMatchingDocument() throws Exception {
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("delete")
-				.refresh(RefreshPolicy.manual()).build())) {
+				.refresh(RefreshTrigger.manual()).build())) {
 
 			unit.addDocument(document("1", "a"));
 			unit.addDocument(document("2", "b"));
@@ -319,7 +319,7 @@ class IndexUnitTest {
 			unit.addDocument(document("1", "first"));
 		}
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.builder("append", tempDir)
-				.refresh(RefreshPolicy.manual()).build())) {
+				.refresh(RefreshTrigger.manual()).build())) {
 			unit.addDocument(document("2", "second"));
 			unit.refresh();
 
@@ -330,9 +330,9 @@ class IndexUnitTest {
 	@Test
 	void twoUnitsInOneJvmDoNotSeeEachOther() throws Exception {
 		try (IndexUnit first = IndexUnit.open(IndexUnitConfig.inMemory("one")
-				.refresh(RefreshPolicy.manual()).build());
+				.refresh(RefreshTrigger.manual()).build());
 				IndexUnit second = IndexUnit.open(IndexUnitConfig.inMemory("two")
-						.refresh(RefreshPolicy.manual()).build())) {
+						.refresh(RefreshTrigger.manual()).build())) {
 
 			first.addDocument(document("1", "a"));
 			first.refresh();
@@ -352,7 +352,7 @@ class IndexUnitTest {
 
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.builder("sorted", tempDir)
 				.indexSort(sort)
-				.refresh(RefreshPolicy.manual())
+				.refresh(RefreshTrigger.manual())
 				.build())) {
 
 			for (long rank : new long[] { 3, 1, 2 }) {
@@ -383,7 +383,7 @@ class IndexUnitTest {
 	@Test
 	void storedFieldsComeBackFromTheSearcher() throws Exception {
 		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("stored")
-				.refresh(RefreshPolicy.manual()).build())) {
+				.refresh(RefreshTrigger.manual()).build())) {
 
 			unit.addDocument(document("42", "hello"));
 			unit.refresh();
