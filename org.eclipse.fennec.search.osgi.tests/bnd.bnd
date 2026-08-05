@@ -1,0 +1,15 @@
+Test-Cases: ${classes;HIERARCHY_INDIRECTLY_ANNOTATED;org.junit.platform.commons.annotation.Testable;CONCRETE}
+Bundle-Name: Eclipse Fennec Search OSGi Test
+Bundle-Description: Wiring tests for the search OSGi layer — configuration, alias-addressed \
+	publication and clean teardown. Search behaviour itself is covered by plain JUnit in \
+	org.eclipse.fennec.search.
+
+-library: \
+	enableOSGi-Test
+
+-buildpath: \
+	org.osgi.framework;version=latest,\
+	org.osgi.service.cm;version=latest,\
+	org.eclipse.fennec.search;version=snapshot,\
+	org.eclipse.fennec.search.osgi;version=snapshot,\
+	org.apache.lucene.core;version=latest
