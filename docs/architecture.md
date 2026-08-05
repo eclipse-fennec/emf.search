@@ -37,8 +37,8 @@ configuration and publish it — plus the `Resource.Factory` registration that l
 | Bundle | Content |
 |---|---|
 | `org.eclipse.fennec.search.model` | `esearch.ecore` — the mapping metamodel and its generated EMF code. Plain EMF. |
-| `org.eclipse.fennec.search.lucene` | The backend as a plain-Java library: index lifecycle, mapping pipeline, query translation, highlighting, similarity. |
-| `org.eclipse.fennec.search.lucene.osgi` | The thin OSGi layer: DS components, configuration per index unit, whiteboard publication, `Resource.Factory`. |
+| `org.eclipse.fennec.search` | The backend as a plain-Java library: index lifecycle, mapping pipeline, query translation, highlighting, similarity. |
+| `org.eclipse.fennec.search.osgi` | The thin OSGi layer: DS components, configuration per index unit, whiteboard publication, `Resource.Factory`. |
 | `org.eclipse.fennec.search.suggest` (+ `.osgi`) | Suggest/completion — its own small API, sharing the mapping model and the index lifecycle. |
 | `org.eclipse.fennec.search.index` | Secondary-index maintenance fed by the change stream, plus query routing (later stage). |
 | `org.eclipse.fennec.search.tck` | The binding against the published Fennec persistence TCK. |

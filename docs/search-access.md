@@ -70,13 +70,22 @@ Java 21 baseline matches the workspace (`javac.source/target: 21`), so that part
 | Bundle | Content |
 |---|---|
 | `org.eclipse.fennec.search.model` | `esearch.ecore` — the mapping metamodel (§4), generated EMF code. Plain EMF, no OSGi. |
-| `org.eclipse.fennec.search.lucene` | the backend **as a plain-Java library**: index lifecycle, mapping processors, `QueryProcessor` (`backend=lucene`), highlighting (§6.1) and similarity (§6.2) — the latter two need the live searcher plus the executed query, so they stay here instead of becoming siblings of `search.suggest`. Constructible from ordinary code, no framework required. |
-| `org.eclipse.fennec.search.lucene.osgi` | the thin OSGi layer: `Resource.Factory` component, ConfigAdmin factory config per index unit, whiteboard publication (the `mongo.database.alias` pattern), analyzer/provider services |
-| `org.eclipse.fennec.search.lucene.osgi.tests` | OSGi integration tests (`testOSGi`) — wiring only, see §2.2 |
+| `org.eclipse.fennec.search` | the backend **as a plain-Java library**: index lifecycle, mapping processors, `QueryProcessor` (`backend=lucene`), highlighting (§6.1) and similarity (§6.2) — the latter two need the live searcher plus the executed query, so they stay here instead of becoming siblings of `search.suggest`. Constructible from ordinary code, no framework required. |
+| `org.eclipse.fennec.search.osgi` | the thin OSGi layer: `Resource.Factory` component, ConfigAdmin factory config per index unit, whiteboard publication (the `mongo.database.alias` pattern), analyzer/provider services |
+| `org.eclipse.fennec.search.osgi.tests` | OSGi integration tests (`testOSGi`) — wiring only, see §2.2 |
 | `org.eclipse.fennec.search.suggest` (+ `.osgi`, `.osgi.tests`) | suggest/completion as its own API + impl (§6) — deliberately NOT query-IR vocabulary; same plain-core/thin-OSGi split |
 | `org.eclipse.fennec.search.index` | v2: stream-fed secondary-index maintenance + query routing (§1) — depends on `persistence.stream`, starts only after its P1 |
 | `org.eclipse.fennec.search.tck` | TCK binding: consumes the published `org.eclipse.fennec.persistence.tck` (emf.persistence-jpa#99) + search-specific cases. The TCK is plain JUnit 5, so the binding runs in the normal `test` task. |
 | `org.eclipse.fennec.search.workspace.library` | bnd workspace library (`-library: fennecSearch`) publishing these bundles plus their Maven closure, mirroring `fennecUtil`/`fennecPersistence` |
+
+**Why the bundles are not called `…search.lucene`.** There is no index abstraction layer and
+none is planned: Lucene is the engine, not one of several. A `.lucene` segment would promise a
+choice that does not exist, and a second engine would in any case be a different backend with
+its own concept (§9). The core bundle therefore carries the plain name, matching
+`org.eclipse.fennec.persistence` in its own group. The one place the engine name stays is the
+`QueryProcessor` service property `backend=lucene` — there it is not a bundle name but the
+value that distinguishes this backend from `mongo` and `memory` in a namespace shared across
+the persistence stack, so it carries real information.
 
 ### 2.1 Related repositories
 
@@ -385,13 +394,13 @@ and lifecycle, not by forcing suggest through the query IR.
 ### 6.1 Highlighting
 
 Same reasoning, different coupling: the `UnifiedHighlighter` needs the executed query and
-the live searcher, so highlighting lives inside `search.lucene` rather than in a sibling
+the live searcher, so highlighting lives inside the search core rather than in a sibling
 bundle — but it gets its own small API instead of being pushed into the query IR.
 
 The open contract question is where highlights *go*. The result contract is "EObjects or
 rows out", and an EObject has no slot for per-hit passages. Three options, to be decided
 in S12: (a) a search-local result type that carries `EObject` + score + highlights,
-returned by a `search.lucene`-specific entry point; (b) highlights as projected columns in
+returned by a search-core-specific entry point; (b) highlights as projected columns in
 the row shape, which needs per-hit metadata in the IR result model — an
 `emf.persistence-jpa` issue; (c) a side-channel map keyed by object id. Option (a) is the
 default recommendation: it keeps the ground rule of §3 intact (no search-only vocabulary
@@ -461,7 +470,7 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
    `NESTED`, rank signals, interval attributes, materialization and index-sort
    declarations, and the *reserved* (unimplemented) vector-field slot — genmodel,
    conventions documented.
-3. **S3 (#6) — index lifecycle** (`search.lucene`): unit configuration (directory path,
+3. **S3 (#6) — index lifecycle** (`org.eclipse.fennec.search`): unit configuration (directory path,
    analyzer registry) as DS factory config, `IndexWriter`/`SearcherManager` NRT
    lifecycle, whiteboard publication per unit (the `mongo.database.alias` pattern).
 4. **S4 (#7) — mapping processors + `Resource.Factory`**: EObject→Document via the §4 model
