@@ -5,7 +5,10 @@ Bundle-Description: Lucene index units for the Fennec search backend — writer 
 
 -workingset: search
 
+-library: enableEMF
+
 -buildpath: \
+	org.eclipse.fennec.search.model;version=snapshot,\
 	org.apache.lucene.core;version=latest,\
 	org.osgi.annotation.bundle;version=latest,\
 	org.osgi.annotation.versioning;version=latest
