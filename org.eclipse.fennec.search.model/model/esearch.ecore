@@ -20,8 +20,8 @@
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="Root container. Reusable analyzer definitions are declared once here and referenced from the mappings by non-containment reference (the TrackingRegistry / sensinact PersistenceRuleRegistry pattern)."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="units" upperBound="-1" eType="#//IndexUnitMapping"
-        containment="true">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="units" upperBound="-1"
+        eType="#//IndexUnitMapping" containment="true">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="The index units declared by this registry."/>
       </eAnnotations>
@@ -37,7 +37,8 @@
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="Mapping for one index unit — one Lucene directory, one IndexWriter, one SearcherManager. Everything declared here is a property of the physical index and therefore cannot be varied per EClass: all documents in a unit share its refresh policy, commit policy and index sort.&#xA;&#xA;v1 indexes a single EPackage universe per unit (docs/search-access.md §9, non-goals); cross-unit federation is out of scope. The runtime configuration of the unit (directory location, analyzer service wiring) is NOT part of this model — it is the unit's own configuration object, mapped from a Configuration Admin factory configuration in OSGi and constructed directly in plain Java. This model says what the documents look like, not where they live."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="ePackage" lowerBound="1" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EPackage">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="ePackage" lowerBound="1"
+        eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EPackage">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="The EPackage universe this unit indexes."/>
       </eAnnotations>
@@ -93,7 +94,8 @@
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="How instances of one EClass become Lucene documents. Everything here is per document; physical index properties live on the owning IndexUnitMapping."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="eClass" lowerBound="1" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EClass">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="eClass" lowerBound="1"
+        eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EClass">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="The EClass this mapping applies to. Subclasses inherit it unless they declare their own mapping."/>
       </eAnnotations>
@@ -125,8 +127,8 @@
         <details key="documentation" value="Whether a hit can be turned back into a full EObject from the index alone. Unset means no — hits carry only the mapped fields."/>
       </eAnnotations>
     </eStructuralFeatures>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="fields" upperBound="-1" eType="#//FieldMapping"
-        containment="true">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="fields" upperBound="-1"
+        eType="#//FieldMapping" containment="true">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Explicit field mappings — one entry per attribute, carrying its primary projection. Further projections of the same attribute are sub-fields of that entry, not additional entries here. Attributes not listed follow the conventions when autoMap is true."/>
       </eAnnotations>
@@ -279,8 +281,8 @@
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="A static, data-driven relevance signal — popularity, recency, a curated weight — indexed as a feature field and folded into the score by a saturating function.&#xA;&#xA;This exists so that scoring stays declarative: a consumer selects a declared signal by name, it never sends a scoring formula. That is what keeps the refusal of arithmetic pushdown meaningful. The signal value must be strictly positive."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="function" lowerBound="1" eType="#//RankFunction"
-        defaultValueLiteral="SATURATION">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="function" lowerBound="1"
+        eType="#//RankFunction" defaultValueLiteral="SATURATION">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="The saturating function applied to the signal."/>
       </eAnnotations>
@@ -301,7 +303,8 @@
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="RESERVED for wave 2 — dense vector field for k-nearest-neighbour search.&#xA;&#xA;Declared in the metamodel now so that adding vector search later is additive rather than a breaking change, but NOT implemented: a mapping that declares one is refused with a clear diagnostic until the wave-2 work lands. Three things are still open and deliberately not fixed here: whether the query IR carries a vector or a text to embed, how the embedding provider is selected, and the dimension ceiling of the chosen codec."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="sources" upperBound="-1" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="sources" upperBound="-1"
+        eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Attributes whose values are concatenated into the text handed to the embedding provider."/>
       </eAnnotations>
@@ -338,8 +341,8 @@
         <details key="documentation" value="The reference this mapping applies to."/>
       </eAnnotations>
     </eStructuralFeatures>
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="strategy" lowerBound="1" eType="#//ReferenceStrategy"
-        defaultValueLiteral="ID_ONLY">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="strategy" lowerBound="1"
+        eType="#//ReferenceStrategy" defaultValueLiteral="ID_ONLY">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Indexing strategy for the target."/>
       </eAnnotations>
@@ -371,8 +374,8 @@
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="Stores the serialized EObject alongside its indexed fields, so a hit can be returned as a complete object without consulting a primary store. This is what makes the standalone role self-sufficient; as a secondary index next to JPA or Mongo it is usually wasted space."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="storeObject" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"
-        defaultValueLiteral="true">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="storeObject" lowerBound="1"
+        eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="true">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Store the serialized EObject. False makes this element a no-op and is only useful to switch materialization off for one document while the surrounding configuration keeps it on."/>
       </eAnnotations>
@@ -426,7 +429,8 @@
         <details key="documentation" value="Name under which consumers request this suggester."/>
       </eAnnotations>
     </eStructuralFeatures>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="feature" lowerBound="1" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="feature" lowerBound="1"
+        eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="The attribute whose values are suggested."/>
       </eAnnotations>
@@ -498,8 +502,8 @@
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="Physical ordering of the index. Queries sorted the same way can terminate early; everything else is unaffected. Fixed at creation time."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="entries" lowerBound="1" upperBound="-1"
-        eType="#//SortEntry" containment="true">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="entries" lowerBound="1"
+        upperBound="-1" eType="#//SortEntry" containment="true">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Sort keys, in order of precedence."/>
       </eAnnotations>
@@ -509,7 +513,8 @@
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="One key of the index sort. The referenced attribute must have doc values."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="feature" lowerBound="1" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="feature" lowerBound="1"
+        eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="The attribute to sort by."/>
       </eAnnotations>
