@@ -262,6 +262,43 @@ similarity function, embedding-model version) — §7. Declaring one is refused 
 diagnostic until the wave-2 work lands; the class exists so that adding the capability
 later is additive.
 
+### 4.2 Where a field value comes from (S20, #28)
+
+A field mapping reads one `EAttribute` today. That is the first rung of a ladder the
+Fennec stack already uses for ingest mappings (`timeseries-access.md` §6.1), and
+`emf.search` adopts the same one, with the same bias — **the weakest sufficient rung**,
+because the lower ones are verifiable without running anything:
+
+| Source | Extraction | Verifiable |
+|---|---|---|
+| feature | `eGet` on one attribute | statically |
+| feature path | `eGet` along a chain (`address.city`), including a hop across a reference | statically |
+| m2x OCL | `OclEngine.evaluate(expr, OclContext.of(eObject))` | parse + type check at mapping load |
+
+Several sources may feed one field (concatenated for text, multi-valued for keyword), and
+a field may have sources but no owning attribute — a **virtual field**, existing only in
+the index. OCL is stored as text and parsed with m2x (`OclEngine`, `OclExpressionCache`),
+mirroring how `DerivedReferenceCompiler` treats the `derivation` annotation; the workspace
+already has m2x via `-library: fennecM2X`, and the engine is a DS service in OSGi and a
+constructor call in plain Java, so §2.2 holds both ways.
+
+Three consequences, all owned by #28:
+
+- **Virtual fields are not IR-addressable.** The canonical query IR names features; a field
+  with none cannot appear in a canonical query. Virtual fields are for facets, suggest,
+  highlighting and as targets of full-text matching. When a computed value must be
+  *queryable*, the better carrier is a derived `EStructuralFeature` with the m2x derivation
+  annotation — `DerivedReferenceCompiler` compiles it into the IR, `eGet` computes it, and
+  the mapper needs no special case. Guidance, not a prohibition.
+- **Reading across a reference makes documents stale.** The same exposure `EMBED`/`NESTED`
+  carry (§5.2), but hidden in an expression rather than declared. The mitigation is static:
+  `OclToExpr` compiles the expression into the Expression IR and `ExpressionAnalyzer` walks
+  it for navigated paths, turning an opaque dependency into a declared one — which is what
+  S10 needs to keep a stream-fed index from drifting silently (recorded on #22).
+- **Changing an expression changes the index**, so a mapping is interpretation-relevant
+  metadata: a changed source means a rebuild, and the mapping needs a version the index can
+  record.
+
 ## 5. Query translation — capability profile
 
 `QueryProcessor` with `backend=lucene`, IR → Lucene `Query`:
@@ -473,6 +510,9 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
     offset; recovery/resume semantics tested. Prerequisite for an honest S10.
 18. **S19 (#21) — grouping with representatives**: `GroupingSearch` for top-N per group.
     Needs the result-shape question of §7 answered against the pipeline vocabulary first.
+19. **S20 (#28) — computed field values** (§4.2): feature paths and m2x OCL sources as
+    field values, virtual fields, static dependency extraction. Starts after S5, and its
+    dependency output is what S10 needs (#22).
 
 **Gated (starts when its prerequisite lands):**
 

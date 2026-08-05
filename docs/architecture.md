@@ -63,6 +63,15 @@ relative to it (`title.keyword`). Where two projections could answer the same pr
 mapping declares which one is for what (`MATCH`, `EXACT`, `RANGE`, `SORT`, `FACET`,
 `HIGHLIGHT`, `SIMILARITY`); an ambiguous declaration is rejected rather than guessed.
 
+A field does not have to read a single attribute. It can follow a path of features across
+the model, or compute its value with an OCL expression evaluated against the instance — and
+it can exist with no attribute of its own at all, as a field that lives only in the index
+(a concatenated search-over-everything field, a normalized sort key). Two things follow, and
+both are deliberate: a field with no attribute cannot be named in a canonical query, so
+values that must be *queryable* belong in the model as a derived feature rather than in the
+index as a virtual field; and a value read across a reference makes the document depend on
+another object, which is only refreshed when the owner is saved.
+
 References are the interesting part, because a Lucene document is flat and an EMF model is
 not. Three strategies:
 
