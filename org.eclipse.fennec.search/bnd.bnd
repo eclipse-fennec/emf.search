@@ -1,0 +1,14 @@
+Bundle-Name: Eclipse Fennec Search
+Bundle-Description: Lucene index units for the Fennec search backend — writer and searcher \
+	lifecycle, refresh and commit policy, analyzer registry. Plain Java: no OSGi imports, \
+	no static state, constructible from an ordinary config object.
+
+-workingset: search
+
+-buildpath: \
+	org.apache.lucene.core;version=latest,\
+	org.osgi.annotation.bundle;version=latest,\
+	org.osgi.annotation.versioning;version=latest
+
+-testpath: \
+	assertj-core
