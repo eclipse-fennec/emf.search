@@ -1,0 +1,19 @@
+Bundle-Name: Eclipse Fennec Search OSGi
+Bundle-Description: The thin OSGi layer over the search core: a Configuration Admin factory \
+	configuration per index unit, published under its alias, with the analyzer registry built \
+	from analyzer services. Contains no search logic — everything it configures lives in \
+	org.eclipse.fennec.search.
+
+-workingset: search
+
+-buildpath: \
+	org.eclipse.fennec.search;version=snapshot,\
+	org.apache.lucene.core;version=latest,\
+	org.osgi.framework;version=latest,\
+	org.osgi.service.component.annotations;version=latest,\
+	org.osgi.service.metatype.annotations;version=latest,\
+	org.osgi.annotation.bundle;version=latest,\
+	org.osgi.annotation.versioning;version=latest
+
+-testpath: \
+	assertj-core
