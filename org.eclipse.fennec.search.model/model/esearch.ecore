@@ -14,7 +14,7 @@
     <details key="fileExtensions" value="esearch"/>
     <details key="resource" value="XMI"/>
     <details key="copyrightText" value="Copyright (c) 2026 Contributors to the Eclipse Foundation.&#xA;&#xA;This program and the accompanying materials are made&#xA;available under the terms of the Eclipse Public License 2.0&#xA;which is available at https://www.eclipse.org/legal/epl-2.0/&#xA;&#xA;SPDX-License-Identifier: EPL-2.0&#xA;&#xA;Contributors:&#xA;  Data In Motion Consulting - initial implementation"/>
-    <details key="documentation" value="Declarative EClass-to-Lucene-index mapping for emf.search — &quot;eorm for the index&quot; (docs/search-access.md §4). Instances declare how EObjects become Lucene documents: index unit policies, per-feature field mappings, reference strategies, facets, rank signals, suggest sources.&#xA;&#xA;Two rules shape this metamodel:&#xA;&#xA;1. Conventions over declarations. An unmapped EClass or EAttribute is mapped by convention (id -> stored keyword, strings -> analyzed text, numerics -> point + doc values), so small models need no mapping instance at all. A declaration is an override, never a prerequisite.&#xA;&#xA;2. Physical properties belong to the index unit, logical ones to the document. One unit is one Lucene directory with one IndexWriter, so refresh policy, commit policy and index sort are declared once per unit — not per EClass, which could not be honoured independently. Everything that describes a single document (fields, references, materialization) hangs off DocumentMapping.&#xA;&#xA;Registered on the metadata/aspect plane per EPackage, the same registry plane as TrackingConfig/IngestMapping; XMI (*.esearch) is the authoring format."/>
+    <details key="documentation" value="Declarative EClass-to-Lucene-index mapping for emf.search — &quot;eorm for the index&quot; (docs/search-access.md §4). Instances declare how EObjects become Lucene documents: index unit policies, per-feature field mappings, reference strategies, facets, rank signals, suggest sources.&#xA;&#xA;Two rules shape this metamodel:&#xA;&#xA;1. Conventions over declarations. An unmapped EClass or EAttribute is mapped by convention (id -> stored keyword, strings -> analyzed text, numerics -> point + doc values), so small models need no mapping instance at all. A declaration is an override, never a prerequisite.&#xA;&#xA;2. Physical properties belong to the index unit, logical ones to the document. One unit is one Lucene directory with one IndexWriter, so refresh policy, commit policy and index sort are declared once per unit — not per EClass, which could not be honoured independently. Everything that describes a single document (fields, references, materialization) hangs off DocumentMapping.&#xA;&#xA;Delivery uses the two mechanisms emf.osgi already provides, not a third one: an authored XMI document (*.esearch) is loaded into a named EObject registry (org.eclipse.fennec.emf.osgi.eobject.registry, which has a non-OSGi bootstrap so the plain-Java path is identical), and a model bundle can ship its own mapping as an AspectEntry with typeId &quot;esearch&quot; on the package metadata — the same slot the codec and orm aspects use."/>
   </eAnnotations>
   <eClassifiers xsi:type="ecore:EClass" name="SearchMappingRegistry">
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
@@ -128,7 +128,7 @@
     <eStructuralFeatures xsi:type="ecore:EReference" name="fields" upperBound="-1" eType="#//FieldMapping"
         containment="true">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-        <details key="documentation" value="Explicit field mappings. Attributes not listed here follow the conventions when autoMap is true."/>
+        <details key="documentation" value="Explicit field mappings — one entry per attribute, carrying its primary projection. Further projections of the same attribute are sub-fields of that entry, not additional entries here. Attributes not listed follow the conventions when autoMap is true."/>
       </eAnnotations>
     </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EReference" name="references" upperBound="-1"
@@ -150,12 +150,12 @@
     </eAnnotations>
     <eStructuralFeatures xsi:type="ecore:EReference" name="feature" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-        <details key="documentation" value="The mapped attribute. Required for scalar field kinds; composite kinds declare their own sources."/>
+        <details key="documentation" value="The mapped attribute. Required for scalar field kinds; composite kinds declare their own sources, and a sub-field inherits it from its parent and must leave it unset."/>
       </eAnnotations>
     </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-        <details key="documentation" value="Index field name. Unset defaults to the feature name — set it when the model is renamed but the index must stay queryable, or when two mappings project the same feature differently."/>
+        <details key="documentation" value="Index field name. On a primary projection it defaults to the feature name; set it when the model is renamed but the index must stay queryable. On a sub-field it is relative and mandatory: the effective field name is parent.child."/>
       </eAnnotations>
     </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="indexed" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"
@@ -186,6 +186,17 @@
         containment="true">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Makes this field available as a facet dimension. Only the shapes facets can actually answer are declared as capabilities: single group key, count aggregate."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="use" upperBound="-1" eType="#//FieldUse">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="What this projection is for. Empty — the normal case — derives it from the field kind: a text field serves MATCH and HIGHLIGHT, a keyword field EXACT, SORT and FACET, a numeric field RANGE and SORT.&#xA;&#xA;Declare it explicitly when derivation would be ambiguous, which is precisely when one attribute has several projections that could serve the same purpose: two keyword projections with different normalizers, or two analyzed projections in different languages. The translator picks the projection whose use covers the predicate; two projections claiming the same use for one attribute are refused at mapping time rather than resolved by declaration order."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="subFields" upperBound="-1"
+        eType="#//FieldMapping" containment="true">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Additional projections of the same attribute into differently typed index fields — the common case being an analyzed text field for relevance matching plus an unanalyzed keyword projection for equality, sorting and faceting, but equally a second analyzer for another language.&#xA;&#xA;The enclosing mapping is the primary projection; that is structural, so there is no primary flag to get wrong. A sub-field inherits the parent's attribute and must not declare one of its own, its name is relative, and the effective index field name is parent.child (title.keyword). Only one level of nesting is meaningful: a sub-field of a sub-field is refused.&#xA;&#xA;Sub-fields multiply index size, so they are always declared, never derived — the conventions give one projection per attribute."/>
       </eAnnotations>
     </eStructuralFeatures>
   </eClassifiers>
@@ -554,6 +565,46 @@
     </eAnnotations>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="key" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="value" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="FieldUse">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="The purpose a field projection serves during query translation. Used to disambiguate between several projections of one attribute; when a mapping declares none, the field kind decides."/>
+    </eAnnotations>
+    <eLiterals name="MATCH">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Analyzed full-text matching and relevance scoring."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="EXACT" value="1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Equality, IN, and prefix/wildcard/regexp matching over the unanalyzed value."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="RANGE" value="2">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Comparisons and ranges over a point-encoded value."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="SORT" value="3">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Sorting. Requires doc values."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="FACET" value="4">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Facet counting. Requires a facet declaration."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="HIGHLIGHT" value="5">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Passage extraction. Cheapest with term vectors, and only meaningful on an analyzed projection."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="SIMILARITY" value="6">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Source of term statistics for MoreLikeThis."/>
+      </eAnnotations>
+    </eLiterals>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="ReferenceStrategy">
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">

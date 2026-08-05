@@ -55,6 +55,14 @@ sorting and faceting, facet dimension, boost. Convention defaults cover small mo
 without any declaration at all — an id becomes a stored keyword field, strings become
 analyzed text, numerics become point fields with doc values.
 
+One attribute often needs more than one index field: analyzed text answers "find documents
+about this", an unanalyzed keyword answers "exactly this value" and sorts and facets, and a
+second analyzer may serve another language. A field mapping therefore carries *sub-fields* —
+the outer mapping is the primary projection, sub-fields inherit its attribute and are named
+relative to it (`title.keyword`). Where two projections could answer the same predicate, the
+mapping declares which one is for what (`MATCH`, `EXACT`, `RANGE`, `SORT`, `FACET`,
+`HIGHLIGHT`, `SIMILARITY`); an ambiguous declaration is rejected rather than guessed.
+
 References are the interesting part, because a Lucene document is flat and an EMF model is
 not. Three strategies:
 
