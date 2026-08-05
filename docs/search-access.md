@@ -520,52 +520,56 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
 5. **S5 (#8) — `QueryProcessor` + TCK binding**: §5 translation including the 3VL negation
    push-down, capability declaration, `search.tck` binding extending the published
    `AbstractPersistenceTCK` with the `supports*()` variance + search-specific cases.
-6. **S11 (#9) — block join over containment** (§5.2): `NESTED` mapping, block writes
+6. **S23 (#32) — mapping delivery** (§4.1): a `MappingSource` resolving an
+   `IndexUnitMapping` for a unit, from an authored `*.esearch` in an EObject registry or
+   from the metadata aspect. Blocks the OSGi half of S4 — the mapper needs a mapping and
+   neither S2 nor S4 owned getting one there.
+7. **S11 (#9) — block join over containment** (§5.2): `NESTED` mapping, block writes
    (`updateDocuments`), `ToParentBlockJoinQuery` for EXISTS/FOR_ALL, capability upgrade
    from refused to supported-for-containment, reindex semantics documented. Prioritised
    directly after S5 because it changes the index, not just the translation.
 
 **Wave 1, parallelizable after S5 (S11 first where it touches the document shape):**
 
-7. **S6 (#10) — SCORE**: relevance sort + projected score (emf.persistence-jpa#100
+8. **S6 (#10) — SCORE**: relevance sort + projected score (emf.persistence-jpa#100
    vocabulary), ordinal conformance cases (higher score sorts first on constructed
    corpora).
-8. **S7 (#11) — facets**: the GROUP_BY/AGG_COUNT subset of §5, taxonomy vs. SSDV decision.
-9. **S8 (#12) — suggest** (`search.suggest`): §6 API + mapping-model extension + impl.
-10. **S9 (#13) — geo**: `GeoWithin`/`GeoDistance` over `LatLonPoint`/`LatLonShape` from `core`
+9. **S7 (#11) — facets**: the GROUP_BY/AGG_COUNT subset of §5, taxonomy vs. SSDV decision.
+10. **S8 (#12) — suggest** (`search.suggest`): §6 API + mapping-model extension + impl.
+11. **S9 (#13) — geo**: `GeoWithin`/`GeoDistance` over `LatLonPoint`/`LatLonShape` from `core`
     plus distance sort — G-P3 of `geo-vocabulary.md`. **Now a wave-1 item, so
     emf.persistence-jpa#101 becomes a wave-1 blocker**: the concept round there has to be
     scheduled, not awaited. S9 also confirms whether the `spatial` bundle is needed at all
     (§2).
-11. **S12 (#14) — highlighting**: `UnifiedHighlighter` + the result-carrier decision of §6.1.
-12. **S13 (#15) — similarity**: `MoreLikeThis` API (§6.2), term-vector declaration in the
+12. **S12 (#14) — highlighting**: `UnifiedHighlighter` + the result-carrier decision of §6.1.
+13. **S13 (#15) — similarity**: `MoreLikeThis` API (§6.2), term-vector declaration in the
     mapping model.
-13. **S14 (#16) — rank signals**: `FeatureField` declaration and saturation/log queries (§5.3).
-14. **S15 (#17) — interval fields**: `LongRange`/`DoubleRange` mapping and
+14. **S14 (#16) — rank signals**: `FeatureField` declaration and saturation/log queries (§5.3).
+15. **S15 (#17) — interval fields**: `LongRange`/`DoubleRange` mapping and
     `INTERSECTS`/`WITHIN`/`CONTAINS` translation. **Blocked on a new IR issue** for
     interval vocabulary in `emf.persistence-jpa` — to be raised now; the two-scalar
     fallback ships meanwhile.
-15. **S16 (#18) — self-sufficient hits**: full EObject stored in the index via `emf.codec`, so
+16. **S16 (#18) — self-sufficient hits**: full EObject stored in the index via `emf.codec`, so
     role 1 materializes without a primary store.
-16. **S17 (#19) — sorted index**: `setIndexSort` for the dominant sort order, early
+17. **S17 (#19) — sorted index**: `setIndexSort` for the dominant sort order, early
     termination, `searchAfter` paging hardened against it.
-17. **S18 (#20) — checkpointing**: `IndexWriter#setLiveCommitData` carrying the applied change
+18. **S18 (#20) — checkpointing**: `IndexWriter#setLiveCommitData` carrying the applied change
     offset; recovery/resume semantics tested. Prerequisite for an honest S10.
-18. **S19 (#21) — grouping with representatives**: `GroupingSearch` for top-N per group.
+19. **S19 (#21) — grouping with representatives**: `GroupingSearch` for top-N per group.
     Needs the result-shape question of §7 answered against the pipeline vocabulary first.
-19. **S21 (#29) — write commands**: `CommandResource` — insert, delete-by-selector, and
+20. **S21 (#29) — write commands**: `CommandResource` — insert, delete-by-selector, and
     update where materialization allows it (§5.4).
-20. **S22 (#30) — write bracket**: what `CommandTransaction` means over Lucene; refusal
+21. **S22 (#30) — write bracket**: what `CommandTransaction` means over Lucene; refusal
     recommended for v1 (§5.4).
-21. **#31 — command capabilities** (upstream): the capability model has no write
+22. **#31 — command capabilities** (upstream): the capability model has no write
     vocabulary; to be raised in `emf.persistence-jpa`, with the per-EClass question.
-22. **S20 (#28) — computed field values** (§4.2): feature paths and m2x OCL sources as
+23. **S20 (#28) — computed field values** (§4.2): feature paths and m2x OCL sources as
     field values, virtual fields, static dependency extraction. Starts after S5, and its
     dependency output is what S10 needs (#22).
 
 **Gated (starts when its prerequisite lands):**
 
-19. **S10 (#22) — v2 secondary index** (`search.index`, after `timeseries-access.md` P1):
+24. **S10 (#22) — v2 secondary index** (`search.index`, after `timeseries-access.md` P1):
     stream-fed maintenance (append→update, replay→rebuild), query routing full-text →
     Lucene → keyed finds, consistency notes (index lag is visible and documented). Builds
     on S18 for resume and interacts with S11's parent-scoped reindex.
