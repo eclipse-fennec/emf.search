@@ -44,21 +44,32 @@ consumer that needs ranked full-text over EMF models.
 ## 2. Repository layout
 
 Bnd workspace, same conventions as `emf.persistence-jpa` (`cnf/`, bnd libraries,
-reusable CI workflows from `eclipse-fennec/.github`). Lucene 9.x via OSGi-repackaged
-bundles — **for now** the `org.geckoprojects.libraries:org.apache.lucene.*` bundles
-(Lucene 9.12.3) built in the `org.gecko.libraries` workspace, which supersede the older
-`org.geckoprojects.search:org.apache.lucene.*` 9.12.0 set that `org.gecko.search` used.
-Available there: `core` (core + analysis-common), `analysis.icu/morfologik/opennlp/
-phonetic`, `backward.codecs`, `codecs`, `classification`, `expressions`, `facet`,
-`grouping`, `highlighter`, `join`, `memory`, `misc`, `monitor`, `queries`, `queryparser`,
-`spatial` (spatial3d + spatial-extras), `suggest`, `benchmark`. Wave 1 (§7) needs `core`,
-`queries`, `queryparser`, `facet`, `suggest`, `highlighter`, `join`, `grouping` and
-`memory`; wave 2 adds `analysis.*`, `monitor` and `classification`. **`spatial` is
-probably not needed for geo** — `LatLonPoint`/`LatLonDocValuesField`/`LatLonShape` and
-polygon queries live in `core`; the `spatial` bundle is only required for Spatial4j/JTS
-shapes (WKT parsing) and geo3d, so S9 confirms this before pulling it in. KNN vector
-search (wave 2) also needs no extra bundle — it is in `core`. Where the Lucene bundles
-are sourced from long term is an open point, not a design constraint.
+reusable CI workflows from `eclipse-fennec/.github`).
+
+**Lucene comes from the OSGi-repackaged `org.geckoprojects.libraries:org.apache.lucene.*`
+bundles** built in the `org.gecko.libraries` workspace — and the target is **Lucene 10**.
+That workspace is being moved to 10 right now (status 2026-08-05), so the concrete version
+is pinned in `cnf/ext/central.mvn` only once the snapshot is on Central; until then S1
+(#4) cannot add the coordinates. What is published today is *not* the target and is listed
+only for orientation: `org.geckoprojects.libraries` 9.12.0 (release, Maven Central) and
+9.12.3-SNAPSHOT (Central snapshots), plus the older `org.geckoprojects.search` set up to
+9.11.1 that `org.gecko.search` used.
+
+Bundles available in that workspace: `core` (core + analysis-common),
+`analysis.icu/morfologik/opennlp/phonetic`, `backward.codecs`, `codecs`, `classification`,
+`expressions`, `facet`, `grouping`, `highlighter`, `join`, `memory`, `misc`, `monitor`,
+`queries`, `queryparser`, `spatial` (spatial3d + spatial-extras), `suggest`, `benchmark`.
+Wave 1 (§7) needs `core`, `queries`, `queryparser`, `facet`, `suggest`, `highlighter`,
+`join`, `grouping` and `memory`; wave 2 adds `analysis.*`, `monitor` and `classification`.
+**`spatial` is probably not needed for geo** — `LatLonPoint`/`LatLonDocValuesField`/
+`LatLonShape` and polygon queries live in `core`; the `spatial` bundle is only required for
+Spatial4j/JTS shapes (WKT parsing) and geo3d, so S9 confirms this before pulling it in.
+KNN vector search (wave 2) also needs no extra bundle — it is in `core`.
+
+**Lucene 10 caveat for this document:** the design (§5, §7) is version-independent, but the
+concrete class and method names cited here were written against the 9.x API and must be
+re-verified against 10 when the bundles land — that check belongs to S1. Lucene 10's Java 21
+baseline matches the workspace (`javac.source/target: 21`), so that part is free.
 
 | Bundle | Content |
 |---|---|
@@ -319,7 +330,7 @@ what cannot be built here alone because it requires query vocabulary in
 
 | Feature | Why it waits |
 |---|---|
-| KNN / vector search + hybrid retrieval | Biggest single change: needs an `EmbeddingProvider` SPI (indexing becomes slow and fallible), new IR vocabulary for similarity search with a k and a prefilter, and a decision whether the IR carries a vector or a text to embed. KNN is a top-k retriever, not a predicate — it does not compose with `BooleanQuery` the way `WHERE_EQ` does, and the capability must say so. Practical constraints: 1024 dimensions by default (a custom `KnnVectorsFormat`/codec is required for 1536-dim models), and an embedding-model change is a full reindex, so the model version is index metadata. The metamodel slot is reserved in §4 so this stays additive. RAG shape, if it comes: chunk-as-child-document + block join (§5.2) for parent rollup, BM25 and KNN fused by hand — Lucene 9.x has no native RRF. |
+| KNN / vector search + hybrid retrieval | Biggest single change: needs an `EmbeddingProvider` SPI (indexing becomes slow and fallible), new IR vocabulary for similarity search with a k and a prefilter, and a decision whether the IR carries a vector or a text to embed. KNN is a top-k retriever, not a predicate — it does not compose with `BooleanQuery` the way `WHERE_EQ` does, and the capability must say so. Practical constraints: the codec's default dimension limit (verify against Lucene 10 — a custom `KnnVectorsFormat`/codec is needed for embedding models above it), and an embedding-model change is a full reindex, so the model version is index metadata. The metamodel slot is reserved in §4 so this stays additive. RAG shape, if it comes: chunk-as-child-document + block join (§5.2) for parent rollup, plus hand-rolled fusion of BM25 and KNN unless Lucene 10 ships something for it. |
 | Standing queries / reverse search (`monitor`) | Structurally the best fit in the whole list — a registered query is an Expression IR EObject, so it is persistable, versionable and transportable over the typed-event/pushstream stack — but it only pays off together with the v2 change feed (S10), and it is a second execution model (documents pass queries) that deserves its own concept round. |
 | Analysis-chain enrichment (`analysis.icu`, `.phonetic`, `.opennlp`, synonym graphs) | Index-time NLP (NER into facet fields, lemmatization) and phonetic matching are per-domain decisions, not backend decisions. Attractive Fennec angle for later: maintain the thesaurus/synonym set *as an EMF model* on the same registry plane as the mapping model. |
 | `classification` | Auto-tagging from an existing index; nearly free once the index exists, but no consumer asks for it yet. |
