@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<genmodel:GenModel xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore"
+    xmlns:genmodel="http://www.eclipse.org/emf/2002/GenModel" copyrightText="Copyright (c) 2026 Contributors to the Eclipse Foundation.&#xA;&#xA;This program and the accompanying materials are made&#xA;available under the terms of the Eclipse Public License 2.0&#xA;which is available at https://www.eclipse.org/legal/epl-2.0/&#xA;&#xA;SPDX-License-Identifier: EPL-2.0&#xA;&#xA;Contributors:&#xA;  Data In Motion Consulting - initial implementation"
+    modelDirectory="/org.eclipse.fennec.search.model/src-gen" modelPluginID="org.eclipse.fennec.search.model"
+    modelName="ESearch" rootExtendsClass="org.eclipse.emf.ecore.impl.MinimalEObjectImpl$Container"
+    importerID="org.eclipse.emf.importer.ecore" complianceLevel="21.0" copyrightFields="false"
+    operationReflection="true" importOrganizing="true" oSGiCompatible="true">
+  <foreignModel>esearch.ecore</foreignModel>
+  <genPackages prefix="ESearch" basePackage="org.eclipse.fennec.search" disposableProviderFactory="true"
+      ecorePackage="esearch.ecore#/">
+    <genClasses ecoreClass="esearch.ecore#//SearchMappingRegistry">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//SearchMappingRegistry/units"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//SearchMappingRegistry/analyzers"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//IndexUnitMapping">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/refresh"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/commit"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/sort"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexUnitMapping/documents"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//DocumentMapping">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/materialization"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/fields"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/references"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//DocumentMapping/suggestions"/>
+    </genClasses>
+    <genClasses image="false" ecoreClass="esearch.ecore#//FieldMapping">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//FieldMapping/facet"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//TextFieldMapping"/>
+    <genClasses ecoreClass="esearch.ecore#//KeywordFieldMapping"/>
+    <genClasses ecoreClass="esearch.ecore#//NumericFieldMapping"/>
+    <genClasses ecoreClass="esearch.ecore#//GeoPointFieldMapping"/>
+    <genClasses ecoreClass="esearch.ecore#//RangeFieldMapping"/>
+    <genClasses ecoreClass="esearch.ecore#//RankSignalFieldMapping"/>
+    <genClasses ecoreClass="esearch.ecore#//VectorFieldMapping"/>
+    <genClasses ecoreClass="esearch.ecore#//ReferenceMapping"/>
+    <genClasses ecoreClass="esearch.ecore#//Materialization"/>
+    <genClasses ecoreClass="esearch.ecore#//FacetMapping"/>
+    <genClasses ecoreClass="esearch.ecore#//SuggestSource"/>
+    <genClasses ecoreClass="esearch.ecore#//RefreshPolicy"/>
+    <genClasses ecoreClass="esearch.ecore#//CommitPolicy"/>
+    <genClasses ecoreClass="esearch.ecore#//IndexSort">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//IndexSort/entries"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//SortEntry"/>
+    <genClasses ecoreClass="esearch.ecore#//AnalyzerDefinition">
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//AnalyzerDefinition/parameters"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//AnalyzerParameter"/>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//ReferenceStrategy">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//ReferenceStrategy/ID_ONLY"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//ReferenceStrategy/EMBED"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//ReferenceStrategy/NESTED"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//RefreshMode">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RefreshMode/NEAR_REAL_TIME"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RefreshMode/ON_COMMIT"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RefreshMode/MANUAL"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//FacetKind">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//FacetKind/SORTED_SET"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//FacetKind/TAXONOMY"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//NumericKind">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//NumericKind/AUTO"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//NumericKind/INT"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//NumericKind/LONG"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//NumericKind/FLOAT"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//NumericKind/DOUBLE"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//NumericKind/DATE"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//RangeKind">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RangeKind/AUTO"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RangeKind/LONG"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RangeKind/DOUBLE"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RangeKind/DATE"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//RankFunction">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RankFunction/SATURATION"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RankFunction/LOG"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RankFunction/SIGMOID"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//VectorSimilarity">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//VectorSimilarity/COSINE"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//VectorSimilarity/DOT_PRODUCT"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//VectorSimilarity/EUCLIDEAN"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//VectorSimilarity/MAXIMUM_INNER_PRODUCT"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//SuggesterKind">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//SuggesterKind/ANALYZING"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//SuggesterKind/FUZZY"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//SuggesterKind/COMPLETION"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//SuggesterKind/FREE_TEXT"/>
+    </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//AnalyzerKind">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//AnalyzerKind/STANDARD"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//AnalyzerKind/KEYWORD"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//AnalyzerKind/SIMPLE"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//AnalyzerKind/WHITESPACE"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//AnalyzerKind/STOP"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//AnalyzerKind/CUSTOM"/>
+    </genEnums>
+  </genPackages>
+</genmodel:GenModel>

@@ -1,0 +1,21 @@
+Bundle-Name: Eclipse Fennec Search Model
+Bundle-Description: Declarative EClass-to-index mapping metamodel (esearch.ecore) for the \
+	Fennec Lucene search backend: index unit policies, field mappings, reference strategies, \
+	facets, rank signals and suggest sources. Plain EMF — no OSGi and no Lucene dependency.
+
+src=${^src},src-gen
+
+-workingset: search
+
+-library: enableEMF
+
+-generate:\
+	model/esearch.genmodel;\
+		generate=fennecEMF;\
+		genmodel=model/esearch.genmodel;\
+		output=src-gen
+
+-includeresource.model: model=model
+
+-testpath: \
+	assertj-core

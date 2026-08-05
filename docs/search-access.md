@@ -159,38 +159,65 @@ engine-specific machinery (analyzers, suggest, highlighting) stays here.
 ## 4. The mapping model (`esearch.ecore`) — "eorm for the index"
 
 Declarative EClass→index mapping, processed by a pipeline in the style of
-`persistence.orm`'s `Processor`/`MappingContext`:
+`persistence.orm`'s `Processor`/`MappingContext`. The metamodel exists as of S2 (#5) —
+`org.eclipse.fennec.search.model/model/esearch.ecore`, `SearchMappingRegistry` as root,
+mirroring the `TrackingRegistry` pattern (reusable definitions in the root, referenced by
+non-containment).
 
-- **Index level** (per EClass): index name, default analyzer, NRT refresh policy,
-  commit policy.
-- **Field level** (per EAttribute): indexed/stored/tokenized, per-field analyzer,
-  DocValues (sorting/faceting), facet dimension, boost. Absent a declaration, a
-  convention default applies (id → StringField stored, strings → TextField, numerics →
-  point + DocValues) so small models need no mapping at all.
+**Correction to the first cut:** that draft put refresh policy and commit policy at the
+"index level (per EClass)". They cannot live there. One index unit is one Lucene directory
+with one `IndexWriter`, so refresh, commit and index sort are physical properties of the
+*unit* and cannot be varied per EClass — a per-class declaration would be unenforceable.
+The metamodel therefore splits them:
+
+- **`IndexUnitMapping`** (per EPackage universe, = one unit): unit name (the alias joining
+  mapping and runtime config), type-discriminator field name (default `_type`), default
+  analyzer, refresh policy, commit policy, index sort, `autoMap`.
+- **`DocumentMapping`** (per EClass): type name, id feature, analyzer override,
+  materialization, fields, references, suggest sources, `autoMap`.
+
+Runtime configuration of the unit — directory location, service wiring — is deliberately
+*not* in this model: it is the unit's config object, mapped from a ConfigAdmin factory
+config in OSGi and constructed directly in plain Java (§2.2). The model says what documents
+look like, not where they live.
+
+- **Field level** (`FieldMapping` per EAttribute): indexed/stored/DocValues/boost/facet on
+  the abstract base; tokenization is not a flag but the choice of subclass —
+  `TextFieldMapping` (analyzer, term vectors), `KeywordFieldMapping` (normalizer — what
+  makes CASE_INSENSITIVE answerable without a wildcard scan), `NumericFieldMapping`,
+  `GeoPointFieldMapping`, `RangeFieldMapping`, `RankSignalFieldMapping`,
+  `VectorFieldMapping`. Absent a declaration, a convention default applies (id → stored
+  keyword, strings → text, numerics → point + DocValues) so small models need no mapping at
+  all: a declaration is an override, never a prerequisite.
 - **References**: `EMBED` (denormalize the target's mapped fields under a prefix —
   containment-shaped, the Mongo-embedding analogue), `NESTED` (index the target as a
   child document in the parent's block, queried via block join — §5.2, the option that
   keeps per-child predicate correlation that `EMBED` loses) or `ID_ONLY` (store the
   target id; no joins — queries over `ID_ONLY` references are capability-refused exactly
   like Mongo's cross-document paths, diagnostic code analog `CODE_NON_EMBEDDED_PATH`).
-- **Rank signals** (per EAttribute): `FeatureField` declaration for static
-  popularity/recency signals that shape the score without leaking arithmetic into the
-  query IR (§5.3).
-- **Interval attributes**: a pair of numeric/temporal features declared as one
-  `LongRange`/`DoubleRange` field, so validity intervals get real
+- **Rank signals** (`RankSignalFieldMapping`): `FeatureField` with a saturating function
+  (saturation/log/sigmoid + pivot) for static popularity/recency signals that shape the
+  score without leaking arithmetic into the query IR (§5.3).
+- **Interval attributes** (`RangeFieldMapping`): a pair of numeric/temporal features
+  declared as one `LongRange`/`DoubleRange` field, so validity intervals get real
   `INTERSECTS`/`WITHIN`/`CONTAINS` semantics instead of two hand-written comparisons.
-- **Materialization** (per index): whether the full EObject is stored in the index —
-  serialized through `emf.codec` — so role 1 can return complete objects without a
-  primary store, and whether term vectors are stored (highlighting/similarity cost).
-- **Index-level ordering**: an optional index sort (`IndexWriterConfig#setIndexSort`)
-  over a DocValues field, enabling early termination for the dominant sort — the
-  time-ordered case of the v2 feed.
+- **Materialization** (per document): whether the full EObject is stored in the index —
+  serialized through `emf.codec`, field name and format declared — so role 1 can return
+  complete objects without a primary store. Term vectors are per text field, since that is
+  where the cost is.
+- **Index ordering** (`IndexSort` on the unit): sort entries over DocValues features,
+  enabling early termination for the dominant sort — the time-ordered case of the v2 feed.
+  Fixed at index creation, which is why it is declared rather than configured.
+- **Suggest sources** (`SuggestSource` per document): name, text feature, weight, contexts,
+  suggester kind (§6) — the mapping-model half of S8.
 - Registration on the metadata/aspect plane per EPackage (the pattern shared with
   TrackingConfig/IngestMapping in `timeseries-access.md` §6 — one registry plane).
 
 Deferred to wave 2 but reserved in the metamodel so it does not become a breaking
-change: **vector fields** (source features, embedding-provider id, dimensions, similarity
-function, embedding-model version) — §7.
+change: **`VectorFieldMapping`** (source features, embedding-provider id, dimensions,
+similarity function, embedding-model version) — §7. Declaring one is refused with a
+diagnostic until the wave-2 work lands; the class exists so that adding the capability
+later is additive.
 
 ## 5. Query translation — capability profile
 
