@@ -185,3 +185,25 @@ org.eclipse.fennec.persistence.jpa:org.eclipse.fennec.persistence.jpa.library.wo
 org.eclipse.fennec.models:org.eclipse.fennec.common.models.library:0.0.1-SNAPSHOT
 
 org.geckoprojects.weather:org.gecko.weather.model:1.1.0-SNAPSHOT
+
+# --- emf.search ---
+# Lucene 10, OSGi-repackaged by org.gecko.libraries (org.geckoprojects.libraries).
+# The wave-1 set: core (= lucene-core + analysis-common), the query stack, and the
+# feature bundles for facets, suggest, highlighting, block joins and grouping.
+# `memory` is the MemoryIndex used by the mapping tests. `spatial` is deliberately
+# absent: LatLonPoint/LatLonShape and polygon queries live in core, and the spatial
+# bundle is only needed for Spatial4j/JTS shapes (S9 confirms before adding it).
+org.geckoprojects.libraries:org.apache.lucene.core:10.5.0-SNAPSHOT
+org.geckoprojects.libraries:org.apache.lucene.queries:10.5.0-SNAPSHOT
+org.geckoprojects.libraries:org.apache.lucene.queryparser:10.5.0-SNAPSHOT
+org.geckoprojects.libraries:org.apache.lucene.facet:10.5.0-SNAPSHOT
+org.geckoprojects.libraries:org.apache.lucene.suggest:10.5.0-SNAPSHOT
+org.geckoprojects.libraries:org.apache.lucene.highlighter:10.5.0-SNAPSHOT
+org.geckoprojects.libraries:org.apache.lucene.join:10.5.0-SNAPSHOT
+org.geckoprojects.libraries:org.apache.lucene.grouping:10.5.0-SNAPSHOT
+org.geckoprojects.libraries:org.apache.lucene.memory:10.5.0-SNAPSHOT
+
+# The Fennec persistence stack: query IR + query.model, the QueryProcessor SPI and
+# capability vocabulary, the PersistenceResource/QueryableResource contracts and the
+# published TCK. Enabled as the `fennecPersistence` bnd library in fennec.bnd.
+org.eclipse.fennec.persistence:org.eclipse.fennec.persistence.workspace.library:0.1.0-SNAPSHOT

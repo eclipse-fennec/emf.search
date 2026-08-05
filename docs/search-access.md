@@ -87,7 +87,7 @@ baseline matches the workspace (`javac.source/target: 21`), so that part is free
 | Repository | Role for `emf.search` |
 |---|---|
 | `eclipse-fennec/emf.persistence-jpa` | the contracts consumed here (§3) and the home of the design companions listed at the top. Also the reference implementation to imitate: `persistence.orm`'s processor/mapping-context pipeline (§4), the Mongo backend's capability refusals and 3VL negation push-down (§5.1). |
-| `eclipse-fennec/emf.osgi` | the EMF-in-OSGi runtime the backend plugs into — `ResourceSet`/`ResourceSetFactory` and `EPackage`/`Resource.Factory` as OSGi services instead of the static EMF registries, plus the EMF codegen used for `esearch.ecore` (S2). |
+| `eclipse-fennec/emf.osgi` | the EMF-in-OSGi runtime the backend plugs into — `ResourceSet`/`ResourceSetFactory` and `EPackage`/`Resource.Factory` as OSGi services instead of the static EMF registries, plus the EMF codegen used for `esearch.ecore` (S2). Also supplies both mechanisms that carry the mapping instances (§4.1): `emf.osgi.eobject.registry` (named, provider-fed EObject registries with a non-OSGi bootstrap) and `emf.osgi.metadata` (`MetadataService`, `AspectEntry`). |
 | `eclipse-fennec/emf.codec` | EMF (de)serialization framework. Two precedents: its `_type` discriminator (`TypeConfig`/`ConfigProperty.TYPE_KEY`, default `_type`) for the type field in §5, and its config-resolution/annotation-scope model for how §4 mapping declarations are attached and overridden. |
 | `geckoprojects-org/org.gecko.search` | the retired predecessor whose pain points are the §1 anti-goals. Worth mining, not copying: the Lucene lifecycle mechanics (`LuceneIndexImpl`/`DefaultLuceneIndex` writer + `SearcherManager` NRT handling, `CommitCallback`, the prototype-scoped searcher service factory, the suggest module's `SuggestionService`). What is replaced wholesale: `IndexContextObject`/`ContextObjectFactory` as the consumer-facing API, hand-coded `EObject`→`Document` mapping, raw `Query` in / raw `Document` out. |
 | `geckoprojects-org/org.gecko.libraries` | the OSGi-repackaged Lucene bundles (§2). |
@@ -210,8 +210,40 @@ look like, not where they live.
   Fixed at index creation, which is why it is declared rather than configured.
 - **Suggest sources** (`SuggestSource` per document): name, text feature, weight, contexts,
   suggester kind (§6) — the mapping-model half of S8.
-- Registration on the metadata/aspect plane per EPackage (the pattern shared with
-  TrackingConfig/IngestMapping in `timeseries-access.md` §6 — one registry plane).
+### 4.1 Where mappings live — two existing mechanisms, no third one
+
+The first cut said "registered on the metadata/aspect plane per EPackage" and left the
+open point from `timeseries-access.md` O7 (aspect entry vs. standalone XMI artifacts)
+unresolved. `emf.osgi` already ships both halves, so `emf.search` builds neither:
+
+- **`org.eclipse.fennec.emf.osgi.eobject.registry`** — named registries of EObjects keyed
+  by string, fed by `EObjectProvider`s (`FileEObjectProvider` for file-authored content),
+  with change listeners and entries that carry their `source`. An authored `*.esearch`
+  document becomes registry content: the provider loads it, the backend looks its
+  `IndexUnitMapping` up by unit name, and the listener makes a mapping change observable
+  instead of requiring a restart. Crucially for §2.2, it has an explicit non-OSGi
+  bootstrap — `EObjectRegistries.createRegistry(name, provider)` — so the plain-Java path
+  is the same mechanism, not a parallel one.
+- **`AspectEntry` on the metadata plane** (`MetadataService.getPackageAspect(ePackage,
+  typeId)` and the class/feature/operation variants) — a `typeId` plus the provider's own
+  EObject as contained content, explicitly designed so a provider attaches its model
+  without the metadata model knowing the type (the same slot `codec`, `orm` and `history`
+  use). A model bundle can therefore ship its own index mapping under
+  `typeId = "esearch"`, and the mapping survives writing the metadata tree to an index and
+  reading it back.
+
+So: **XMI is the authoring format, the EObject registry is the deployment path, and the
+aspect plane is how a model bundle carries its own mapping** — which is exactly the
+resolution O7 proposed, now with concrete machinery behind it.
+
+The metamodel stays a self-contained tree (registry → unit → document → fields) rather
+than being decomposed into per-element aspect fragments. Two reasons: composite mappings
+(`RangeFieldMapping`, `GeoPointFieldMapping`, `VectorFieldMapping`, `SuggestSource`)
+reference *several* features and have no single owning element to hang off; and a
+self-contained tree can be validated in isolation, which the registry path needs since
+nothing there implies an owner. Where a mapping does ride the aspect plane, the explicit
+`ePackage`/`eClass`/`feature` references must agree with the element it hangs on — a
+validation rule, not a second modelling shape.
 
 Deferred to wave 2 but reserved in the metamodel so it does not become a breaking
 change: **`VectorFieldMapping`** (source features, embedding-provider id, dimensions,

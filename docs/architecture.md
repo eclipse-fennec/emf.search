@@ -68,9 +68,21 @@ not. Three strategies:
 - **`ID_ONLY`** — store the target's id and nothing else. Queries across such a reference
   are refused, exactly as cross-document paths are in the MongoDB backend.
 
-Mapping declarations are registered per `EPackage` on the same metadata plane as the other
-Fennec model-configuration mechanisms, so one registry answers "what do I know about this
-package".
+### Where mappings come from
+
+A mapping is an EMF model, so it travels like one. `emf.search` invents no registration
+mechanism of its own — it uses the two that
+[`emf.osgi`](https://github.com/eclipse-fennec/emf.osgi) already provides:
+
+- **Authored as an `*.esearch` XMI document** and loaded into a named *EObject registry*
+  (`emf.osgi.eobject.registry`). The backend looks its unit up by name; registry listeners
+  make a changed mapping observable without a restart. The registry has an explicit
+  non-OSGi bootstrap, so a plain-Java application uses the same mechanism rather than a
+  parallel one.
+- **Shipped with the model bundle**, attached to the package metadata as an aspect
+  (`MetadataService`, `AspectEntry` with `typeId = "esearch"`) — the same slot the codec
+  and ORM aspects use. A model can then carry its own index mapping, and it survives being
+  written to and read back from a metadata index.
 
 ## Query translation and its limits
 
