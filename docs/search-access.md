@@ -389,6 +389,12 @@ deliberately:
 - **Scope**: only containment. Non-containment references stay `ID_ONLY`/refused —
   cross-block joins would reintroduce exactly the query-time join this section is not
   offering.
+- **Containment inside one resource.** EMF allows containment to cross resource boundaries,
+  and a child that lives in another resource cannot be part of its parent's block — the block
+  is one contiguous write in one unit. The codec settled the same question for serialization
+  (emf.codec#113/#123: `eDirectResource()`/`eIsProxy()` means *reference*, not inline
+  content), and the mapper has to follow that rule rather than pull a foreign child inline.
+  What the mapper does today, and the decisions this forces, are #33.
 
 Because it changes the document *shape*, the `NESTED` decision belongs in S4 even though
 the query side lands in S11 — retrofitting blocks onto a flat index is a reindex of
@@ -635,7 +641,10 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
     interval vocabulary in `emf.persistence-jpa` — to be raised now; the two-scalar
     fallback ships meanwhile.
 16. **S16 (#18) — self-sufficient hits**: full EObject stored in the index via `emf.codec`, so
-    role 1 materializes without a primary store.
+    role 1 materializes without a primary store. Also the predicate that decides
+    `UPDATE_BY_SELECTOR` per EClass (§5.4), which means "does this class materialize" has to be
+    answerable statically from the mapping, not discovered mid-write. Floor: the codec's
+    cross-resource reference fixes (emf.codec#113/#123/#128, workspace library build 72).
 17. **S17 (#19) — sorted index**: `setIndexSort` for the dominant sort order, early
     termination, `searchAfter` paging hardened against it.
 18. **S18 (#20) — checkpointing**: `IndexWriter#setLiveCommitData` carrying the applied change
