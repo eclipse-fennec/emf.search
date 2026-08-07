@@ -15,13 +15,20 @@
 # Enable the Fennec library setups (resolved from Maven Central via central.mvn).
 # fennecCodec re-added 2026-07-03 for E3 (OData-JSON data codec) — backing artifact
 # org.eclipse.fennec.codec:org.eclipse.fennec.codec.workspace.library:0.1.0-SNAPSHOT.
+#
+# fennecJPA removed 2026-08-07: it and fennecPersistence both declare their repository
+# under the key `-plugin.fennecPersistence`, so enabling both means one silently shadows
+# the other — and the loser was fennecPersistence, whose index is the one carrying
+# persistence.query, expression.model and command.model. This repository is a search
+# backend and needs no JPA/EclipseLink, so dropping fennecJPA is the fix here; the
+# collision itself is reported upstream (see issue #36). Test dependencies (JUnit,
+# AssertJ, Mockito) come from fennecTest, not from the JPA library.
 -library: \
 	fennec,\
 	fennecTest,\
 	fennecJacoco,\
 	fennecEMF,\
 	fennecM2X,\
-	fennecJPA,\
 	fennecEMFModels,\
 	fennecCodec,\
 	fennecPersistence
