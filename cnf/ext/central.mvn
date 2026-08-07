@@ -204,6 +204,12 @@ org.geckoprojects.libraries:org.apache.lucene.grouping:10.5.0-SNAPSHOT
 org.geckoprojects.libraries:org.apache.lucene.memory:10.5.0-SNAPSHOT
 
 # The Fennec persistence stack: query IR + query.model, the QueryProcessor SPI and
-# capability vocabulary, the PersistenceResource/QueryableResource contracts and the
-# published TCK. Enabled as the `fennecPersistence` bnd library in fennec.bnd.
+# capability vocabulary, the PersistenceResource/QueryableResource contracts.
+# Enabled as the `fennecPersistence` bnd library in fennec.bnd.
 org.eclipse.fennec.persistence:org.eclipse.fennec.persistence.workspace.library:0.1.0-SNAPSHOT
+
+# The published TCK (AbstractPersistenceTCK, emf.persistence-jpa#99) is *not* reachable
+# through that library: its repository index is generated from the library's own
+# -buildpath, and the TCK is not in it. So the coordinate lives here until upstream
+# ships it (issue #34); it belongs on a -testpath, never on a -buildpath.
+org.eclipse.fennec.persistence:org.eclipse.fennec.persistence.tck:0.1.0-SNAPSHOT
