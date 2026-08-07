@@ -70,39 +70,32 @@ import org.eclipse.fennec.search.esearch.TextFieldMapping;
 public final class DocumentMapper {
 
 	private final IndexUnitMapping mapping;
-	private final String typeField;
-	private final Map<EClass, DocumentMapping> declared = new HashMap<>();
+	private final IndexSchema schema;
 
-	private DocumentMapper(IndexUnitMapping mapping) {
-		this.mapping = mapping;
-		this.typeField = mapping.getTypeField() == null || mapping.getTypeField().isBlank()
-				? SearchFields.TYPE
-				: mapping.getTypeField();
-		for (DocumentMapping document : mapping.getDocuments()) {
-			if (document.getEClass() == null) {
-				throw new MappingException("A document mapping in unit '" + mapping.getName()
-						+ "' declares no EClass");
-			}
-			DocumentMapping previous = declared.put(document.getEClass(), document);
-			if (previous != null) {
-				throw new MappingException("Unit '" + mapping.getName() + "' maps "
-						+ document.getEClass().getName() + " twice");
-			}
-		}
+	private DocumentMapper(IndexSchema schema) {
+		this.schema = schema;
+		this.mapping = schema.mapping();
 	}
 
 	/** Compiles a mapping into a mapper. */
 	public static DocumentMapper of(IndexUnitMapping mapping) {
-		Objects.requireNonNull(mapping, "mapping");
-		if (mapping.getEPackage() == null) {
-			throw new MappingException("Index unit mapping '" + mapping.getName() + "' declares no EPackage");
-		}
-		return new DocumentMapper(mapping);
+		return new DocumentMapper(IndexSchema.of(mapping));
+	}
+
+	/** Maps against an already derived schema, which the query side shares. */
+	public static DocumentMapper of(IndexSchema schema) {
+		Objects.requireNonNull(schema, "schema");
+		return new DocumentMapper(schema);
+	}
+
+	/** The schema this mapper writes against; the query translation reads the same one. */
+	public IndexSchema schema() {
+		return schema;
 	}
 
 	/** The name of the type discriminator field this mapper writes. */
 	public String typeField() {
-		return typeField;
+		return schema.typeField();
 	}
 
 	/**
@@ -136,36 +129,15 @@ public final class DocumentMapper {
 
 	/** The declared mapping for this class, or the nearest one inherited from a supertype. */
 	private DocumentMapping resolve(EClass eClass) {
-		DocumentMapping own = declared.get(eClass);
-		if (own != null) {
-			return own;
-		}
-		for (EClass superType : eClass.getEAllSuperTypes()) {
-			DocumentMapping inherited = declared.get(superType);
-			if (inherited != null) {
-				return inherited;
-			}
-		}
-		return null;
+		return schema.documentMapping(eClass);
 	}
 
 	private String typeNameOf(DocumentMapping documentMapping, EClass eClass) {
-		if (documentMapping != null && documentMapping.getTypeName() != null
-				&& !documentMapping.getTypeName().isBlank()) {
-			// A declared type name belongs to the class that declared it. A subclass
-			// inheriting the mapping still writes its own name, otherwise a TYPE_FILTER
-			// could never tell the two apart.
-			if (documentMapping.getEClass() == eClass) {
-				return documentMapping.getTypeName();
-			}
-		}
-		return eClass.getName();
+		return schema.typeNameOf(eClass);
 	}
 
 	private String idOf(EObject object, DocumentMapping documentMapping, EClass eClass) {
-		EAttribute idAttribute = documentMapping != null && documentMapping.getIdFeature() != null
-				? documentMapping.getIdFeature()
-				: eClass.getEIDAttribute();
+		EAttribute idAttribute = schema.idAttribute(eClass);
 		if (idAttribute == null) {
 			throw new MappingException(eClass.getName() + " has no id attribute and its mapping declares "
 					+ "none. Every indexed object needs a stable id — without one it cannot be updated "
@@ -185,7 +157,7 @@ public final class DocumentMapper {
 			boolean isRoot) {
 		document.add(new StringField(SearchFields.ID, id, Field.Store.YES));
 		document.add(new StringField(SearchFields.ROOT, rootId, Field.Store.YES));
-		document.add(new StringField(typeField, typeName, Field.Store.YES));
+		document.add(new StringField(schema.typeField(), typeName, Field.Store.YES));
 		if (isRoot) {
 			document.add(new StringField(SearchFields.PARENT, SearchFields.PARENT_VALUE, Field.Store.NO));
 		}
@@ -215,7 +187,7 @@ public final class DocumentMapper {
 				writeConvention(document, object, attribute, prefix);
 				continue;
 			}
-			writeDeclared(document, object, attribute, field, prefix, prefix + fieldName(field, attribute));
+			writeDeclared(document, object, attribute, field, prefix, prefix + schema.fieldName(attribute, field));
 		}
 	}
 
@@ -230,9 +202,9 @@ public final class DocumentMapper {
 				continue;
 			}
 			Class<?> type = attribute.getEAttributeType().getInstanceClass();
-			if (attribute.isID() || attribute.getEAttributeType() instanceof EEnum || isBoolean(type)) {
+			if (attribute.isID() || attribute.getEAttributeType() instanceof EEnum || IndexSchema.isBoolean(type)) {
 				addKeyword(document, name, stringOf(attribute, value), attribute.isID(), true);
-			} else if (isNumeric(type) || Date.class.isAssignableFrom(nonNull(type))) {
+			} else if (IndexSchema.isNumeric(type) || Date.class.isAssignableFrom(IndexSchema.nonNull(type))) {
 				addNumeric(document, name, attribute, value, NumericKind.AUTO, false, true,
 						attribute.isMany());
 			} else {
@@ -470,26 +442,7 @@ public final class DocumentMapper {
 	}
 
 	private NumericKind deriveNumericKind(EAttribute attribute) {
-		Class<?> type = nonNull(attribute.getEAttributeType().getInstanceClass());
-		if (Date.class.isAssignableFrom(type)) {
-			return NumericKind.DATE;
-		}
-		if (type == int.class || type == Integer.class || type == short.class || type == Short.class
-				|| type == byte.class || type == Byte.class) {
-			return NumericKind.INT;
-		}
-		if (type == long.class || type == Long.class) {
-			return NumericKind.LONG;
-		}
-		if (type == float.class || type == Float.class) {
-			return NumericKind.FLOAT;
-		}
-		if (type == double.class || type == Double.class) {
-			return NumericKind.DOUBLE;
-		}
-		throw new MappingException("Attribute '" + attribute.getName() + "' of type "
-				+ attribute.getEAttributeType().getName() + " is mapped as numeric, but its Java type "
-				+ type.getName() + " is not one this backend knows how to encode as a point.");
+		return schema.numericKindOf(attribute);
 	}
 
 	private Number toNumber(EAttribute attribute, Object value, NumericKind kind) {
@@ -504,10 +457,6 @@ public final class DocumentMapper {
 	}
 
 	// --- small helpers ----------------------------------------------------------------------
-
-	private static String fieldName(FieldMapping field, EAttribute attribute) {
-		return field.getName() == null || field.getName().isBlank() ? attribute.getName() : field.getName();
-	}
 
 	@SuppressWarnings("unchecked")
 	private static List<Object> valuesOf(EObject object, EStructuralFeature feature) {
@@ -531,16 +480,4 @@ public final class DocumentMapper {
 		return EcoreUtil.convertToString((EDataType) attribute.getEType(), value);
 	}
 
-	private static boolean isBoolean(Class<?> type) {
-		return type == boolean.class || type == Boolean.class;
-	}
-
-	private static boolean isNumeric(Class<?> type) {
-		Class<?> t = nonNull(type);
-		return t.isPrimitive() && t != boolean.class && t != char.class || Number.class.isAssignableFrom(t);
-	}
-
-	private static Class<?> nonNull(Class<?> type) {
-		return type == null ? Object.class : type;
-	}
 }
