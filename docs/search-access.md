@@ -146,20 +146,36 @@ avoided — if something is missing, it is fixed in the reusable, not forked her
 
 One direction only: `emf.search` consumes **published** artifacts (bnd repos / DIM
 snapshots; the `fennecPersistence` workspace-library pattern, see the
-emf.persistence-jpa README §consuming). Everything below is API there as of 2026-08-05:
+emf.persistence-jpa README §consuming). Everything below is API there as of 2026-08-07
+(consumed snapshot `0.1.0-SNAPSHOT`, build 37):
 
 - Expression IR + `query.model`, the `QueryProcessor` SPI, `QueryCapabilities`/
   `QueryFeature`, validation (`QueryValidator`, `ExpressionAnalyzer`).
 - `PersistenceResource`/`QueryableResource`/`CommandResource` contracts (`persistence`,
   `persistence.query`) and the write vocabulary of `command.model` — `InsertCommand`,
   `DeleteCommand` (selector), `UpdateCommand` (selector + ChangeSet template).
+- The **command-side capability surface** (emf.persistence-jpa#114): `CommandFeature`,
+  `CommandCapabilities`, `CommandResource.capabilities()`, and
+  `CommandCapabilitiesBuilder` in `query.support` with its per-EClass `narrow()` hook.
+  This closes the declaration gap that was #31 here — see §5.4.
 - The TCK as subclass API with bundled model fixtures (emf.persistence-jpa#99): extend
   `AbstractPersistenceTCK`, implement `setUpBackend`/`createBackendResourceSet`/`uriFor`,
   declare variance via the `supports*()` hooks.
 - `QueryFeature.SCORE` + the `Score` expression (emf.persistence-jpa#100) — the first
   vocabulary item that exists *for* this repo.
-- Geo vocabulary lands there after the emf.persistence-jpa#101 concept round;
-  `emf.search` implements it in G-P3 of `geo-vocabulary.md`.
+- The **geo vocabulary** (emf.persistence-jpa#101, G-P1 of `geo-vocabulary.md`):
+  `GeoPointLiteral` (WGS84 lon/lat), `GeoSubject` (split lat/lon pair XOR packed point
+  path), `GeoBox`/`GeoPolygon`, the `GeoWithin` predicate and the `GeoDistance` value
+  expression, plus `QueryFeature.GEO_WITHIN` (76) / `GEO_DISTANCE` (77). The canonical
+  value shape of the *packed* binding followed with the Mongo translation (#113, G-P2):
+  a GeoJSON-style point EObject with a many-valued numeric `coordinates` feature in
+  `[lon, lat]` order. **G-P3 is this repository's translation** (S9, #13).
+
+**One artifact is not in the library:** `org.eclipse.fennec.persistence.tck` is published
+separately, but the `fennecPersistence` repository index is generated from the library's
+own `-buildpath` (= the `-runbundles` of its `required.bndrun`), and the TCK is not in that
+set. Its coordinate therefore sits directly in `cnf/ext/central.mvn` here; the upstream
+question — library entry or a separate `fennecPersistenceTest` library — is #34.
 
 **Ground rule:** missing query vocabulary is never invented in `emf.search` — it goes
 to `emf.persistence-jpa` as an IR issue (the SCORE/geo route). Protocol- or
@@ -327,7 +343,7 @@ Three consequences, all owned by #28:
 | GROUP_BY subset + AGG_COUNT | facets (taxonomy or SSDV) — declared only for the shapes facets actually answer (single group key, count aggregate); everything else refused |
 | GROUP_BY with representative rows | `lucene-grouping` (`GroupingSearch`) — the shape facets cannot answer: top-N documents *per* group rather than counts |
 | EXISTS / FOR_ALL over `NESTED` references | block join (§5.2) — `ToParentBlockJoinQuery` for EXISTS, negation-of-EXISTS for FOR_ALL; still refused over `EMBED` (no per-child correlation) and `ID_ONLY` |
-| Geo predicates (emf.persistence-jpa#101) | `LatLonPoint`/`LatLonShape` queries from `core` — distance, bbox, polygon; sort by distance via `LatLonDocValuesField#newDistanceSort` |
+| GEO_WITHIN / GEO_DISTANCE (emf.persistence-jpa#101) | `LatLonPoint.newBoxQuery`/`newPolygonQuery`/`newDistanceQuery` from `core`; distance sort via `LatLonDocValuesField#newDistanceSort` (§5.5) |
 | Interval predicates over declared range fields | `LongRange`/`DoubleRange` queries (`INTERSECTS`/`WITHIN`/`CONTAINS`) |
 | TYPE_CHECK / TYPE_FILTER | type discriminator field (the codec `_type` analogue, written by the mapper) |
 
@@ -407,7 +423,8 @@ partial update: changing one field means rewriting the document, so the backend 
 to reconstruct it first. With the stored EObject present it can — read, apply the ChangeSet,
 re-map, replace. Without it, the index holds only the mapped fields, and rebuilding from
 those would silently drop everything unmapped. A lossy write is worse than a refusal, so the
-answer without materialization is a refusal (S21, #29).
+answer without materialization is a refusal — per EClass now rather than for the whole
+backend, see below (S21, #29).
 
 A write bracket (`CommandResource.begin()`) has no clean Lucene equivalent either.
 `IndexWriter.rollback()` discards *all* uncommitted work in the unit, not the calling
@@ -415,12 +432,70 @@ thread's share of it, so a bracket is only sound while a single writer owns the 
 a condition the backend cannot enforce by itself. The v1 recommendation is to refuse and say
 why, with a serialized bracket as the documented upgrade path (S22, #30).
 
-**Both of those refusals currently have nowhere to be declared.** `QueryFeature` is
-query-side only; there is no command vocabulary in the capability model, so an unsupported
-command can only throw. That is a gap in the intermediate layer, not in this backend, and it
-is filed as #31 here and raised upstream as **emf.persistence-jpa#114** — including the
-sharper question the materialization case forces: whether a capability answer may be *per
-EClass* rather than per backend.
+**Both of those refusals now have somewhere to be declared.** The gap filed here as #31 was
+raised upstream and closed as **emf.persistence-jpa#114** (2026-08-06): `CommandFeature`
+(`INSERT`, `DELETE_BY_SELECTOR`, `UPDATE_BY_SELECTOR`, `TRANSACTION_BRACKET`) plus
+`CommandCapabilities` and `CommandResource.capabilities()` — deliberately a separate enum,
+`QueryFeature` stays the query-validate contract.
+
+The sharper per-EClass question that the materialization case forced was answered in this
+backend's favour, and the answer is what S21 declares:
+
+- `supports(feature)` is the backend-wide answer, `supports(feature, eClass)` the routing
+  truth, and a narrowed feature still counts as backend-wide supported. A backend serving a
+  feature for *some* classes declares it and narrows, rather than answering conservatively
+  and hiding what it can do.
+- So this backend declares `INSERT` and `DELETE_BY_SELECTOR` outright and
+  `UPDATE_BY_SELECTOR` through `CommandCapabilitiesBuilder.narrow(feature, eClass -> …)`
+  over the classes whose mapping materializes the document (§4, S16). `TRANSACTION_BRACKET`
+  stays undeclared in v1.
+- Refusal runs through the diagnostics contract: `execute()`/`begin()` refuse an undeclared
+  feature *before any work*, with a `PersistenceDiagnostic` naming the `CommandFeature`,
+  then the `IOException`. The TCK case `commandCapabilitiesMatchDeclaredBehaviour` pins
+  declaration = behaviour, so a declaration that overstates this backend fails our build
+  rather than a consumer's.
+
+### 5.5 Geo — the one place where Lucene is the strongest backend
+
+With emf.persistence-jpa#101/#113 landed (§3), G-P3 here is a translation task rather than a
+vocabulary question, and it is worth recording *why* this backend has an easy time where
+Mongo needed care:
+
+- **Both subject bindings collapse into one index field.** The IR distinguishes a split
+  lat/lon feature pair from a packed point path because that is what real models look like,
+  and Mongo has to honour the difference at query time (split subjects degrade to range
+  filters and `$expr` haversine, polygons over split subjects are refused outright). Here
+  the *mapper* resolves the binding once, at index time, into a `LatLonPoint` +
+  `LatLonDocValuesField` pair — after which box, polygon and distance queries no longer care
+  which authoring shape the model used. `GeoPointFieldMapping` (§4) already carries exactly
+  these two shapes.
+- **The earth model already agrees.** Lucene computes distances over
+  `GeoUtils.EARTH_MEAN_RADIUS_METERS = 6_371_008.7714`; the reference engine uses the mean
+  radius 6371008.8 (`geo-vocabulary.md` §5.4). That is 4.5e-9 relative — orders below the
+  G5 differential tolerance (1e-3 relative above 1 m, 1 mm absolute below), so no tolerance
+  argument is needed for `GeoDistance`.
+- **The antimeridian box is native.** `LatLonPoint.newBoxQuery` is documented as "the box may
+  cross over the dateline", which is precisely the wrap case G2 declares legal — no `$or`
+  split as in the Mongo translation.
+- **`GeoDistance` is a value expression, so it appears in three positions** and each has its
+  own Lucene answer: as a comparison against a threshold → `newDistanceQuery`; as a sort key
+  → `LatLonDocValuesField#newDistanceSort` (which makes the k-NN pattern *sort + limit*
+  exact, not approximate); as a projected column → computed per hit from doc values. Distance
+  `EQ`/`NE` is refused for the same reason Mongo refuses it — a measure-zero comparison on a
+  continuum.
+
+Two things S9 (#13) has to settle rather than assume:
+
+1. **Polygon semantics.** The reference engine ray-casts planar in lat/lon space; Lucene's
+   `Polygon`/`newPolygonQuery` has its own edge treatment. The differential corpus of G-P2 is
+   the instrument — run it against Lucene and record where the two disagree, instead of
+   asserting equivalence.
+2. **The packed binding needs a model addition.** G-P2's canonical packed value is a nested
+   GeoJSON-style *EObject* with a many-valued numeric `coordinates` feature in `[lon, lat]`
+   order, reached by a path. `GeoPointFieldMapping` inherits `feature` as an `EAttribute`, so
+   today it can express "one attribute carrying both" but not "a nested point object" —
+   additive metamodel work (a packed source path, or declaring the field on the child's
+   `coordinates` attribute) that belongs in #13 and needs a codegen round.
 
 ## 6. Suggest — own API, shared machinery
 
@@ -465,7 +540,7 @@ what cannot be built here alone because it requires query vocabulary in
 | Feature | Bundle | Needs IR? | Note |
 |---|---|---|---|
 | Block join over containment | `join` | no — uses existing EXISTS/FOR_ALL | §5.2; document-shape decision belongs in S4 |
-| Geo predicates + distance sort | `core` | **yes** — emf.persistence-jpa#101, concept round still pending | now a wave-1 blocker, not a late add-on (§8) |
+| Geo predicates + distance sort | `core` | yes — **landed** as emf.persistence-jpa#101 (G-P1) with the packed shape from #113 (G-P2) | no longer blocked; G-P3 is ours (§5.5, S9) |
 | Facets | `facet` | no — GROUP_BY/AGG_COUNT subset | taxonomy vs. SSDV decision in S7 |
 | Suggest | `suggest` | no — own API (§6) | |
 | Highlighting | `highlighter` | depends on the result-carrier decision (§6.1) | |
@@ -522,6 +597,13 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
 5. **S5 (#8) — `QueryProcessor` + TCK binding**: §5 translation including the 3VL negation
    push-down, capability declaration, `search.tck` binding extending the published
    `AbstractPersistenceTCK` with the `supports*()` variance + search-specific cases.
+   The capability declaration now has **two** surfaces to fill — `QueryCapabilities` and,
+   since emf.persistence-jpa#114, `CommandCapabilities` (§5.4) — and the TCK binding has to
+   answer the gates that exist today: `supportsTypePredicates`,
+   `supportsFilteredCollectionCounts`, `supportsSortExpressions`, `supportsExpand`,
+   `supportsGeo`, `supportsCommandTransactions`, `supportsCompositeIds`. The TCK
+   coordinate comes from
+   `cnf/ext/central.mvn`, not from the `fennecPersistence` library (§3, #34).
 6. **S23 (#32) — mapping delivery** (§4.1): a `MappingSource` resolving an
    `IndexUnitMapping` for a unit, from an authored `*.esearch` in an EObject registry or
    from the metadata aspect. Blocks the OSGi half of S4 — the mapper needs a mapping and
@@ -538,11 +620,12 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
    corpora).
 9. **S7 (#11) — facets**: the GROUP_BY/AGG_COUNT subset of §5, taxonomy vs. SSDV decision.
 10. **S8 (#12) — suggest** (`search.suggest`): §6 API + mapping-model extension + impl.
-11. **S9 (#13) — geo**: `GeoWithin`/`GeoDistance` over `LatLonPoint`/`LatLonShape` from `core`
-    plus distance sort — G-P3 of `geo-vocabulary.md`. **Now a wave-1 item, so
-    emf.persistence-jpa#101 becomes a wave-1 blocker**: the concept round there has to be
-    scheduled, not awaited. S9 also confirms whether the `spatial` bundle is needed at all
-    (§2).
+11. **S9 (#13) — geo**: `GeoWithin`/`GeoDistance` over `LatLonPoint` plus distance sort —
+    G-P3 of `geo-vocabulary.md`. **No longer blocked**: the vocabulary landed as
+    emf.persistence-jpa#101 and the packed value shape as #113 (§3). Carries the two open
+    points of §5.5 — the polygon differential against the reference engine, and the additive
+    metamodel change for the packed binding (codegen round). S9 also confirms whether the
+    `spatial` bundle is needed at all (§2).
 12. **S12 (#14) — highlighting**: `UnifiedHighlighter` + the result-carrier decision of §6.1.
 13. **S13 (#15) — similarity**: `MoreLikeThis` API (§6.2), term-vector declaration in the
     mapping model.
@@ -560,11 +643,16 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
 19. **S19 (#21) — grouping with representatives**: `GroupingSearch` for top-N per group.
     Needs the result-shape question of §7 answered against the pipeline vocabulary first.
 20. **S21 (#29) — write commands**: `CommandResource` — insert, delete-by-selector, and
-    update where materialization allows it (§5.4).
+    update where materialization allows it (§5.4). **No longer blocked**: declared through
+    `CommandCapabilitiesBuilder`, with `UPDATE_BY_SELECTOR` narrowed per EClass rather than
+    refused backend-wide, and `commandCapabilitiesMatchDeclaredBehaviour` from the TCK as the
+    gate.
 21. **S22 (#30) — write bracket**: what `CommandTransaction` means over Lucene; refusal
-    recommended for v1 (§5.4).
-22. **#31 — command capabilities** (upstream): the capability model has no write
-    vocabulary; to be raised in `emf.persistence-jpa`, with the per-EClass question.
+    recommended for v1 (§5.4) — now expressible as an undeclared `TRANSACTION_BRACKET` with
+    `supportsCommandTransactions()` false in the TCK binding.
+22. ~~**#31 — command capabilities** (upstream)~~ **done**: raised and closed as
+    emf.persistence-jpa#114 (2026-08-06), including the per-EClass question — answered with
+    the two-level contract of §5.4.
 23. **S20 (#28) — computed field values** (§4.2): feature paths and m2x OCL sources as
     field values, virtual fields, static dependency extraction. Starts after S5, and its
     dependency output is what S10 needs (#22).
@@ -579,9 +667,10 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
 **Wave 2** (§7, reserved — no issues cut yet): KNN/vector search + hybrid retrieval,
 standing queries via `monitor`, analysis-chain enrichment, `classification`.
 
-Issues to raise in `emf.persistence-jpa` for wave 1: interval vocabulary (S15), the
-result shape for grouping representatives (S19), possibly per-hit metadata if §6.1
-lands on option (b) — plus the escalation of #101 for S9.
+Issues still to raise in `emf.persistence-jpa` for wave 1 (as of 2026-08-07 none of these
+exist there yet): interval vocabulary (S15), the result shape for grouping representatives
+(S19), possibly per-hit metadata if §6.1 lands on option (b). The two that *were* open —
+#101 for geo and #114 for command capabilities — are closed and consumed (§3).
 
 ## 9. Non-goals
 
