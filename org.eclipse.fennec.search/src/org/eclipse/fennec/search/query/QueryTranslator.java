@@ -523,7 +523,7 @@ final class QueryTranslator {
 		Query positive = typeFilter(typeCheck.getType());
 		return negated
 				? new BooleanQuery.Builder()
-						.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST)
+						.add(MatchAllDocsQuery.INSTANCE, BooleanClause.Occur.MUST)
 						.add(positive, BooleanClause.Occur.MUST_NOT)
 						.build()
 				: positive;
@@ -578,7 +578,7 @@ final class QueryTranslator {
 	/** Documents that have no value for the field — what {@code IsNull} asks for. */
 	private Query missingQuery(IndexSchema.Field field) {
 		return new BooleanQuery.Builder()
-				.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST)
+				.add(MatchAllDocsQuery.INSTANCE, BooleanClause.Occur.MUST)
 				.add(existsQuery(field), BooleanClause.Occur.MUST_NOT)
 				.build();
 	}

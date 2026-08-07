@@ -28,11 +28,17 @@ subprojects {
     }
 
     // Dedicated task for the slow scaling tests (@Tag("perf"), kept out of the fast build).
-    // Their STRUCTURAL assertions (constant SQL statement counts at scale — deterministic) DO gate;
-    // timing is only logged, so this task is safe to fail the build on a real regression.
+    // Their STRUCTURAL assertions (document counts and block sizes at scale — deterministic) DO
+    // gate; timing is only logged, so this task is safe to fail the build on a real regression.
+    // The measurements print to stdout, which is the whole point of the suite, so they are shown
+    // without needing --info. Raise the corpus with -Dsearch.perf.scale=N.
     tasks.register('perfTest', Test) {
         useJUnitPlatform {
             includeTags 'perf'
+        }
+        systemProperty 'search.perf.scale', System.getProperty('search.perf.scale', '1')
+        testLogging {
+            showStandardStreams = true
         }
     }
 
