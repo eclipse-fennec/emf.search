@@ -35,7 +35,7 @@ import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
  * API anyway, so a generated model would test less, not more, and every new fixture would
  * cost a genmodel and a build step.
  */
-final class TestModels {
+public final class TestModels {
 
 	private final EPackage ePackage;
 
@@ -44,7 +44,7 @@ final class TestModels {
 	}
 
 	/** Loads the ecore next to this class and registers it in its own resource set. */
-	static TestModels load(String fileName) {
+	public static TestModels load(String fileName) {
 		ResourceSet resourceSet = new ResourceSetImpl();
 		resourceSet.getResourceFactoryRegistry().getExtensionToFactoryMap()
 				.put("ecore", new XMIResourceFactoryImpl());
@@ -63,11 +63,11 @@ final class TestModels {
 		}
 	}
 
-	EPackage ePackage() {
+	public EPackage ePackage() {
 		return ePackage;
 	}
 
-	EClass eClass(String name) {
+	public EClass eClass(String name) {
 		EClass eClass = (EClass) ePackage.getEClassifier(name);
 		if (eClass == null) {
 			throw new IllegalArgumentException("No EClass '" + name + "' in " + ePackage.getName());
@@ -75,7 +75,7 @@ final class TestModels {
 		return eClass;
 	}
 
-	EStructuralFeature feature(String className, String featureName) {
+	public EStructuralFeature feature(String className, String featureName) {
 		EStructuralFeature feature = eClass(className).getEStructuralFeature(featureName);
 		if (feature == null) {
 			throw new IllegalArgumentException("No feature '" + featureName + "' on " + className);
@@ -84,7 +84,7 @@ final class TestModels {
 	}
 
 	/** Creates an instance and sets the given feature/value pairs. */
-	EObject create(String className, Object... featureValuePairs) {
+	public EObject create(String className, Object... featureValuePairs) {
 		EClass eClass = eClass(className);
 		EObject object = EcoreUtil.create(eClass);
 		for (int i = 0; i < featureValuePairs.length; i += 2) {

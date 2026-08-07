@@ -1,7 +1,8 @@
 Bundle-Name: Eclipse Fennec Search
 Bundle-Description: Lucene index units for the Fennec search backend — writer and searcher \
-	lifecycle, refresh and commit policy, analyzer registry. Plain Java: no OSGi imports, \
-	no static state, constructible from an ordinary config object.
+	lifecycle, refresh and commit policy, analyzer registry, EObject-to-document mapping and \
+	the QueryProcessor. Plain Java: no OSGi imports, no static state, constructible from an \
+	ordinary config object.
 
 -workingset: search
 
@@ -10,6 +11,9 @@ Bundle-Description: Lucene index units for the Fennec search backend — writer 
 -buildpath: \
 	org.eclipse.fennec.search.model;version=snapshot,\
 	org.eclipse.fennec.persistence;version=latest,\
+	org.eclipse.fennec.persistence.query;version=latest,\
+	org.eclipse.fennec.query.model;version=latest,\
+	org.eclipse.fennec.expression.model;version=latest,\
 	org.apache.lucene.core;version=latest,\
 	org.osgi.annotation.bundle;version=latest,\
 	org.osgi.annotation.versioning;version=latest
