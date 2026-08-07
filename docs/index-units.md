@@ -103,3 +103,36 @@ The registry is immutable, and an analyzer service appearing or disappearing rea
 unit rather than mutating the registry underneath it. Swapping an analyzer under a live
 writer would change how documents are analyzed halfway through an index — which is a corrupt
 index, not a configuration change.
+
+## Measured behaviour
+
+The choices above have a cost, so there is a suite that measures it rather than a paragraph
+that guesses at it (issue #38):
+
+```bash
+./gradlew perfTest                          # the default corpus, a few seconds
+./gradlew perfTest -Dsearch.perf.scale=20   # twenty times the corpus
+```
+
+Three areas, and two kinds of statement in them. **Structure gates**: document counts, block
+sizes, and the invariant that a concurrent searcher never observes half a block. **Timing is
+logged and never asserted**, because a busy machine must not be able to fail a build.
+
+What the current numbers say, on a developer machine and as an order of magnitude rather than
+a promise:
+
+| Measurement | Observation |
+|---|---|
+| Plain documents | ~150 000 objects/s, roughly 60 bytes per document on disk |
+| Blocks of four | ~50 000 objects/s; a block costs its child documents, about 2.9× the flattened form |
+| `CommitPolicy.afterDocuments(1000)` vs `onClose()` | **+430 % per document** — committing is the expensive part of indexing, not mapping |
+| NRT visibility | median equal to the configured reopen interval (50 ms), p90 ~77 ms |
+| Query latency while indexing | +8 % against a quiet index |
+| Storing one text field | +15 % index size |
+
+Two of those are worth carrying into a decision. Commit policy dominates write throughput, so
+`afterDocuments` is a durability choice with a real price rather than a tuning knob — and
+`AccessMode.BULK_LOAD` exists precisely so an initial load pays neither for commits nor for a
+searcher. And "near real time" means exactly the reopen interval: `RefreshTrigger.background`
+is the whole latency budget, so a consumer that needs its write visible sooner has to ask for
+a `refresh()`, not hope.
