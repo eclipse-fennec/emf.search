@@ -36,6 +36,7 @@ import org.eclipse.fennec.search.esearch.IndexSort;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
 import org.eclipse.fennec.search.esearch.Materialization;
+import org.eclipse.fennec.search.esearch.MaterializationKind;
 import org.eclipse.fennec.search.esearch.NumericFieldMapping;
 import org.eclipse.fennec.search.esearch.NumericKind;
 import org.eclipse.fennec.search.esearch.RangeFieldMapping;
@@ -221,6 +222,13 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 	 * @generated
 	 */
 	private EEnum referenceStrategyEEnum = null;
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	private EEnum materializationKindEEnum = null;
 
 	/**
 	 * <!-- begin-user-doc -->
@@ -994,7 +1002,7 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 	 * @generated
 	 */
 	@Override
-	public EAttribute getMaterialization_StoreObject() {
+	public EAttribute getMaterialization_Kind() {
 		return (EAttribute)materializationEClass.getEStructuralFeatures().get(0);
 	}
 
@@ -1384,6 +1392,16 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 	 * @generated
 	 */
 	@Override
+	public EEnum getMaterializationKind() {
+		return materializationKindEEnum;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
 	public EEnum getRefreshMode() {
 		return refreshModeEEnum;
 	}
@@ -1564,7 +1582,7 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		createEReference(referenceMappingEClass, REFERENCE_MAPPING__INCLUDES);
 
 		materializationEClass = createEClass(MATERIALIZATION);
-		createEAttribute(materializationEClass, MATERIALIZATION__STORE_OBJECT);
+		createEAttribute(materializationEClass, MATERIALIZATION__KIND);
 		createEAttribute(materializationEClass, MATERIALIZATION__FIELD_NAME);
 		createEAttribute(materializationEClass, MATERIALIZATION__FORMAT);
 
@@ -1613,6 +1631,7 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		// Create enums
 		fieldUseEEnum = createEEnum(FIELD_USE);
 		referenceStrategyEEnum = createEEnum(REFERENCE_STRATEGY);
+		materializationKindEEnum = createEEnum(MATERIALIZATION_KIND);
 		refreshModeEEnum = createEEnum(REFRESH_MODE);
 		facetKindEEnum = createEEnum(FACET_KIND);
 		numericKindEEnum = createEEnum(NUMERIC_KIND);
@@ -1737,7 +1756,7 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		initEReference(getReferenceMapping_Includes(), ecorePackage.getEStructuralFeature(), null, "includes", null, 0, -1, ReferenceMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 
 		initEClass(materializationEClass, Materialization.class, "Materialization", !IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
-		initEAttribute(getMaterialization_StoreObject(), ecorePackage.getEBoolean(), "storeObject", "true", 1, 1, Materialization.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+		initEAttribute(getMaterialization_Kind(), this.getMaterializationKind(), "kind", "STORED_OBJECT", 0, 1, Materialization.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 		initEAttribute(getMaterialization_FieldName(), ecorePackage.getEString(), "fieldName", "_source", 0, 1, Materialization.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 		initEAttribute(getMaterialization_Format(), ecorePackage.getEString(), "format", null, 0, 1, Materialization.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 
@@ -1797,6 +1816,10 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		addEEnumLiteral(referenceStrategyEEnum, ReferenceStrategy.ID_ONLY);
 		addEEnumLiteral(referenceStrategyEEnum, ReferenceStrategy.EMBED);
 		addEEnumLiteral(referenceStrategyEEnum, ReferenceStrategy.NESTED);
+
+		initEEnum(materializationKindEEnum, MaterializationKind.class, "MaterializationKind");
+		addEEnumLiteral(materializationKindEEnum, MaterializationKind.STORED_OBJECT);
+		addEEnumLiteral(materializationKindEEnum, MaterializationKind.SOURCE_URI);
 
 		initEEnum(refreshModeEEnum, RefreshMode.class, "RefreshMode");
 		addEEnumLiteral(refreshModeEEnum, RefreshMode.NEAR_REAL_TIME);

@@ -22,14 +22,14 @@ import org.osgi.annotation.versioning.ProviderType;
  * <!-- end-user-doc -->
  *
  * <!-- begin-model-doc -->
- * Stores the serialized EObject alongside its indexed fields, so a hit can be returned as a complete object without consulting a primary store. This is what makes the standalone role self-sufficient; as a secondary index next to JPA or Mongo it is usually wasted space.
+ * Upgrades how a hit becomes an EObject again. Without this element a hit is partially reconstructed from stored fields and incomplete by design (docs/search-access.md §4.3); declaring it either stores the complete serialized object (STORED_OBJECT) or a pointer into the primary store (SOURCE_URI). Presence of this element is the switch.
  * <!-- end-model-doc -->
  *
  * <p>
  * The following features are supported:
  * </p>
  * <ul>
- *   <li>{@link org.eclipse.fennec.search.esearch.Materialization#isStoreObject <em>Store Object</em>}</li>
+ *   <li>{@link org.eclipse.fennec.search.esearch.Materialization#getKind <em>Kind</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.Materialization#getFieldName <em>Field Name</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.Materialization#getFormat <em>Format</em>}</li>
  * </ul>
@@ -41,30 +41,33 @@ import org.osgi.annotation.versioning.ProviderType;
 @ProviderType
 public interface Materialization extends EObject {
 	/**
-	 * Returns the value of the '<em><b>Store Object</b></em>' attribute.
-	 * The default value is <code>"true"</code>.
+	 * Returns the value of the '<em><b>Kind</b></em>' attribute.
+	 * The default value is <code>"STORED_OBJECT"</code>.
+	 * The literals are from the enumeration {@link org.eclipse.fennec.search.esearch.MaterializationKind}.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
 	 * <!-- begin-model-doc -->
-	 * Store the serialized EObject. False makes this element a no-op and is only useful to switch materialization off for one document while the surrounding configuration keeps it on.
+	 * Which upgrade this document gets. STORED_OBJECT is the only kind that makes UPDATE_BY_SELECTOR possible for the class, because an update must rebuild the complete document.
 	 * <!-- end-model-doc -->
-	 * @return the value of the '<em>Store Object</em>' attribute.
-	 * @see #setStoreObject(boolean)
-	 * @see org.eclipse.fennec.search.esearch.ESearchPackage#getMaterialization_StoreObject()
-	 * @model default="true" required="true"
+	 * @return the value of the '<em>Kind</em>' attribute.
+	 * @see org.eclipse.fennec.search.esearch.MaterializationKind
+	 * @see #setKind(MaterializationKind)
+	 * @see org.eclipse.fennec.search.esearch.ESearchPackage#getMaterialization_Kind()
+	 * @model default="STORED_OBJECT"
 	 * @generated
 	 */
-	boolean isStoreObject();
+	MaterializationKind getKind();
 
 	/**
-	 * Sets the value of the '{@link org.eclipse.fennec.search.esearch.Materialization#isStoreObject <em>Store Object</em>}' attribute.
+	 * Sets the value of the '{@link org.eclipse.fennec.search.esearch.Materialization#getKind <em>Kind</em>}' attribute.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
-	 * @param value the new value of the '<em>Store Object</em>' attribute.
-	 * @see #isStoreObject()
+	 * @param value the new value of the '<em>Kind</em>' attribute.
+	 * @see org.eclipse.fennec.search.esearch.MaterializationKind
+	 * @see #getKind()
 	 * @generated
 	 */
-	void setStoreObject(boolean value);
+	void setKind(MaterializationKind value);
 
 	/**
 	 * Returns the value of the '<em><b>Field Name</b></em>' attribute.
@@ -72,7 +75,7 @@ public interface Materialization extends EObject {
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
 	 * <!-- begin-model-doc -->
-	 * Stored field holding the serialized object.
+	 * Stored field holding the serialized object bytes (STORED_OBJECT) or the original URI (SOURCE_URI).
 	 * <!-- end-model-doc -->
 	 * @return the value of the '<em>Field Name</em>' attribute.
 	 * @see #setFieldName(String)
@@ -97,7 +100,7 @@ public interface Materialization extends EObject {
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
 	 * <!-- begin-model-doc -->
-	 * Fennec codec format used for serialization (for example json or bson). Unset uses the backend default. Changing it invalidates stored objects written with the previous format.
+	 * ObjectSerializer id used for STORED_OBJECT (for example binary). Unset uses the backend default, binary. Changing it invalidates stored objects written with the previous format. Ignored for SOURCE_URI.
 	 * <!-- end-model-doc -->
 	 * @return the value of the '<em>Format</em>' attribute.
 	 * @see #setFormat(String)

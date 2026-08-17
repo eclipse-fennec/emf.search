@@ -21,6 +21,7 @@ import org.eclipse.emf.ecore.impl.MinimalEObjectImpl;
 
 import org.eclipse.fennec.search.esearch.ESearchPackage;
 import org.eclipse.fennec.search.esearch.Materialization;
+import org.eclipse.fennec.search.esearch.MaterializationKind;
 
 /**
  * <!-- begin-user-doc -->
@@ -30,7 +31,7 @@ import org.eclipse.fennec.search.esearch.Materialization;
  * The following features are implemented:
  * </p>
  * <ul>
- *   <li>{@link org.eclipse.fennec.search.esearch.impl.MaterializationImpl#isStoreObject <em>Store Object</em>}</li>
+ *   <li>{@link org.eclipse.fennec.search.esearch.impl.MaterializationImpl#getKind <em>Kind</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.impl.MaterializationImpl#getFieldName <em>Field Name</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.impl.MaterializationImpl#getFormat <em>Format</em>}</li>
  * </ul>
@@ -39,24 +40,24 @@ import org.eclipse.fennec.search.esearch.Materialization;
  */
 public class MaterializationImpl extends MinimalEObjectImpl.Container implements Materialization {
 	/**
-	 * The default value of the '{@link #isStoreObject() <em>Store Object</em>}' attribute.
+	 * The default value of the '{@link #getKind() <em>Kind</em>}' attribute.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
-	 * @see #isStoreObject()
+	 * @see #getKind()
 	 * @generated
 	 * @ordered
 	 */
-	protected static final boolean STORE_OBJECT_EDEFAULT = true;
+	protected static final MaterializationKind KIND_EDEFAULT = MaterializationKind.STORED_OBJECT;
 
 	/**
-	 * The cached value of the '{@link #isStoreObject() <em>Store Object</em>}' attribute.
+	 * The cached value of the '{@link #getKind() <em>Kind</em>}' attribute.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
-	 * @see #isStoreObject()
+	 * @see #getKind()
 	 * @generated
 	 * @ordered
 	 */
-	protected boolean storeObject = STORE_OBJECT_EDEFAULT;
+	protected MaterializationKind kind = KIND_EDEFAULT;
 
 	/**
 	 * The default value of the '{@link #getFieldName() <em>Field Name</em>}' attribute.
@@ -123,8 +124,8 @@ public class MaterializationImpl extends MinimalEObjectImpl.Container implements
 	 * @generated
 	 */
 	@Override
-	public boolean isStoreObject() {
-		return storeObject;
+	public MaterializationKind getKind() {
+		return kind;
 	}
 
 	/**
@@ -133,11 +134,11 @@ public class MaterializationImpl extends MinimalEObjectImpl.Container implements
 	 * @generated
 	 */
 	@Override
-	public void setStoreObject(boolean newStoreObject) {
-		boolean oldStoreObject = storeObject;
-		storeObject = newStoreObject;
+	public void setKind(MaterializationKind newKind) {
+		MaterializationKind oldKind = kind;
+		kind = newKind == null ? KIND_EDEFAULT : newKind;
 		if (eNotificationRequired())
-			eNotify(new ENotificationImpl(this, Notification.SET, ESearchPackage.MATERIALIZATION__STORE_OBJECT, oldStoreObject, storeObject));
+			eNotify(new ENotificationImpl(this, Notification.SET, ESearchPackage.MATERIALIZATION__KIND, oldKind, kind));
 	}
 
 	/**
@@ -194,8 +195,8 @@ public class MaterializationImpl extends MinimalEObjectImpl.Container implements
 	@Override
 	public Object eGet(int featureID, boolean resolve, boolean coreType) {
 		switch (featureID) {
-			case ESearchPackage.MATERIALIZATION__STORE_OBJECT:
-				return isStoreObject();
+			case ESearchPackage.MATERIALIZATION__KIND:
+				return getKind();
 			case ESearchPackage.MATERIALIZATION__FIELD_NAME:
 				return getFieldName();
 			case ESearchPackage.MATERIALIZATION__FORMAT:
@@ -212,8 +213,8 @@ public class MaterializationImpl extends MinimalEObjectImpl.Container implements
 	@Override
 	public void eSet(int featureID, Object newValue) {
 		switch (featureID) {
-			case ESearchPackage.MATERIALIZATION__STORE_OBJECT:
-				setStoreObject((Boolean)newValue);
+			case ESearchPackage.MATERIALIZATION__KIND:
+				setKind((MaterializationKind)newValue);
 				return;
 			case ESearchPackage.MATERIALIZATION__FIELD_NAME:
 				setFieldName((String)newValue);
@@ -233,8 +234,8 @@ public class MaterializationImpl extends MinimalEObjectImpl.Container implements
 	@Override
 	public void eUnset(int featureID) {
 		switch (featureID) {
-			case ESearchPackage.MATERIALIZATION__STORE_OBJECT:
-				setStoreObject(STORE_OBJECT_EDEFAULT);
+			case ESearchPackage.MATERIALIZATION__KIND:
+				setKind(KIND_EDEFAULT);
 				return;
 			case ESearchPackage.MATERIALIZATION__FIELD_NAME:
 				setFieldName(FIELD_NAME_EDEFAULT);
@@ -254,8 +255,8 @@ public class MaterializationImpl extends MinimalEObjectImpl.Container implements
 	@Override
 	public boolean eIsSet(int featureID) {
 		switch (featureID) {
-			case ESearchPackage.MATERIALIZATION__STORE_OBJECT:
-				return storeObject != STORE_OBJECT_EDEFAULT;
+			case ESearchPackage.MATERIALIZATION__KIND:
+				return kind != KIND_EDEFAULT;
 			case ESearchPackage.MATERIALIZATION__FIELD_NAME:
 				return FIELD_NAME_EDEFAULT == null ? fieldName != null : !FIELD_NAME_EDEFAULT.equals(fieldName);
 			case ESearchPackage.MATERIALIZATION__FORMAT:
@@ -274,8 +275,8 @@ public class MaterializationImpl extends MinimalEObjectImpl.Container implements
 		if (eIsProxy()) return super.toString();
 
 		StringBuilder result = new StringBuilder(super.toString());
-		result.append(" (storeObject: ");
-		result.append(storeObject);
+		result.append(" (kind: ");
+		result.append(kind);
 		result.append(", fieldName: ");
 		result.append(fieldName);
 		result.append(", format: ");

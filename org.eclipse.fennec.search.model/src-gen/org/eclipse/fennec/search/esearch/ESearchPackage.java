@@ -51,7 +51,7 @@ import org.osgi.annotation.versioning.ProviderType;
  * @generated
  */
 @ProviderType
-@EPackage(uri = ESearchPackage.eNS_URI, fingerprint = "fp1:75823e637541af4932abb42a58e92542ed725729c24f537762ac95152869c991", genModel = "/model/esearch.genmodel", genModelSourceLocations = {"model/esearch.genmodel","org.eclipse.fennec.search.model/model/esearch.genmodel"}, ecore = "/model/esearch.ecore", ecoreSourceLocations = "/model/esearch.ecore")
+@EPackage(uri = ESearchPackage.eNS_URI, fingerprint = "fp1:11b9ce1fd6d7005aaa623803eae9a186b19a73efbc89bf2abb858d4f60bfb7c7", genModel = "/model/esearch.genmodel", genModelSourceLocations = {"model/esearch.genmodel","org.eclipse.fennec.search.model/model/esearch.genmodel"}, ecore = "/model/esearch.ecore", ecoreSourceLocations = "/model/esearch.ecore")
 public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	/**
 	 * The package name.
@@ -1467,13 +1467,13 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	int MATERIALIZATION = 12;
 
 	/**
-	 * The feature id for the '<em><b>Store Object</b></em>' attribute.
+	 * The feature id for the '<em><b>Kind</b></em>' attribute.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
 	 * @generated
 	 * @ordered
 	 */
-	int MATERIALIZATION__STORE_OBJECT = 0;
+	int MATERIALIZATION__KIND = 0;
 
 	/**
 	 * The feature id for the '<em><b>Field Name</b></em>' attribute.
@@ -1990,6 +1990,16 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	int REFERENCE_STRATEGY = 22;
 
 	/**
+	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.MaterializationKind <em>Materialization Kind</em>}' enum.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @see org.eclipse.fennec.search.esearch.MaterializationKind
+	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getMaterializationKind()
+	 * @generated
+	 */
+	int MATERIALIZATION_KIND = 23;
+
+	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.RefreshMode <em>Refresh Mode</em>}' enum.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
@@ -1997,7 +2007,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getRefreshMode()
 	 * @generated
 	 */
-	int REFRESH_MODE = 23;
+	int REFRESH_MODE = 24;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.FacetKind <em>Facet Kind</em>}' enum.
@@ -2007,7 +2017,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getFacetKind()
 	 * @generated
 	 */
-	int FACET_KIND = 24;
+	int FACET_KIND = 25;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.NumericKind <em>Numeric Kind</em>}' enum.
@@ -2017,7 +2027,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getNumericKind()
 	 * @generated
 	 */
-	int NUMERIC_KIND = 25;
+	int NUMERIC_KIND = 26;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.RangeKind <em>Range Kind</em>}' enum.
@@ -2027,7 +2037,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getRangeKind()
 	 * @generated
 	 */
-	int RANGE_KIND = 26;
+	int RANGE_KIND = 27;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.RankFunction <em>Rank Function</em>}' enum.
@@ -2037,7 +2047,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getRankFunction()
 	 * @generated
 	 */
-	int RANK_FUNCTION = 27;
+	int RANK_FUNCTION = 28;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.VectorSimilarity <em>Vector Similarity</em>}' enum.
@@ -2047,7 +2057,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getVectorSimilarity()
 	 * @generated
 	 */
-	int VECTOR_SIMILARITY = 28;
+	int VECTOR_SIMILARITY = 29;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.SuggesterKind <em>Suggester Kind</em>}' enum.
@@ -2057,7 +2067,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getSuggesterKind()
 	 * @generated
 	 */
-	int SUGGESTER_KIND = 29;
+	int SUGGESTER_KIND = 30;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.AnalyzerKind <em>Analyzer Kind</em>}' enum.
@@ -2067,7 +2077,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getAnalyzerKind()
 	 * @generated
 	 */
-	int ANALYZER_KIND = 30;
+	int ANALYZER_KIND = 31;
 
 
 	/**
@@ -2773,15 +2783,15 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	EClass getMaterialization();
 
 	/**
-	 * Returns the meta object for the attribute '{@link org.eclipse.fennec.search.esearch.Materialization#isStoreObject <em>Store Object</em>}'.
+	 * Returns the meta object for the attribute '{@link org.eclipse.fennec.search.esearch.Materialization#getKind <em>Kind</em>}'.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
-	 * @return the meta object for the attribute '<em>Store Object</em>'.
-	 * @see org.eclipse.fennec.search.esearch.Materialization#isStoreObject()
+	 * @return the meta object for the attribute '<em>Kind</em>'.
+	 * @see org.eclipse.fennec.search.esearch.Materialization#getKind()
 	 * @see #getMaterialization()
 	 * @generated
 	 */
-	EAttribute getMaterialization_StoreObject();
+	EAttribute getMaterialization_Kind();
 
 	/**
 	 * Returns the meta object for the attribute '{@link org.eclipse.fennec.search.esearch.Materialization#getFieldName <em>Field Name</em>}'.
@@ -3190,6 +3200,16 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @generated
 	 */
 	EEnum getReferenceStrategy();
+
+	/**
+	 * Returns the meta object for enum '{@link org.eclipse.fennec.search.esearch.MaterializationKind <em>Materialization Kind</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for enum '<em>Materialization Kind</em>'.
+	 * @see org.eclipse.fennec.search.esearch.MaterializationKind
+	 * @generated
+	 */
+	EEnum getMaterializationKind();
 
 	/**
 	 * Returns the meta object for enum '{@link org.eclipse.fennec.search.esearch.RefreshMode <em>Refresh Mode</em>}'.
@@ -3841,12 +3861,12 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 		EClass MATERIALIZATION = eINSTANCE.getMaterialization();
 
 		/**
-		 * The meta object literal for the '<em><b>Store Object</b></em>' attribute feature.
+		 * The meta object literal for the '<em><b>Kind</b></em>' attribute feature.
 		 * <!-- begin-user-doc -->
 		 * <!-- end-user-doc -->
 		 * @generated
 		 */
-		EAttribute MATERIALIZATION__STORE_OBJECT = eINSTANCE.getMaterialization_StoreObject();
+		EAttribute MATERIALIZATION__KIND = eINSTANCE.getMaterialization_Kind();
 
 		/**
 		 * The meta object literal for the '<em><b>Field Name</b></em>' attribute feature.
@@ -4171,6 +4191,16 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 		 * @generated
 		 */
 		EEnum REFERENCE_STRATEGY = eINSTANCE.getReferenceStrategy();
+
+		/**
+		 * The meta object literal for the '{@link org.eclipse.fennec.search.esearch.MaterializationKind <em>Materialization Kind</em>}' enum.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @see org.eclipse.fennec.search.esearch.MaterializationKind
+		 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getMaterializationKind()
+		 * @generated
+		 */
+		EEnum MATERIALIZATION_KIND = eINSTANCE.getMaterializationKind();
 
 		/**
 		 * The meta object literal for the '{@link org.eclipse.fennec.search.esearch.RefreshMode <em>Refresh Mode</em>}' enum.

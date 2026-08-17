@@ -104,6 +104,8 @@ public class ESearchFactoryImpl extends EFactoryImpl implements ESearchFactory {
 				return createFieldUseFromString(eDataType, initialValue);
 			case ESearchPackage.REFERENCE_STRATEGY:
 				return createReferenceStrategyFromString(eDataType, initialValue);
+			case ESearchPackage.MATERIALIZATION_KIND:
+				return createMaterializationKindFromString(eDataType, initialValue);
 			case ESearchPackage.REFRESH_MODE:
 				return createRefreshModeFromString(eDataType, initialValue);
 			case ESearchPackage.FACET_KIND:
@@ -137,6 +139,8 @@ public class ESearchFactoryImpl extends EFactoryImpl implements ESearchFactory {
 				return convertFieldUseToString(eDataType, instanceValue);
 			case ESearchPackage.REFERENCE_STRATEGY:
 				return convertReferenceStrategyToString(eDataType, instanceValue);
+			case ESearchPackage.MATERIALIZATION_KIND:
+				return convertMaterializationKindToString(eDataType, instanceValue);
 			case ESearchPackage.REFRESH_MODE:
 				return convertRefreshModeToString(eDataType, instanceValue);
 			case ESearchPackage.FACET_KIND:
@@ -415,6 +419,26 @@ public class ESearchFactoryImpl extends EFactoryImpl implements ESearchFactory {
 	 * @generated
 	 */
 	public String convertReferenceStrategyToString(EDataType eDataType, Object instanceValue) {
+		return instanceValue == null ? null : instanceValue.toString();
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	public MaterializationKind createMaterializationKindFromString(EDataType eDataType, String initialValue) {
+		MaterializationKind result = MaterializationKind.get(initialValue);
+		if (result == null) throw new IllegalArgumentException("The value '" + initialValue + "' is not a valid enumerator of '" + eDataType.getName() + "'");
+		return result;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	public String convertMaterializationKindToString(EDataType eDataType, Object instanceValue) {
 		return instanceValue == null ? null : instanceValue.toString();
 	}
 
