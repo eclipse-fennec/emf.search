@@ -11,6 +11,7 @@ Bundle-Description: Lucene index units for the Fennec search backend — writer 
 -buildpath: \
 	org.eclipse.fennec.search.model;version=snapshot,\
 	org.eclipse.fennec.persistence;version=latest,\
+	org.eclipse.fennec.persistence.capabilities;version=latest,\
 	org.eclipse.fennec.persistence.query;version=latest,\
 	org.eclipse.fennec.query.model;version=latest,\
 	org.eclipse.fennec.expression.model;version=latest,\

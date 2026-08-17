@@ -26,11 +26,15 @@ import org.apache.lucene.search.TermQuery;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.impl.ResourceImpl;
+import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
+import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
+import org.eclipse.fennec.persistence.capabilities.StoreCapabilitiesBuilder;
+import org.eclipse.fennec.persistence.resource.PersistenceResource;
 import org.eclipse.fennec.search.mapping.DocumentMapper;
 import org.eclipse.fennec.search.mapping.MappedDocument;
 import org.eclipse.fennec.search.mapping.SearchFields;
+import org.eclipse.fennec.search.query.LuceneQueryProcessor;
 import org.eclipse.fennec.search.unit.IndexUnit;
-import org.eclipse.fennec.persistence.resource.PersistenceResource;
 
 /**
  * An index unit behind the {@link PersistenceResource} contract: save writes documents,
@@ -54,6 +58,16 @@ import org.eclipse.fennec.persistence.resource.PersistenceResource;
  */
 public class SearchResource extends ResourceImpl implements PersistenceResource {
 
+	/**
+	 * The query view is the backend's one declaration; command and store stay empty until
+	 * the command path exists (#29) and deliberately never gain the transaction bracket in
+	 * v1 (#30) — Lucene has no isolation to bracket.
+	 */
+	private static final PersistenceCapabilities CAPABILITIES = PersistenceCapabilities.of(
+			LuceneQueryProcessor.declaredCapabilities(),
+			CommandCapabilitiesBuilder.create().build(),
+			StoreCapabilitiesBuilder.create().build());
+
 	private final IndexUnit unit;
 	private final DocumentMapper mapper;
 	private final SearchUris address;
@@ -69,6 +83,11 @@ public class SearchResource extends ResourceImpl implements PersistenceResource 
 	/** The unit this resource writes to. */
 	public IndexUnit unit() {
 		return unit;
+	}
+
+	@Override
+	public PersistenceCapabilities capabilities() {
+		return CAPABILITIES;
 	}
 
 	@Override
