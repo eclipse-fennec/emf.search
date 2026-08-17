@@ -372,23 +372,23 @@
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="Materialization">
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-      <details key="documentation" value="Stores the serialized EObject alongside its indexed fields, so a hit can be returned as a complete object without consulting a primary store. This is what makes the standalone role self-sufficient; as a secondary index next to JPA or Mongo it is usually wasted space."/>
+      <details key="documentation" value="Upgrades how a hit becomes an EObject again. Without this element a hit is partially reconstructed from stored fields and incomplete by design (docs/search-access.md &#xa7;4.3); declaring it either stores the complete serialized object (STORED_OBJECT) or a pointer into the primary store (SOURCE_URI). Presence of this element is the switch."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="storeObject" lowerBound="1"
-        eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="true">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="kind" eType="#//MaterializationKind"
+        defaultValueLiteral="STORED_OBJECT">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-        <details key="documentation" value="Store the serialized EObject. False makes this element a no-op and is only useful to switch materialization off for one document while the surrounding configuration keeps it on."/>
+        <details key="documentation" value="Which upgrade this document gets. STORED_OBJECT is the only kind that makes UPDATE_BY_SELECTOR possible for the class, because an update must rebuild the complete document."/>
       </eAnnotations>
     </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="fieldName" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"
         defaultValueLiteral="_source">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-        <details key="documentation" value="Stored field holding the serialized object."/>
+        <details key="documentation" value="Stored field holding the serialized object bytes (STORED_OBJECT) or the original URI (SOURCE_URI)."/>
       </eAnnotations>
     </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="format" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-        <details key="documentation" value="Fennec codec format used for serialization (for example json or bson). Unset uses the backend default. Changing it invalidates stored objects written with the previous format."/>
+        <details key="documentation" value="ObjectSerializer id used for STORED_OBJECT (for example binary). Unset uses the backend default, binary. Changing it invalidates stored objects written with the previous format. Ignored for SOURCE_URI."/>
       </eAnnotations>
     </eStructuralFeatures>
   </eClassifiers>
@@ -636,6 +636,21 @@
     <eLiterals name="NESTED" value="2">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Index each target as a child document in the parent's block, queried by block join. Preserves correlation, and is the only reference strategy over which EXISTS/FOR_ALL are answerable. The price: a block is replaceable only as a whole, so any child change reindexes the parent and all its children. Containment only."/>
+      </eAnnotations>
+    </eLiterals>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="MaterializationKind">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="How a hit is upgraded beyond the partial reconstruction every document gets by default."/>
+    </eAnnotations>
+    <eLiterals name="STORED_OBJECT">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The whole EObject tree is serialized into one binary stored field and comes back complete, without consulting a primary store. This is what makes the standalone role self-sufficient, and the only kind that gates UPDATE_BY_SELECTOR per EClass."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="SOURCE_URI" value="1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The object's original URI is stored and a hit materializes by resolving it through the caller's ResourceSet against the primary store (JPA, Mongo, file). The secondary-index role made explicit: the index finds, the primary store materializes."/>
       </eAnnotations>
     </eLiterals>
   </eClassifiers>

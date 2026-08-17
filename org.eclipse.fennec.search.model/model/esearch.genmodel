@@ -22,6 +22,10 @@
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//ReferenceStrategy/EMBED"/>
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//ReferenceStrategy/NESTED"/>
     </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//MaterializationKind">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//MaterializationKind/STORED_OBJECT"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//MaterializationKind/SOURCE_URI"/>
+    </genEnums>
     <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//RefreshMode">
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RefreshMode/NEAR_REAL_TIME"/>
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RefreshMode/ON_COMMIT"/>
@@ -147,7 +151,7 @@
       <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//ReferenceMapping/includes"/>
     </genClasses>
     <genClasses ecoreClass="esearch.ecore#//Materialization">
-      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//Materialization/storeObject"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//Materialization/kind"/>
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//Materialization/fieldName"/>
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//Materialization/format"/>
     </genClasses>
