@@ -1,0 +1,316 @@
+/********************************************************************
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation.
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ *
+ * Contributors:
+ *   Data In Motion Consulting - initial implementation
+ ********************************************************************/
+package org.eclipse.fennec.search.mapping;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Objects;
+
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexableField;
+import org.eclipse.emf.ecore.EAttribute;
+import org.eclipse.emf.ecore.EClass;
+import org.eclipse.emf.ecore.EDataType;
+import org.eclipse.emf.ecore.EEnum;
+import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EReference;
+import org.eclipse.emf.ecore.InternalEObject;
+import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.eclipse.fennec.search.esearch.DocumentMapping;
+import org.eclipse.fennec.search.esearch.FieldMapping;
+import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
+import org.eclipse.fennec.search.esearch.NumericFieldMapping;
+import org.eclipse.fennec.search.esearch.ReferenceMapping;
+import org.eclipse.fennec.search.esearch.ReferenceStrategy;
+import org.eclipse.fennec.search.esearch.TextFieldMapping;
+import org.eclipse.fennec.search.resource.SearchUris;
+
+/**
+ * Turns documents back into EObjects — the inverse of {@link DocumentMapper}, reading the
+ * same {@link IndexSchema} so the two directions cannot disagree about a field.
+ * <p>
+ * This is the default tier of the load path (docs/search-access.md §4.3): the object is
+ * <b>partial by design</b>. Only what the document stores comes back — a feature mapped
+ * {@code stored=false} stays unset, an {@code EMBED} reference is not reconstructed at all
+ * (a flattened multi-valued embed has lost which value belonged to which target, and
+ * inventing that correlation would be worse than omitting it), and an unmapped reference
+ * was never written. {@link #omissions} names these statically, so a caller can say what a
+ * partial object is missing instead of letting it pass for a complete one.
+ * <p>
+ * What does come back is faithful: attribute values through the same EMF conversion the
+ * writer used, {@code NESTED} children reassembled from their block in order, and
+ * {@code ID_ONLY} references as EMF proxies under {@code lucene://<unit>/<Type>/<id>}, so
+ * the caller's {@code ResourceSet} resolves them back through this backend.
+ *
+ * @author Data In Motion Consulting
+ */
+public final class DocumentReader {
+
+	private final IndexSchema schema;
+
+	private DocumentReader(IndexSchema schema) {
+		this.schema = schema;
+	}
+
+	/** A reader over the same schema the mapper writes against. */
+	public static DocumentReader of(IndexSchema schema) {
+		Objects.requireNonNull(schema, "schema");
+		return new DocumentReader(schema);
+	}
+
+	/**
+	 * Reconstructs the object a root document was mapped from.
+	 *
+	 * @param root the root document of the block
+	 * @param children the block's child documents in index order; empty for a flat object
+	 * @throws MappingException if the document carries no readable type, or its type name
+	 *         resolves to a class this reader cannot instantiate
+	 */
+	public EObject read(Document root, List<Document> children) {
+		Objects.requireNonNull(root, "root");
+		Objects.requireNonNull(children, "children");
+		EClass eClass = eClassOf(root);
+		EObject object = instantiate(eClass);
+		DocumentMapping documentMapping = schema.documentMapping(eClass);
+		readAttributes(root, object, eClass);
+		readReferences(root, children, object, documentMapping);
+		return object;
+	}
+
+	/**
+	 * The features of a class that a reconstructed object cannot carry, by name — declared
+	 * {@code stored=false} fields, {@code EMBED} references, unmapped references, and
+	 * {@code ID_ONLY} references whose target class is abstract (no proxy can be created
+	 * for a type that cannot be instantiated). Statically derived from the mapping, so a
+	 * resource can warn once per class rather than guess per object.
+	 */
+	public List<String> omissions(EClass eClass) {
+		List<String> omissions = new ArrayList<>();
+		DocumentMapping documentMapping = schema.documentMapping(eClass);
+		for (EAttribute attribute : eClass.getEAllAttributes()) {
+			FieldMapping declared = schema.fieldMapping(eClass, attribute);
+			if (declared != null && !declared.isStored()) {
+				omissions.add(attribute.getName());
+			}
+		}
+		for (EReference reference : eClass.getEAllReferences()) {
+			ReferenceMapping referenceMapping = referenceMapping(documentMapping, reference);
+			if (referenceMapping == null
+					|| referenceMapping.getStrategy() == ReferenceStrategy.EMBED
+					|| (referenceMapping.getStrategy() == ReferenceStrategy.ID_ONLY
+							&& reference.getEReferenceType().isAbstract())) {
+				omissions.add(reference.getName());
+			}
+		}
+		return omissions;
+	}
+
+	// --- resolution ---------------------------------------------------------------------
+
+	private EClass eClassOf(Document document) {
+		String typeName = document.get(schema.typeField());
+		if (typeName == null) {
+			throw new MappingException("Document carries no '" + schema.typeField() + "' field, so its "
+					+ "class is unknown. Either it was written without this mapper or the unit's type "
+					+ "field changed since it was indexed.");
+		}
+		return schema.eClassOf(typeName);
+	}
+
+	private EObject instantiate(EClass eClass) {
+		if (eClass.isAbstract() || eClass.isInterface()) {
+			throw new MappingException("Type '" + eClass.getName() + "' is abstract and cannot be "
+					+ "instantiated. A document carrying it as its type was written against a different "
+					+ "version of the model.");
+		}
+		return EcoreUtil.create(eClass);
+	}
+
+	// --- attributes -----------------------------------------------------------------------
+
+	private void readAttributes(Document document, EObject object, EClass eClass) {
+		for (EAttribute attribute : eClass.getEAllAttributes()) {
+			if (attribute.isDerived() || attribute.isTransient()) {
+				continue;
+			}
+			FieldMapping declared = schema.fieldMapping(eClass, attribute);
+			if (declared != null && !declared.isStored()) {
+				continue;
+			}
+			String name = schema.fieldName(attribute, declared);
+			IndexableField[] fields = document.getFields(name);
+			if (fields.length == 0) {
+				continue;
+			}
+			if (attribute.isMany()) {
+				@SuppressWarnings("unchecked")
+				List<Object> values = (List<Object>) object.eGet(attribute);
+				for (IndexableField field : fields) {
+					values.add(valueOf(field, attribute, declared, name));
+				}
+			} else {
+				object.eSet(attribute, valueOf(fields[0], attribute, declared, name));
+			}
+		}
+	}
+
+	/** Mirrors how {@link DocumentMapper} stored the value: by declaration, else by type. */
+	private Object valueOf(IndexableField field, EAttribute attribute, FieldMapping declared, String name) {
+		if (numericStored(attribute, declared)) {
+			Number number = field.numericValue();
+			if (number == null) {
+				throw new MappingException("Field '" + name + "' should hold a stored number for '"
+						+ attribute.getName() + "' but holds '" + field.stringValue() + "'. The mapping "
+						+ "changed since this document was written; the index needs a rebuild.");
+			}
+			return numberFor(attribute, number, name);
+		}
+		String value = field.stringValue();
+		if (value == null) {
+			throw new MappingException("Field '" + name + "' holds no readable stored value for '"
+					+ attribute.getName() + "'.");
+		}
+		return EcoreUtil.createFromString((EDataType) attribute.getEType(), value);
+	}
+
+	private boolean numericStored(EAttribute attribute, FieldMapping declared) {
+		if (declared instanceof NumericFieldMapping) {
+			return true;
+		}
+		if (declared instanceof TextFieldMapping || declared instanceof KeywordFieldMapping) {
+			return false;
+		}
+		// Convention: same branching the writer used — id, enum and boolean are keywords.
+		Class<?> type = attribute.getEAttributeType().getInstanceClass();
+		if (attribute.isID() || attribute.getEAttributeType() instanceof EEnum || IndexSchema.isBoolean(type)) {
+			return false;
+		}
+		return IndexSchema.isNumeric(type) || Date.class.isAssignableFrom(IndexSchema.nonNull(type));
+	}
+
+	private Object numberFor(EAttribute attribute, Number number, String name) {
+		Class<?> type = IndexSchema.nonNull(attribute.getEAttributeType().getInstanceClass());
+		if (Date.class.isAssignableFrom(type)) {
+			return new Date(number.longValue());
+		}
+		if (type == int.class || type == Integer.class) {
+			return number.intValue();
+		}
+		if (type == short.class || type == Short.class) {
+			return number.shortValue();
+		}
+		if (type == byte.class || type == Byte.class) {
+			return number.byteValue();
+		}
+		if (type == long.class || type == Long.class) {
+			return number.longValue();
+		}
+		if (type == float.class || type == Float.class) {
+			return number.floatValue();
+		}
+		if (type == double.class || type == Double.class) {
+			return number.doubleValue();
+		}
+		throw new MappingException("Attribute '" + attribute.getName() + "' has the numeric field '" + name
+				+ "' but its Java type " + type.getName() + " is not one this backend encodes as a point.");
+	}
+
+	// --- references -----------------------------------------------------------------------
+
+	private void readReferences(Document root, List<Document> children, EObject object,
+			DocumentMapping documentMapping) {
+		if (documentMapping == null) {
+			return;
+		}
+		for (ReferenceMapping reference : documentMapping.getReferences()) {
+			EReference eReference = reference.getEReference();
+			switch (reference.getStrategy()) {
+				case NESTED -> readNested(children, object, eReference);
+				case ID_ONLY -> readIdOnly(root, object, reference, eReference);
+				case EMBED -> {
+					// Deliberately not reconstructed: the flattened fields no longer say
+					// which value belonged to which target. Named by omissions().
+				}
+			}
+		}
+	}
+
+	private void readNested(List<Document> children, EObject object, EReference eReference) {
+		List<EObject> targets = new ArrayList<>();
+		for (Document child : children) {
+			if (!eReference.getName().equals(child.get(SearchFields.NESTED))) {
+				continue;
+			}
+			EClass childClass = eClassOf(child);
+			EObject target = instantiate(childClass);
+			readAttributes(child, target, childClass);
+			targets.add(target);
+		}
+		setTargets(object, eReference, targets);
+	}
+
+	private void readIdOnly(Document root, EObject object, ReferenceMapping reference,
+			EReference eReference) {
+		EClass targetClass = eReference.getEReferenceType();
+		if (targetClass.isAbstract() || targetClass.isInterface()) {
+			// A proxy needs an instance; omissions() names this reference.
+			return;
+		}
+		String name = reference.getPrefix() == null || reference.getPrefix().isBlank()
+				? eReference.getName()
+				: reference.getPrefix();
+		List<EObject> targets = new ArrayList<>();
+		for (IndexableField field : root.getFields(name)) {
+			targets.add(proxyFor(targetClass, field.stringValue()));
+		}
+		setTargets(object, eReference, targets);
+	}
+
+	/**
+	 * An EMF proxy addressing the target through this backend. The URI names the target by
+	 * its <em>declared</em> reference type; a target that was indexed as a subclass will
+	 * not resolve under it — the price of storing only the id, carried by ID_ONLY itself.
+	 */
+	private EObject proxyFor(EClass targetClass, String id) {
+		InternalEObject proxy = (InternalEObject) EcoreUtil.create(targetClass);
+		proxy.eSetProxyURI(SearchUris.objectUri(schema.mapping().getName(),
+				schema.typeNameOf(targetClass), id));
+		return proxy;
+	}
+
+	private void setTargets(EObject object, EReference eReference, List<EObject> targets) {
+		if (targets.isEmpty()) {
+			return;
+		}
+		if (eReference.isMany()) {
+			@SuppressWarnings("unchecked")
+			List<EObject> values = (List<EObject>) object.eGet(eReference);
+			values.addAll(targets);
+		} else {
+			object.eSet(eReference, targets.get(0));
+		}
+	}
+
+	private static ReferenceMapping referenceMapping(DocumentMapping documentMapping, EReference reference) {
+		if (documentMapping == null) {
+			return null;
+		}
+		for (ReferenceMapping candidate : documentMapping.getReferences()) {
+			if (candidate.getEReference() == reference) {
+				return candidate;
+			}
+		}
+		return null;
+	}
+}

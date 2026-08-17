@@ -47,6 +47,13 @@ public final class SearchFields {
 	/** Value written into {@link #PARENT}. */
 	public static final String PARENT_VALUE = "true";
 
+	/**
+	 * On a child document: the name of the containment reference it was nested under. Lets
+	 * a block join restrict to children of one reference, and tells the reader which
+	 * containment list a child belongs back into.
+	 */
+	public static final String NESTED = "_nested";
+
 	private SearchFields() {
 	}
 }

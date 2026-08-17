@@ -219,16 +219,128 @@ class SearchResourceTest {
 	// --- loading ------------------------------------------------------------------------
 
 	@Test
-	void loadingRefusesWithTheReasonRatherThanReturningAHalfObject() throws Exception {
+	void loadingReconstructsThePartialObjectAndSaysWhatIsMissing() throws Exception {
+		PersistenceResource saved = resource("lucene://catalog/Product/p-1");
+		saved.getContents().add(product("p-1", "Espresso Machine"));
+		saved.save(Map.of());
+		unit.refresh();
+
+		PersistenceResource loaded = resource("lucene://catalog/Product/p-1");
+		loaded.load(Map.of());
+
+		assertThat(loaded.getContents()).hasSize(1);
+		EObject back = loaded.getContents().get(0);
+		assertThat(back.eGet(back.eClass().getEStructuralFeature("name"))).isEqualTo("Espresso Machine");
+		assertThat(loaded.getWarnings())
+				.as("partiality is stated, not hidden: the unmapped references cannot come back")
+				.anySatisfy(warning -> assertThat(warning.getMessage())
+						.contains("manufacturer").contains("STORED_OBJECT"));
+	}
+
+	@Test
+	void loadingATypeUriLoadsEveryObjectOfTheType() throws Exception {
+		PersistenceResource first = resource("lucene://catalog/Product/p-1");
+		first.getContents().add(product("p-1", "one"));
+		first.save(Map.of());
+		PersistenceResource second = resource("lucene://catalog/Product/p-2");
+		second.getContents().add(product("p-2", "two"));
+		second.save(Map.of());
+		unit.refresh();
+
+		PersistenceResource all = resource("lucene://catalog/Product");
+		all.load(Map.of());
+		PersistenceResource one = resource("lucene://catalog/Product/p-2");
+		one.load(Map.of());
+
+		assertThat(all.getContents()).hasSize(2);
+		assertThat(one.getContents()).hasSize(1);
+	}
+
+	@Test
+	void loadingAfterASaveOnTheSameResourceKeepsTheAttachedObject() throws Exception {
 		PersistenceResource resource = resource("lucene://catalog/Product/p-1");
-		resource.getContents().add(product("p-1", "Espresso Machine"));
+		EObject original = product("p-1", "Espresso Machine");
+		resource.getContents().add(original);
 		resource.save(Map.of());
 		unit.refresh();
 
-		assertThatThrownBy(() -> resource("lucene://catalog/Product/p-1").load(Map.of()))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("not to rebuild it")
-				.hasMessageContaining("#18");
+		resource.load(Map.of());
+
+		assertThat(resource.getContents()).hasSize(1);
+		assertThat(resource.getContents().get(0)).as("identity survives for anyone holding it")
+				.isSameAs(original);
+	}
+
+	@Test
+	void nestedChildrenComeBackAsContainment() throws Exception {
+		resourceSet.getResourceFactoryRegistry().getProtocolToFactoryMap()
+				.put(SearchUris.SCHEME, new SearchResourceFactory(unit, mapper(true)));
+		EObject withReviews = product("p-1", "Espresso Machine");
+		EClass productClass = (EClass) catalog.getEClassifier("Product");
+		@SuppressWarnings("unchecked")
+		List<EObject> reviews = (List<EObject>) withReviews
+				.eGet((EStructuralFeature) productClass.getEStructuralFeature("reviews"));
+		reviews.add(review("r-1", "ada"));
+		reviews.add(review("r-2", "linus"));
+		PersistenceResource saved = resource("lucene://catalog/Product/p-1");
+		saved.getContents().add(withReviews);
+		saved.save(Map.of());
+		unit.refresh();
+
+		PersistenceResource loaded = resource("lucene://catalog/Product/p-1");
+		loaded.load(Map.of());
+
+		EObject back = loaded.getContents().get(0);
+		@SuppressWarnings("unchecked")
+		List<EObject> reviewsBack = (List<EObject>) back
+				.eGet((EStructuralFeature) productClass.getEStructuralFeature("reviews"));
+		assertThat(reviewsBack).hasSize(2);
+		assertThat(reviewsBack.get(0).eGet(reviewsBack.get(0).eClass().getEStructuralFeature("author")))
+				.isEqualTo("ada");
+	}
+
+	@Test
+	void anIdOnlyProxyResolvesThroughTheSameResourceSet() throws Exception {
+		DocumentMapper mapper = idOnlyMapper();
+		resourceSet.getResourceFactoryRegistry().getProtocolToFactoryMap()
+				.put(SearchUris.SCHEME, new SearchResourceFactory(unit, mapper));
+
+		EObject acme = EcoreUtil.create((EClass) catalog.getEClassifier("Manufacturer"));
+		acme.eSet(acme.eClass().getEStructuralFeature("id"), "m-1");
+		acme.eSet(acme.eClass().getEStructuralFeature("name"), "Acme");
+		PersistenceResource manufacturers = resource("lucene://catalog/Manufacturer/m-1");
+		manufacturers.getContents().add(acme);
+		manufacturers.save(Map.of());
+
+		EObject withManufacturer = product("p-1", "Espresso Machine");
+		withManufacturer.eSet(withManufacturer.eClass().getEStructuralFeature("manufacturer"), acme);
+		PersistenceResource products = resource("lucene://catalog/Product/p-1");
+		products.getContents().add(withManufacturer);
+		products.save(Map.of());
+		unit.refresh();
+
+		PersistenceResource loaded = resource("lucene://catalog/Product/p-1");
+		loaded.load(Map.of());
+		EObject back = loaded.getContents().get(0);
+		EObject resolved = (EObject) back.eGet(back.eClass().getEStructuralFeature("manufacturer"));
+
+		assertThat(resolved.eIsProxy()).as("resolution went through the ResourceSet").isFalse();
+		assertThat(resolved.eGet(resolved.eClass().getEStructuralFeature("name"))).isEqualTo("Acme");
+	}
+
+	/** Product with NESTED reviews and an ID_ONLY manufacturer — the reference round trip. */
+	private DocumentMapper idOnlyMapper() {
+		IndexUnitMapping mapping = ESEARCH.createIndexUnitMapping();
+		mapping.setName("catalog");
+		mapping.setEPackage(catalog);
+		DocumentMapping product = ESEARCH.createDocumentMapping();
+		product.setEClass((EClass) catalog.getEClassifier("Product"));
+		ReferenceMapping manufacturer = ESEARCH.createReferenceMapping();
+		manufacturer.setEReference((EReference) product.getEClass().getEStructuralFeature("manufacturer"));
+		manufacturer.setStrategy(ReferenceStrategy.ID_ONLY);
+		product.getReferences().add(manufacturer);
+		mapping.getDocuments().add(product);
+		return DocumentMapper.of(mapping);
 	}
 
 	// --- declaring ----------------------------------------------------------------------

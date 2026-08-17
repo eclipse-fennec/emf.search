@@ -66,4 +66,15 @@ public record SearchUris(String unit, String type, String id) {
 	public boolean isObject() {
 		return id != null;
 	}
+
+	/**
+	 * The URI of one object, with the id doubled as fragment so an EMF proxy resolves: the
+	 * resource part addresses the object, the fragment finds it inside the loaded resource.
+	 */
+	public static URI objectUri(String unit, String type, String id) {
+		Objects.requireNonNull(unit, "unit");
+		Objects.requireNonNull(type, "type");
+		Objects.requireNonNull(id, "id");
+		return URI.createURI(SCHEME + "://" + unit + "/" + type + "/" + id).appendFragment(id);
+	}
 }

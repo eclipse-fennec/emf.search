@@ -191,7 +191,13 @@ public final class DocumentMapper {
 		}
 	}
 
-	/** The default for an attribute nobody mapped: derived from its type, never from its name. */
+	/**
+	 * The default for an attribute nobody mapped: derived from its type, never from its
+	 * name. The original value is always stored — the partial reconstruction of §4.3 reads
+	 * hits back from exactly these stored values, so a convention that stored nothing would
+	 * return objects holding nothing but their id. Opting out is a declaration
+	 * ({@code stored=false}), not a default.
+	 */
 	private void writeConvention(Document document, EObject object, EAttribute attribute, String prefix) {
 		if (isAbsent(object, attribute)) {
 			return;
@@ -203,12 +209,12 @@ public final class DocumentMapper {
 			}
 			Class<?> type = attribute.getEAttributeType().getInstanceClass();
 			if (attribute.isID() || attribute.getEAttributeType() instanceof EEnum || IndexSchema.isBoolean(type)) {
-				addKeyword(document, name, stringOf(attribute, value), attribute.isID(), true);
+				addKeyword(document, name, stringOf(attribute, value), true, true);
 			} else if (IndexSchema.isNumeric(type) || Date.class.isAssignableFrom(IndexSchema.nonNull(type))) {
-				addNumeric(document, name, attribute, value, NumericKind.AUTO, false, true,
+				addNumeric(document, name, attribute, value, NumericKind.AUTO, true, true,
 						attribute.isMany());
 			} else {
-				addText(document, name, stringOf(attribute, value), false, false);
+				addText(document, name, stringOf(attribute, value), true, false);
 			}
 		}
 	}
@@ -343,7 +349,7 @@ public final class DocumentMapper {
 			String childId = childId(target, targetMapping, rootId, eReference, children.size());
 			writeSystemFields(child, childId, rootId, typeNameOf(targetMapping, target.eClass()), false);
 			// The reference name lets a block join restrict to children of one reference.
-			child.add(new StringField("_nested", eReference.getName(), Field.Store.YES));
+			child.add(new StringField(SearchFields.NESTED, eReference.getName(), Field.Store.YES));
 			writeAttributes(child, target, targetMapping, "");
 			children.add(child);
 		}
