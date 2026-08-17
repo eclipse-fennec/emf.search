@@ -192,21 +192,31 @@ class ThreeValuedNegationTest {
 		assertThat(ids(not(path(stock()).isNull()))).containsExactlyInAnyOrder("high", "low");
 	}
 
-	// --- what "missing" currently includes ----------------------------------------------------
+	// --- what "missing" means after #37 --------------------------------------------------------
 
 	@Test
-	void anAttributeAtItsDefaultValueIsMissingFromTheIndexToday() throws Exception {
-		// Pins current behaviour, which is a known divergence rather than a decision: the
-		// mapper writes an attribute only when eIsSet is true, and eIsSet is false for a value
-		// equal to the type's default — so "condition = NEW" finds nothing even though EMF
-		// answers eGet(condition) with NEW, and JPA, Mongo and the memory oracle all match it.
-		// Issue #37 owns the decision; this test changes with it.
+	void anAttributeSetToItsDefaultValueIsIndexed() throws Exception {
+		// The #37 fix: eIsSet answers "differs from the default" for a feature that is not
+		// unsettable, so skipping on it made "condition = NEW" answer differently from JPA,
+		// Mongo and the memory oracle. condition is unsettable in the test model, which makes
+		// setting it to the default literal a real set — and indexed; no-stock never set it,
+		// so it alone stays missing.
 		EObject atDefault = product("at-default", 7, "NEW", null);
 		index(DocumentMapper.of(schema), atDefault);
 		unit.refresh();
 
-		assertThat(ids(path(condition()).eq("NEW"))).isEmpty();
-		assertThat(ids(path(condition()).isNull())).contains("at-default");
+		assertThat(ids(path(condition()).eq("NEW"))).containsExactly("at-default");
+		assertThat(ids(path(condition()).isNull())).containsExactly("no-stock");
+	}
+
+	@Test
+	void aNonUnsettableAttributeIsNeverMissing() throws Exception {
+		// available is EBoolean and not unsettable: like a NOT NULL column, its effective
+		// value is defined on every object — false unless someone set it. Every document
+		// carries it, and IS NULL over it is honestly empty.
+		assertThat(ids(path(available()).eq(Boolean.FALSE)))
+				.containsExactlyInAnyOrder("high", "low", "no-stock");
+		assertThat(ids(path(available()).isNull())).isEmpty();
 	}
 
 	// --- between ------------------------------------------------------------------------------
@@ -277,6 +287,10 @@ class ThreeValuedNegationTest {
 
 	private static EAttribute tags() {
 		return (EAttribute) feature("tags");
+	}
+
+	private static EAttribute available() {
+		return (EAttribute) feature("available");
 	}
 
 	/** Conventions throughout, except a stored id so the assertions can name the hits. */
