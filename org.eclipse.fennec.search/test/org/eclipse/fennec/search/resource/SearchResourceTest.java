@@ -328,6 +328,40 @@ class SearchResourceTest {
 		assertThat(resolved.eGet(resolved.eClass().getEStructuralFeature("name"))).isEqualTo("Acme");
 	}
 
+	@Test
+	void aStoredObjectClassLoadsCompleteAndWarnsAboutNothing() throws Exception {
+		IndexUnitMapping mapping = ESEARCH.createIndexUnitMapping();
+		mapping.setName("catalog");
+		mapping.setEPackage(catalog);
+		DocumentMapping productMapping = ESEARCH.createDocumentMapping();
+		productMapping.setEClass((EClass) catalog.getEClassifier("Product"));
+		productMapping.setMaterialization(ESEARCH.createMaterialization());
+		mapping.getDocuments().add(productMapping);
+		resourceSet.getResourceFactoryRegistry().getProtocolToFactoryMap()
+				.put(SearchUris.SCHEME, new SearchResourceFactory(unit, DocumentMapper.of(mapping)));
+
+		EObject withReviews = product("p-1", "Espresso Machine");
+		EClass productClass = (EClass) catalog.getEClassifier("Product");
+		@SuppressWarnings("unchecked")
+		List<EObject> reviews = (List<EObject>) withReviews
+				.eGet((EStructuralFeature) productClass.getEStructuralFeature("reviews"));
+		reviews.add(review("r-1", "ada"));
+		PersistenceResource saved = resource("lucene://catalog/Product/p-1");
+		saved.getContents().add(withReviews);
+		saved.save(Map.of());
+		unit.refresh();
+
+		PersistenceResource loaded = resource("lucene://catalog/Product/p-1");
+		loaded.load(Map.of());
+
+		EObject back = loaded.getContents().get(0);
+		@SuppressWarnings("unchecked")
+		List<EObject> reviewsBack = (List<EObject>) back
+				.eGet((EStructuralFeature) productClass.getEStructuralFeature("reviews"));
+		assertThat(reviewsBack).as("the stored object carries its whole tree").hasSize(1);
+		assertThat(loaded.getWarnings()).as("a complete object needs no partiality warning").isEmpty();
+	}
+
 	/** Product with NESTED reviews and an ID_ONLY manufacturer — the reference round trip. */
 	private DocumentMapper idOnlyMapper() {
 		IndexUnitMapping mapping = ESEARCH.createIndexUnitMapping();

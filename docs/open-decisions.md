@@ -45,9 +45,35 @@ bottom, delete entries once settled; settled outcomes belong in `search-access.m
    EMF ID lookup, because a declared `idFeature` need not be an `iD` attribute — otherwise
    proxies would only resolve for models with intrinsic ids.
 
+## Autonomous calls in the STORED_OBJECT / SOURCE_URI tiers (2026-08-17)
+
+10. **A document written before a materialization declaration is refused** (`MappingException`
+    naming the rebuild), never silently served partial. "Declaration = behaviour" is the
+    upstream conformance doctrine (§2B of their conformance doc); a declared STORED_OBJECT
+    that quietly downgrades would overstate itself exactly the way the TCK's
+    `commandCapabilitiesMatchDeclaredBehaviour` exists to catch. Same stance for unreadable
+    bytes after a `format` change.
+11. **Serialization copies** (`EcoreUtil.copy`) rather than detaching/reattaching the live
+    object — a failed serialize must not be able to corrupt the caller's containment tree.
+    Costs one copy per materialized write; measurable in the perf suites if it ever matters.
+12. **Non-containment targets inside a STORED_OBJECT blob keep the original's URIs**
+    (standard EMF external-reference rules of the binary format). A target living in no
+    resource serializes as a dangling ref — EMF's own semantics; not re-validated here.
+13. **`ObjectSerializers` is an immutable, constructor-filled registry** (same pattern as
+    the unit's `AnalyzerRegistry`): plain-Java `withDefaults()`/`of(...)`, the OSGi layer
+    later builds one from whiteboard services. No dynamic lookup in the core (§2.2). The
+    whiteboard half waits for the OSGi `Resource.Factory` (#32), where mapper construction
+    happens.
+14. **SearchResource deserializes against the caller's package registry** (ResourceSet
+    registry when present, always including the unit's own EPackage), never the global
+    `EPackage.Registry.INSTANCE` implicitly — the codec's `PackageResolver` takes the same
+    stance upstream.
+
 ## Known gaps left deliberately (tracked)
 
 - The read side still ignores `FieldUse`/`subFields` — #39.
 - `EMBED` reconstruction is refused by design (§4.3), not a gap.
-- STORED_OBJECT (`ObjectSerializer`, EMF Binary) and SOURCE_URI tiers: next steps of #18,
-  after the `stored`-default generation round.
+- The `stored` default flip (true) in the metamodel awaits one Eclipse generation round;
+  until then a declared field without an explicit `stored="true"` is not stored.
+- `QueryShape.OBJECTS` results through the query path still need the execution half of #8;
+  the reader is ready for it.

@@ -54,6 +54,13 @@ public final class SearchFields {
 	 */
 	public static final String NESTED = "_nested";
 
+	/**
+	 * Default stored field of a declared materialization (docs/search-access.md §4.3):
+	 * the serialized object bytes under {@code STORED_OBJECT}, the original URI under
+	 * {@code SOURCE_URI}. Overridable per document mapping.
+	 */
+	public static final String SOURCE = "_source";
+
 	private SearchFields() {
 	}
 }
