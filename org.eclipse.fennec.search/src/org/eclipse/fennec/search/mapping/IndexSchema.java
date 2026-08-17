@@ -85,6 +85,7 @@ public final class IndexSchema {
 	private final IndexUnitMapping mapping;
 	private final String typeField;
 	private final Map<EClass, DocumentMapping> declared = new HashMap<>();
+	private final Map<String, EClass> byTypeName = new HashMap<>();
 
 	private IndexSchema(IndexUnitMapping mapping) {
 		this.mapping = mapping;
@@ -100,6 +101,17 @@ public final class IndexSchema {
 			if (previous != null) {
 				throw new MappingException("Unit '" + mapping.getName() + "' maps "
 						+ document.getEClass().getName() + " twice");
+			}
+		}
+		for (Object classifier : mapping.getEPackage().getEClassifiers()) {
+			if (classifier instanceof EClass eClass) {
+				String typeName = typeNameOf(eClass);
+				EClass other = byTypeName.put(typeName, eClass);
+				if (other != null) {
+					throw new MappingException("Unit '" + mapping.getName() + "' writes the type name '"
+							+ typeName + "' for both " + other.getName() + " and " + eClass.getName()
+							+ ", so a document carrying it could not be read back as one class.");
+				}
 			}
 		}
 	}
@@ -150,6 +162,22 @@ public final class IndexSchema {
 			return documentMapping.getTypeName();
 		}
 		return eClass.getName();
+	}
+
+	/**
+	 * The class behind a type-discriminator value — the reverse of {@link #typeNameOf}, for
+	 * reading documents back.
+	 *
+	 * @throws MappingException if no class of this unit's EPackage writes that name
+	 */
+	public EClass eClassOf(String typeName) {
+		EClass eClass = byTypeName.get(typeName);
+		if (eClass == null) {
+			throw new MappingException("No class of unit '" + mapping.getName() + "' writes the type name '"
+					+ typeName + "'. Either the document was written by another mapping, or the mapping "
+					+ "changed since — both mean the index and this schema disagree.");
+		}
+		return eClass;
 	}
 
 	/** The id attribute of a class, declared or intrinsic; null if it has neither. */

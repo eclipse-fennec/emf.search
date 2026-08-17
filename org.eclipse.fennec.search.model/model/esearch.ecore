@@ -167,9 +167,9 @@
       </eAnnotations>
     </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="stored" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"
-        defaultValueLiteral="false">
+        defaultValueLiteral="true">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-        <details key="documentation" value="Whether the original value is stored for retrieval. Not needed when hits are materialized from the primary store or from a stored EObject (see Materialization)."/>
+        <details key="documentation" value="Whether the original value is stored for retrieval. True by default: the partial reconstruction of hits (docs/search-access.md &#xa7;4.3) reads exactly these stored values, so opting out is a per-field declaration for values that are large or come back another way (STORED_OBJECT, SOURCE_URI)."/>
       </eAnnotations>
     </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="docValues" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean"
