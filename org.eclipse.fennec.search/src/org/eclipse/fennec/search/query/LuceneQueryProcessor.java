@@ -34,14 +34,14 @@ import org.eclipse.fennec.model.query.OrderBy;
 import org.eclipse.fennec.model.query.Query;
 import org.eclipse.fennec.model.query.Selection;
 import org.eclipse.fennec.model.query.SortDirection;
+import org.eclipse.fennec.persistence.capabilities.QueryCapabilities;
+import org.eclipse.fennec.persistence.capabilities.QueryCapabilitiesBuilder;
+import org.eclipse.fennec.persistence.capabilities.QueryFeature;
 import org.eclipse.fennec.persistence.query.QueryException;
-import org.eclipse.fennec.persistence.query.api.QueryCapabilities;
 import org.eclipse.fennec.persistence.query.api.QueryContext;
-import org.eclipse.fennec.persistence.query.api.QueryFeature;
 import org.eclipse.fennec.persistence.query.api.QueryPlan;
 import org.eclipse.fennec.persistence.query.api.QueryProcessor;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
-import org.eclipse.fennec.persistence.query.support.QueryCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.query.support.QueryValidator;
 import org.eclipse.fennec.search.esearch.FieldMapping;
 import org.eclipse.fennec.search.mapping.IndexSchema;
@@ -124,6 +124,16 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 
 	@Override
 	public QueryCapabilities capabilities() {
+		return CAPABILITIES;
+	}
+
+	/**
+	 * The same declaration without a processor instance. The query vocabulary is a property
+	 * of the backend, not of one unit's mapping, so the {@code PersistenceCapabilities}
+	 * aggregate a resource answers (issue #134 upstream) reads it from here rather than
+	 * restating it — two lists for one backend would drift.
+	 */
+	public static QueryCapabilities declaredCapabilities() {
 		return CAPABILITIES;
 	}
 

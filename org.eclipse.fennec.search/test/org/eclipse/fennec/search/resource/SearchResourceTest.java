@@ -31,6 +31,8 @@ import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
+import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
+import org.eclipse.fennec.persistence.capabilities.StoreFeature;
 import org.eclipse.fennec.persistence.resource.PersistenceResource;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
@@ -38,6 +40,7 @@ import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
 import org.eclipse.fennec.search.esearch.ReferenceStrategy;
 import org.eclipse.fennec.search.mapping.DocumentMapper;
+import org.eclipse.fennec.search.query.LuceneQueryProcessor;
 import org.eclipse.fennec.search.unit.IndexUnit;
 import org.eclipse.fennec.search.unit.IndexUnitConfig;
 import org.eclipse.fennec.search.unit.RefreshTrigger;
@@ -226,6 +229,23 @@ class SearchResourceTest {
 				.isInstanceOf(IOException.class)
 				.hasMessageContaining("not to rebuild it")
 				.hasMessageContaining("#18");
+	}
+
+	// --- declaring ----------------------------------------------------------------------
+
+	@Test
+	void capabilitiesAreOneAggregateWithHonestViews() {
+		PersistenceCapabilities capabilities = resource("lucene://catalog/Product").capabilities();
+
+		assertThat(capabilities.query().supported())
+				.as("the query view is the processor's declaration, not a second list")
+				.isEqualTo(LuceneQueryProcessor.declaredCapabilities().supported());
+		assertThat(capabilities.command().supported())
+				.as("no command path until #29")
+				.isEmpty();
+		assertThat(capabilities.store().supports(StoreFeature.TRANSACTION_BRACKET))
+				.as("no transaction bracket in v1 (#30)")
+				.isFalse();
 	}
 
 	// --- URIs ---------------------------------------------------------------------------
