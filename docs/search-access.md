@@ -237,9 +237,11 @@ look like, not where they live.
 - **Interval attributes** (`RangeFieldMapping`): a pair of numeric/temporal features
   declared as one `LongRange`/`DoubleRange` field, so validity intervals get real
   `INTERSECTS`/`WITHIN`/`CONTAINS` semantics instead of two hand-written comparisons.
-- **Materialization** (per document): whether the full EObject is stored in the index —
-  serialized through `emf.codec`, field name and format declared — so role 1 can return
-  complete objects without a primary store. Term vectors are per text field, since that is
+- **Materialization** (per document): how a hit becomes an EObject again — a declared
+  strategy, not a fixed mechanism. Without a declaration, hits are *partially*
+  reconstructed from stored fields; `STORED_OBJECT` adds a serialized copy of the whole
+  object; `SOURCE_URI` stores a pointer into the primary store. The three tiers, their
+  contracts and their price are §4.3. Term vectors are per text field, since that is
   where the cost is.
 - **Index ordering** (`IndexSort` on the unit): sort entries over DocValues features,
   enabling early termination for the dominant sort — the time-ordered case of the v2 feed.
@@ -325,6 +327,56 @@ Three consequences, all owned by #28:
 - **Changing an expression changes the index**, so a mapping is interpretation-relevant
   metadata: a changed source means a rebuild, and the mapping needs a version the index can
   record.
+
+### 4.3 Materialization and the load path — three tiers (S16, #18)
+
+Fixed 2026-08-17, superseding the first cut of this section and of issue #18, which had
+made a serialized-blob-via-`emf.codec` the *only* load path. The revised requirement: the
+backend behaves like the third persistence backend next to JPA and Mongo — a found
+document always comes back as an EObject — and *how complete* that object is, is a
+declared, per-document choice. Three tiers:
+
+1. **Default — partial reconstruction from stored fields.** With no `Materialization`
+   declared, a hit or `load()` rebuilds an EObject from the document itself, the way the
+   retired `org.gecko.search` helpers did by hand, generalized through the mapping:
+   `_type` resolves the EClass, stored values convert back through the EMF factory,
+   `NESTED` children are reassembled from their block (order preserved), and `ID_ONLY`
+   references become EMF proxies under `lucene://<unit>/<Type>/<id>`. **The object is
+   incomplete by design**: features that were not stored come back unset, and `EMBED`
+   references are deliberately *not* reconstructed — a flattened multi-valued embed has
+   lost which value belonged to which target, and inventing that correlation would be
+   worse than omitting it. Partiality is stated, not hidden: the loading resource carries
+   a warning diagnostic naming the mapping's unstored features.
+   Two consequences are part of the requirement. *The write convention stores original
+   values by default* (opt-out per field with `stored=false`) — the predecessor did the
+   same, and without stored originals a partial object would hold nothing but its id.
+   And *#37 becomes a correctness precondition*: an attribute sitting at its type's
+   default value must still be written, or reconstruction reads it as unset.
+2. **`STORED_OBJECT` — the complete object, serialized.** The mapping declares that the
+   whole EObject tree is stored in one binary stored field (default name `_source`),
+   written and read through an `ObjectSerializer` API: `format()` id, `serialize(EObject)
+   → byte[]`, `deserialize(byte[], EPackage.Registry) → EObject`, resolved from a registry
+   by the mapping's `format` string (plain-Java constructed; OSGi whiteboard in the
+   `.osgi` layer). The first serializer is **EMF Binary** (`BinaryResourceImpl`, format id
+   `binary`) — no new dependency, compact, and external references become URIs/proxies by
+   standard EMF rules. `emf.codec` formats (json/bson) are a possible *additional*
+   serializer later, no longer the foundation. Serializing must not disturb the live
+   object: the writer works on a copy, never by moving the object into a scratch resource.
+   `STORED_OBJECT` is also the only tier that gates `UPDATE_BY_SELECTOR` per EClass
+   (§5.4) — a partial reconstruction is exactly the lossy rewrite that section refuses.
+3. **`SOURCE_URI` — a pointer, not a copy.** The mapping declares that the object's
+   original URI (`EcoreUtil.getURI` at indexing time) is stored, and a hit materializes by
+   resolving that URI through the *caller's* `ResourceSet` — against the JPA, Mongo or
+   file resource the object came from. This is role 2 of §1 made explicit: the index
+   finds, the primary store materializes. `load()` populates proxies rather than pulling
+   resolved objects out of their owning resource (containment would move them); an object
+   that has no resource URI at mapping time is refused by name.
+
+In the metamodel this is `Materialization.kind : MaterializationKind` (`STORED_OBJECT`,
+`SOURCE_URI`) — presence of the `Materialization` element is the switch, so the earlier
+`storeObject` flag is gone; `fieldName` (default `_source`) and `format` (serializer id,
+`STORED_OBJECT` only, unset = `binary`) complete it. Every tier is user-facing behaviour
+and ships with a user-documentation page (`docs/`, `docs-site/guides.mjs`) in #18.
 
 ## 5. Query translation — capability profile
 
@@ -422,15 +474,16 @@ writes that are addressed by a *selector* rather than by an object.
 |---|---|
 | `InsertCommand` | map each payload object, `addDocument`/`updateDocument` on its id term |
 | `DeleteCommand` | translate the selector with the `QueryProcessor`, then `deleteDocuments(Query)` — Lucene deletes by query natively, so this maps cleanly |
-| `UpdateCommand` | **conditional**: possible only where the document mapping declares materialization (§4, S16) |
+| `UpdateCommand` | **conditional**: possible only where the document mapping declares `STORED_OBJECT` materialization (§4.3, S16) |
 
 The update case is the interesting one and it is not a matter of effort. Lucene has no
 partial update: changing one field means rewriting the document, so the backend must be able
 to reconstruct it first. With the stored EObject present it can — read, apply the ChangeSet,
 re-map, replace. Without it, the index holds only the mapped fields, and rebuilding from
-those would silently drop everything unmapped. A lossy write is worse than a refusal, so the
-answer without materialization is a refusal — per EClass now rather than for the whole
-backend, see below (S21, #29).
+those would silently drop everything unmapped — the partial reconstruction of §4.3 is fine
+as a *read* result, and disqualified as a *write* source for exactly that reason. A lossy
+write is worse than a refusal, so the answer without `STORED_OBJECT` materialization is a
+refusal — per EClass now rather than for the whole backend, see below (S21, #29).
 
 A write bracket (`CommandResource.begin()`) has no clean Lucene equivalent either.
 `IndexWriter.rollback()` discards *all* uncommitted work in the unit, not the calling
@@ -453,7 +506,7 @@ backend's favour, and the answer is what S21 declares:
   and hiding what it can do.
 - So this backend declares `INSERT` and `DELETE_BY_SELECTOR` outright and
   `UPDATE_BY_SELECTOR` through `CommandCapabilitiesBuilder.narrow(feature, eClass -> …)`
-  over the classes whose mapping materializes the document (§4, S16). `TRANSACTION_BRACKET`
+  over the classes whose mapping declares `STORED_OBJECT` (§4.3, S16). `TRANSACTION_BRACKET`
   stays undeclared in v1.
 - Refusal runs through the diagnostics contract: `execute()`/`begin()` refuse an undeclared
   feature *before any work*, with a `PersistenceDiagnostic` naming the `CommandFeature`,
@@ -640,11 +693,13 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
     `INTERSECTS`/`WITHIN`/`CONTAINS` translation. **Blocked on a new IR issue** for
     interval vocabulary in `emf.persistence-jpa` — to be raised now; the two-scalar
     fallback ships meanwhile.
-16. **S16 (#18) — self-sufficient hits**: full EObject stored in the index via `emf.codec`, so
-    role 1 materializes without a primary store. Also the predicate that decides
-    `UPDATE_BY_SELECTOR` per EClass (§5.4), which means "does this class materialize" has to be
-    answerable statically from the mapping, not discovered mid-write. Floor: the codec's
-    cross-resource reference fixes (emf.codec#113/#123/#128, workspace library build 72).
+16. **S16 (#18) — self-sufficient hits**: the three-tier load path of §4.3 — partial
+    reconstruction from stored fields as the default (convention flips to store-by-default,
+    #37 fixed first), `STORED_OBJECT` through the `ObjectSerializer` API with EMF Binary as
+    the first format, `SOURCE_URI` resolving through the caller's `ResourceSet`. Also the
+    predicate that decides `UPDATE_BY_SELECTOR` per EClass (§5.4): only `STORED_OBJECT`
+    counts, and it has to be answerable statically from the mapping, not discovered
+    mid-write.
 17. **S17 (#19) — sorted index**: `setIndexSort` for the dominant sort order, early
     termination, `searchAfter` paging hardened against it.
 18. **S18 (#20) — checkpointing**: `IndexWriter#setLiveCommitData` carrying the applied change
