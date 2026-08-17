@@ -193,7 +193,7 @@ public final class DocumentMapper {
 
 	/** The default for an attribute nobody mapped: derived from its type, never from its name. */
 	private void writeConvention(Document document, EObject object, EAttribute attribute, String prefix) {
-		if (!object.eIsSet(attribute)) {
+		if (isAbsent(object, attribute)) {
 			return;
 		}
 		String name = prefix + attribute.getName();
@@ -216,7 +216,7 @@ public final class DocumentMapper {
 	private void writeDeclared(Document document, EObject object, EAttribute attribute, FieldMapping field,
 			String prefix, String name) {
 		refuseUnimplemented(field, attribute);
-		if (object.eIsSet(attribute)) {
+		if (!isAbsent(object, attribute)) {
 			for (Object value : valuesOf(object, attribute)) {
 				if (value == null) {
 					continue;
@@ -457,6 +457,21 @@ public final class DocumentMapper {
 	}
 
 	// --- small helpers ----------------------------------------------------------------------
+
+	/**
+	 * Whether the attribute has no effective value to index. {@code eIsSet} is the wrong
+	 * question for a feature that is not unsettable: EMF defines it there as "differs from
+	 * the default", so an attribute sitting at its type's default would vanish from the
+	 * index and {@code condition = NEW} would answer differently from JPA, Mongo and the
+	 * memory oracle, whose effective value is defined even at the default (#37). Only a
+	 * genuine absence stays absent — an unsettable feature never set, or a null value.
+	 */
+	private static boolean isAbsent(EObject object, EAttribute attribute) {
+		if (attribute.isUnsettable()) {
+			return !object.eIsSet(attribute);
+		}
+		return object.eGet(attribute) == null;
+	}
 
 	@SuppressWarnings("unchecked")
 	private static List<Object> valuesOf(EObject object, EStructuralFeature feature) {
