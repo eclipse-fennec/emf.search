@@ -12,28 +12,36 @@
  ********************************************************************/
 package org.eclipse.fennec.search.mapping;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
+import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EDataType;
 import org.eclipse.emf.ecore.EEnum;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.InternalEObject;
+import org.eclipse.emf.ecore.impl.EPackageRegistryImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.FieldMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
+import org.eclipse.fennec.search.esearch.Materialization;
 import org.eclipse.fennec.search.esearch.NumericFieldMapping;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
 import org.eclipse.fennec.search.esearch.ReferenceStrategy;
 import org.eclipse.fennec.search.esearch.TextFieldMapping;
+import org.eclipse.fennec.search.materialization.ObjectSerializers;
 import org.eclipse.fennec.search.resource.SearchUris;
 
 /**
@@ -58,29 +66,56 @@ import org.eclipse.fennec.search.resource.SearchUris;
 public final class DocumentReader {
 
 	private final IndexSchema schema;
+	private final ObjectSerializers serializers;
+	private final EPackage.Registry packages;
 
-	private DocumentReader(IndexSchema schema) {
+	private DocumentReader(IndexSchema schema, ObjectSerializers serializers, EPackage.Registry packages) {
 		this.schema = schema;
-	}
-
-	/** A reader over the same schema the mapper writes against. */
-	public static DocumentReader of(IndexSchema schema) {
-		Objects.requireNonNull(schema, "schema");
-		return new DocumentReader(schema);
+		this.serializers = serializers;
+		this.packages = packages;
 	}
 
 	/**
-	 * Reconstructs the object a root document was mapped from.
+	 * A reader over the same schema the mapper writes against, with the default
+	 * serializers and a package registry holding exactly the unit's EPackage.
+	 */
+	public static DocumentReader of(IndexSchema schema) {
+		Objects.requireNonNull(schema, "schema");
+		EPackageRegistryImpl packages = new EPackageRegistryImpl();
+		EPackage ePackage = schema.mapping().getEPackage();
+		packages.put(ePackage.getNsURI(), ePackage);
+		return new DocumentReader(schema, ObjectSerializers.withDefaults(), packages);
+	}
+
+	/** A reader with an explicit serializer registry and package registry. */
+	public static DocumentReader of(IndexSchema schema, ObjectSerializers serializers,
+			EPackage.Registry packages) {
+		Objects.requireNonNull(schema, "schema");
+		Objects.requireNonNull(serializers, "serializers");
+		Objects.requireNonNull(packages, "packages");
+		return new DocumentReader(schema, serializers, packages);
+	}
+
+	/**
+	 * The object behind a root document, by the tier its class declares (§4.3): the
+	 * complete tree from the stored bytes under {@code STORED_OBJECT}, a proxy carrying
+	 * the primary store's URI under {@code SOURCE_URI}, and otherwise the partial
+	 * reconstruction from stored fields.
 	 *
 	 * @param root the root document of the block
 	 * @param children the block's child documents in index order; empty for a flat object
-	 * @throws MappingException if the document carries no readable type, or its type name
-	 *         resolves to a class this reader cannot instantiate
+	 * @throws MappingException if the document carries no readable type, its type name
+	 *         resolves to a class this reader cannot instantiate, or its class declares a
+	 *         materialization the document does not carry
 	 */
 	public EObject read(Document root, List<Document> children) {
 		Objects.requireNonNull(root, "root");
 		Objects.requireNonNull(children, "children");
 		EClass eClass = eClassOf(root);
+		Materialization materialization = schema.materialization(eClass);
+		if (materialization != null) {
+			return materialized(root, eClass, materialization);
+		}
 		EObject object = instantiate(eClass);
 		DocumentMapping documentMapping = schema.documentMapping(eClass);
 		readAttributes(root, object, eClass);
@@ -89,13 +124,59 @@ public final class DocumentReader {
 	}
 
 	/**
+	 * The declared upgrade. A document without the declared field predates the
+	 * declaration and is refused: silently answering with the partial tier would break
+	 * "declaration = behaviour" — the caller was promised complete objects.
+	 */
+	private EObject materialized(Document root, EClass eClass, Materialization materialization) {
+		String fieldName = schema.materializationField(materialization);
+		switch (materialization.getKind()) {
+			case STORED_OBJECT -> {
+				BytesRef bytes = root.getBinaryValue(fieldName);
+				if (bytes == null) {
+					throw new MappingException(eClass.getName() + " declares STORED_OBJECT but this "
+							+ "document carries no '" + fieldName + "' field — it was written before the "
+							+ "declaration. The index needs a rebuild.");
+				}
+				try {
+					return serializers.forFormat(materialization.getFormat()).deserialize(
+							Arrays.copyOfRange(bytes.bytes, bytes.offset, bytes.offset + bytes.length),
+							packages);
+				} catch (IOException e) {
+					throw new MappingException("Deserializing the stored " + eClass.getName()
+							+ " failed: " + e.getMessage() + ". If the mapping's format changed since "
+							+ "this document was written, the index needs a rebuild.", e);
+				}
+			}
+			case SOURCE_URI -> {
+				String uri = root.get(fieldName);
+				if (uri == null) {
+					throw new MappingException(eClass.getName() + " declares SOURCE_URI but this document "
+							+ "carries no '" + fieldName + "' field — it was written before the "
+							+ "declaration. The index needs a rebuild.");
+				}
+				InternalEObject proxy = (InternalEObject) instantiate(eClass);
+				proxy.eSetProxyURI(URI.createURI(uri));
+				return proxy;
+			}
+		}
+		throw new MappingException("Materialization kind " + materialization.getKind()
+				+ " has no reader; the metamodel grew without this backend noticing.");
+	}
+
+	/**
 	 * The features of a class that a reconstructed object cannot carry, by name — declared
 	 * {@code stored=false} fields, {@code EMBED} references, unmapped references, and
 	 * {@code ID_ONLY} references whose target class is abstract (no proxy can be created
 	 * for a type that cannot be instantiated). Statically derived from the mapping, so a
-	 * resource can warn once per class rather than guess per object.
+	 * resource can warn once per class rather than guess per object. A class with a
+	 * declared materialization omits nothing — its objects come back complete, or resolve
+	 * complete through the primary store.
 	 */
 	public List<String> omissions(EClass eClass) {
+		if (schema.materialization(eClass) != null) {
+			return List.of();
+		}
 		List<String> omissions = new ArrayList<>();
 		DocumentMapping documentMapping = schema.documentMapping(eClass);
 		for (EAttribute attribute : eClass.getEAllAttributes()) {

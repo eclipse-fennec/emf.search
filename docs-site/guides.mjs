@@ -15,6 +15,7 @@ export const GUIDES = [
   { file: 'overview.md', slug: 'overview', title: 'Overview' },
   { file: 'architecture.md', slug: 'architecture', title: 'Architecture' },
   { file: 'index-units.md', slug: 'index-units', title: 'Index units' },
+  { file: 'materialization.md', slug: 'materialization', title: 'Loading & materialization' },
 ];
 
 export const EXAMPLES = [];

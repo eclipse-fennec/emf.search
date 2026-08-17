@@ -12,6 +12,7 @@
  ********************************************************************/
 package org.eclipse.fennec.search.mapping;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -34,6 +35,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
+import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EDataType;
@@ -46,11 +48,14 @@ import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.FieldMapping;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
+import org.eclipse.fennec.search.esearch.Materialization;
 import org.eclipse.fennec.search.esearch.NumericFieldMapping;
 import org.eclipse.fennec.search.esearch.NumericKind;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
 import org.eclipse.fennec.search.esearch.ReferenceStrategy;
 import org.eclipse.fennec.search.esearch.TextFieldMapping;
+import org.eclipse.fennec.search.materialization.ObjectSerializers;
+import org.eclipse.fennec.search.resource.SearchResource;
 
 /**
  * Turns EObjects into Lucene documents according to an {@code esearch} mapping.
@@ -71,26 +76,39 @@ public final class DocumentMapper {
 
 	private final IndexUnitMapping mapping;
 	private final IndexSchema schema;
+	private final ObjectSerializers serializers;
 
-	private DocumentMapper(IndexSchema schema) {
+	private DocumentMapper(IndexSchema schema, ObjectSerializers serializers) {
 		this.schema = schema;
 		this.mapping = schema.mapping();
+		this.serializers = serializers;
 	}
 
 	/** Compiles a mapping into a mapper. */
 	public static DocumentMapper of(IndexUnitMapping mapping) {
-		return new DocumentMapper(IndexSchema.of(mapping));
+		return new DocumentMapper(IndexSchema.of(mapping), ObjectSerializers.withDefaults());
 	}
 
 	/** Maps against an already derived schema, which the query side shares. */
 	public static DocumentMapper of(IndexSchema schema) {
+		return of(schema, ObjectSerializers.withDefaults());
+	}
+
+	/** Maps with an explicit serializer registry — the OSGi layer's entry point. */
+	public static DocumentMapper of(IndexSchema schema, ObjectSerializers serializers) {
 		Objects.requireNonNull(schema, "schema");
-		return new DocumentMapper(schema);
+		Objects.requireNonNull(serializers, "serializers");
+		return new DocumentMapper(schema, serializers);
 	}
 
 	/** The schema this mapper writes against; the query translation reads the same one. */
 	public IndexSchema schema() {
 		return schema;
+	}
+
+	/** The serializers this mapper materializes through; the reader must share them. */
+	public ObjectSerializers serializers() {
+		return serializers;
 	}
 
 	/** The name of the type discriminator field this mapper writes. */
@@ -119,10 +137,47 @@ public final class DocumentMapper {
 		writeSystemFields(root, id, id, typeNameOf(documentMapping, eClass), true);
 		writeAttributes(root, object, documentMapping, "");
 		writeReferences(root, children, object, documentMapping, id, 1);
+		writeMaterialization(root, object, eClass);
 
 		List<Document> block = new ArrayList<>(children);
 		block.add(root);
 		return new MappedDocument(id, block);
+	}
+
+	/** The declared upgrade of §4.3, on the root document only — children ride inside it. */
+	private void writeMaterialization(Document root, EObject object, EClass eClass) {
+		Materialization materialization = schema.materialization(eClass);
+		if (materialization == null) {
+			return;
+		}
+		String fieldName = schema.materializationField(materialization);
+		switch (materialization.getKind()) {
+			case STORED_OBJECT -> {
+				try {
+					root.add(new StoredField(fieldName,
+							serializers.forFormat(materialization.getFormat()).serialize(object)));
+				} catch (IOException e) {
+					throw new MappingException("Serializing " + eClass.getName() + " '"
+							+ idOf(object, schema.documentMapping(eClass), eClass) + "' for STORED_OBJECT "
+							+ "materialization failed: " + e.getMessage(), e);
+				}
+			}
+			case SOURCE_URI -> {
+				URI uri = EcoreUtil.getURI(object);
+				if (object.eResource() == null && !object.eIsProxy()) {
+					throw new MappingException(eClass.getName() + " is mapped SOURCE_URI, but this object "
+							+ "lives in no resource, so there is no primary URI to store. Either index it "
+							+ "out of its primary resource or declare STORED_OBJECT.");
+				}
+				if (object.eResource() instanceof SearchResource) {
+					throw new MappingException(eClass.getName() + " is mapped SOURCE_URI, but this object "
+							+ "lives in the index resource itself — the stored URI would point back at "
+							+ "this index. SOURCE_URI is the secondary-index tier; the primary store owns "
+							+ "the object.");
+				}
+				root.add(new StoredField(fieldName, uri.toString()));
+			}
+		}
 	}
 
 	// --- resolution ---------------------------------------------------------------------

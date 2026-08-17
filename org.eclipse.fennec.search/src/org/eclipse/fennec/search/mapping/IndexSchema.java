@@ -28,6 +28,7 @@ import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.FieldMapping;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
+import org.eclipse.fennec.search.esearch.Materialization;
 import org.eclipse.fennec.search.esearch.NumericFieldMapping;
 import org.eclipse.fennec.search.esearch.NumericKind;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
@@ -178,6 +179,23 @@ public final class IndexSchema {
 					+ "changed since — both mean the index and this schema disagree.");
 		}
 		return eClass;
+	}
+
+	/**
+	 * The materialization a class declares — inherited with its document mapping, like
+	 * everything else — or null for the default tier, partial reconstruction (§4.3). This
+	 * is also the static answer behind the per-EClass {@code UPDATE_BY_SELECTOR} gate:
+	 * only a declared {@code STORED_OBJECT} makes a complete rewrite possible.
+	 */
+	public Materialization materialization(EClass eClass) {
+		DocumentMapping documentMapping = documentMapping(eClass);
+		return documentMapping == null ? null : documentMapping.getMaterialization();
+	}
+
+	/** The stored field a materialization writes into; {@link SearchFields#SOURCE} unless named. */
+	public String materializationField(Materialization materialization) {
+		String fieldName = materialization.getFieldName();
+		return fieldName == null || fieldName.isBlank() ? SearchFields.SOURCE : fieldName;
 	}
 
 	/** The id attribute of a class, declared or intrinsic; null if it has neither. */

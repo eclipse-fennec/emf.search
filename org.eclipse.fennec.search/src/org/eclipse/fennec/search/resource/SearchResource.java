@@ -40,6 +40,8 @@ import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EDataType;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EPackage;
+import org.eclipse.emf.ecore.impl.EPackageRegistryImpl;
 import org.eclipse.emf.ecore.resource.impl.ResourceImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
@@ -156,7 +158,7 @@ public class SearchResource extends ResourceImpl implements PersistenceResource 
 		if (isLoaded) {
 			return;
 		}
-		DocumentReader reader = DocumentReader.of(mapper.schema());
+		DocumentReader reader = DocumentReader.of(mapper.schema(), mapper.serializers(), packages());
 		List<EObject> loaded = unit.search(searcher -> {
 			Query scope = scopeQuery();
 			int total = searcher.count(scope);
@@ -191,6 +193,19 @@ public class SearchResource extends ResourceImpl implements PersistenceResource 
 		warnAboutOmissions(reader, loaded);
 		isLoaded = true;
 		setModified(false);
+	}
+
+	/**
+	 * The packages a stored object may deserialize against: the caller's ResourceSet
+	 * registry when there is one, always including the unit's own EPackage.
+	 */
+	private EPackage.Registry packages() {
+		EPackageRegistryImpl registry = getResourceSet() == null
+				? new EPackageRegistryImpl()
+				: new EPackageRegistryImpl(getResourceSet().getPackageRegistry());
+		EPackage ePackage = mapper.schema().mapping().getEPackage();
+		registry.put(ePackage.getNsURI(), ePackage);
+		return registry;
 	}
 
 	private String idOf(EObject object) {
