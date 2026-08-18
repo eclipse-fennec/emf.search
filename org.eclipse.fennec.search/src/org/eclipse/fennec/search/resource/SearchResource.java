@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.facet.FacetsCollector;
@@ -54,6 +55,7 @@ import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
 import org.eclipse.fennec.persistence.api.ConverterService;
 import org.eclipse.fennec.persistence.capabilities.StoreCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.diagnostic.PersistenceDiagnostic;
+import org.eclipse.fennec.persistence.helper.CompositeIds;
 import org.eclipse.fennec.persistence.query.QueryException;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
 import org.eclipse.fennec.persistence.query.api.QueryResultRow;
@@ -64,6 +66,7 @@ import org.eclipse.fennec.persistence.query.support.QueryContexts;
 import org.eclipse.fennec.persistence.query.support.QueryResultRows;
 import org.eclipse.fennec.persistence.query.support.QueryResults;
 import org.eclipse.fennec.persistence.resource.PersistenceResource;
+import org.eclipse.fennec.persistence.resource.StreamingResource;
 import org.eclipse.fennec.search.mapping.DocumentMapper;
 import org.eclipse.fennec.search.mapping.DocumentReader;
 import org.eclipse.fennec.search.mapping.FacetFields;
@@ -98,7 +101,8 @@ import org.eclipse.fennec.search.unit.IndexUnit;
  *
  * @author Data In Motion Consulting
  */
-public class SearchResource extends ResourceImpl implements PersistenceResource, QueryableResource {
+public class SearchResource extends ResourceImpl
+		implements PersistenceResource, QueryableResource, StreamingResource {
 
 	/**
 	 * The query view is the backend's one declaration; command and store stay empty until
@@ -202,32 +206,7 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 		if (isLoaded) {
 			return;
 		}
-		DocumentReader reader = DocumentReader.of(mapper.schema(), mapper.serializers(), packages());
-		List<EObject> loaded;
-		try {
-			loaded = unit.search(searcher -> {
-				Query scope = scopeQuery();
-				int total = searcher.count(scope);
-				List<EObject> objects = new ArrayList<>(total);
-				if (total == 0) {
-					return objects;
-				}
-				TopDocs top = searcher.search(scope, total);
-				StoredFields stored = searcher.storedFields();
-				for (ScoreDoc hit : top.scoreDocs) {
-					Document root = stored.document(hit.doc);
-					objects.add(reader.read(root, childrenOf(searcher, stored, root)));
-				}
-				return objects;
-			});
-		} catch (MappingException e) {
-			// Index and mapping disagree — reconstruction refused (§4.3). The resource
-			// contract wants that as a diagnostic plus a checked failure, not a raw
-			// RuntimeException out of load.
-			getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
-					"Failed to load resource: " + e.getMessage(), getURI(), e));
-			throw new IOException("Cannot load '" + getURI() + "': " + e.getMessage(), e);
-		}
+		List<EObject> loaded = readScope();
 		// Objects already attached — say, by a save on this same resource — are kept, and an
 		// incoming reconstruction of the same id is skipped, so identity survives for anyone
 		// already holding a reference. Mirrors the JPA and Mongo backends.
@@ -244,7 +223,7 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 				getContents().add(object);
 			}
 		}
-		warnAboutOmissions(reader, loaded);
+		warnAboutOmissions(loaded);
 		isLoaded = true;
 		setModified(false);
 	}
@@ -263,6 +242,9 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 	}
 
 	private String idOf(EObject object) {
+		if (CompositeIds.isComposite(object.eClass())) {
+			return CompositeIds.fragment(object);
+		}
 		EAttribute idAttribute = mapper.schema().idAttribute(object.eClass());
 		if (idAttribute == null) {
 			return null;
@@ -270,6 +252,51 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 		Object value = object.eGet(idAttribute);
 		return value == null ? null
 				: EcoreUtil.convertToString((EDataType) idAttribute.getEType(), value);
+	}
+
+	@Override
+	public Stream<EObject> stream() throws IOException {
+		return stream(Map.of());
+	}
+
+	/**
+	 * The objects this resource's URI addresses, reconstructed but not attached — a stream
+	 * consumer wants values, not contents ownership. Collected inside the searcher lease
+	 * like every result here; a lazily paging stream is the {@code SERVER_CURSORS} story
+	 * (emf.persistence-jpa#162).
+	 */
+	@Override
+	public Stream<EObject> stream(Map<?, ?> options) throws IOException {
+		return readScope().stream();
+	}
+
+	/** Reconstructs everything the URI addresses; the shared read of load and stream. */
+	private List<EObject> readScope() throws IOException {
+		DocumentReader reader = DocumentReader.of(mapper.schema(), mapper.serializers(), packages());
+		try {
+			return unit.search(searcher -> {
+				Query scope = scopeQuery();
+				int total = searcher.count(scope);
+				List<EObject> objects = new ArrayList<>(total);
+				if (total == 0) {
+					return objects;
+				}
+				TopDocs top = searcher.search(scope, total);
+				StoredFields stored = searcher.storedFields();
+				for (ScoreDoc hit : top.scoreDocs) {
+					Document root = stored.document(hit.doc);
+					objects.add(reader.read(root, childrenOf(searcher, stored, root)));
+				}
+				return objects;
+			});
+		} catch (MappingException e) {
+			// Index and mapping disagree — reconstruction refused (§4.3). The resource
+			// contract wants that as a diagnostic plus a checked failure, not a raw
+			// RuntimeException.
+			getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
+					"Failed to read resource: " + e.getMessage(), getURI(), e));
+			throw new IOException("Cannot read '" + getURI() + "': " + e.getMessage(), e);
+		}
 	}
 
 	/** The child documents of one block, in the order the mapper wrote them. */
@@ -293,7 +320,8 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 	}
 
 	/** One warning per loaded class whose reconstruction is incomplete, naming what is not there. */
-	private void warnAboutOmissions(DocumentReader reader, List<EObject> loaded) {
+	private void warnAboutOmissions(List<EObject> loaded) {
+		DocumentReader reader = DocumentReader.of(mapper.schema());
 		Set<EClass> classes = new LinkedHashSet<>();
 		for (EObject object : loaded) {
 			classes.add(object.eClass());
@@ -313,7 +341,8 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 	/**
 	 * Resolves the fragment of an object URI ({@link SearchUris#objectUri}) — the id, under
 	 * the mapping's id attribute, which need not be the intrinsic EMF ID the default
-	 * implementation looks for.
+	 * implementation looks for — and the keyed-access contract for composite ids: a
+	 * {@code k1=v1,k2=v2} fragment resolves order-free.
 	 */
 	@Override
 	public EObject getEObject(String uriFragment) {
@@ -322,11 +351,40 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 			return byDefault;
 		}
 		for (EObject object : getContents()) {
-			if (uriFragment.equals(idOf(object))) {
+			if (matchesId(object, uriFragment)) {
 				return object;
 			}
 		}
 		return null;
+	}
+
+	private boolean matchesId(EObject object, String fragment) {
+		String own = idOf(object);
+		if (own == null) {
+			return false;
+		}
+		if (CompositeIds.isComposite(object.eClass()) && CompositeIds.isCompositeFragment(fragment)) {
+			try {
+				// parse both sides: the incoming pairs may arrive in any order, the
+				// canonical order is the class's id-attribute order
+				return CompositeIds.parse(object.eClass(), fragment)
+						.equals(CompositeIds.parse(object.eClass(), own));
+			} catch (IllegalArgumentException malformedOrForeign) {
+				return false;
+			}
+		}
+		return fragment.equals(own);
+	}
+
+	/**
+	 * The keyed fragment of an object: the id (composite ids in their canonical
+	 * {@code k1=v1,k2=v2} shape), so references serialize keyed rather than positional —
+	 * a positional path breaks the moment the contents order changes.
+	 */
+	@Override
+	public String getURIFragment(EObject eObject) {
+		String id = idOf(eObject);
+		return id != null ? id : super.getURIFragment(eObject);
 	}
 
 	@Override

@@ -33,6 +33,14 @@
   <eClassifiers xsi:type="ecore:EClass" name="Bundle" eSuperTypes="#//Product">
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="itemCount" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
   </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="OrderLine">
+    <eAnnotations source="http://eclipse.org/fennec/persistence/1.0">
+      <details key="idFeatures" value="orderId,lineNo"/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="orderId" iD="true" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="lineNo" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="quantity" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt"/>
+  </eClassifiers>
   <eClassifiers xsi:type="ecore:EEnum" name="Condition">
     <eLiterals name="NEW"/>
     <eLiterals name="USED" value="1"/>

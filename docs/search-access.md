@@ -679,10 +679,12 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
    IR form yet** — `Selection` carries only paths — and a bare `score()` sort key is
    classified `SORT_EXPRESSION` by the analyzer; both raised as emf.persistence-jpa#165.
    Until decided, `SORT_EXPRESSION` is declared narrowed to exactly the score key.
-9. **S7 (#11) — facets**: decided 2026-08-18 — an **own facet API is the primary surface**
-   (the §6 pattern: everything that does not fit the persistence contract gets its own
-   API), with the GROUP_BY/AGG_COUNT pipeline subset of §5 kept only where it maps
-   honestly. Taxonomy vs. SSDV decision unchanged.
+9. **S7 (#11) — facets**: landed 2026-08-18 as decided — `FacetSearch` as the own API
+   (the §6 pattern), the single-GROUP-BY-plus-COUNT subset as shape `AGGREGATION` on the
+   query path, both answered from the same SortedSet doc values `FacetFields` derives
+   once for writer and counter. The taxonomy-vs-SSDV decision fell to **SSDV**: no
+   side-car index, the unit's own lifecycle; `TAXONOMY` and `hierarchical` refuse by name
+   until a real hierarchy pays for the second index.
 10. **S8 (#12) — suggest** (`search.suggest`): §6 API + mapping-model extension + impl.
 11. **S9 (#13) — geo**: `GeoWithin`/`GeoDistance` over `LatLonPoint` plus distance sort —
     G-P3 of `geo-vocabulary.md`. **No longer blocked**: the vocabulary landed as
