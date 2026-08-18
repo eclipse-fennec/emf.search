@@ -65,7 +65,8 @@ subprojects {
     // bundles are out of scope. Ratchet upward as coverage is deliberately raised.
     // Add each utility's core bundle here as it gains plain-JUnit tests.
     def coverageFloorBundles = [
-           'org.eclipse.fennec.search'
+           'org.eclipse.fennec.search',
+           'org.eclipse.fennec.search.suggest'
     ]
     afterEvaluate {
         if (project.name in coverageFloorBundles) {
