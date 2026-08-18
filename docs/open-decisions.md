@@ -71,9 +71,17 @@ bottom, delete entries once settled; settled outcomes belong in `search-access.m
     root filter minus a block join over the *escaping* children. UNKNOWN children escape a
     FOR_ALL and block a ¬EXISTS, childless parents pass both — pinned by tests mirroring
     the TCK's `queryForAllIsVacuouslyTrueOnEmpty`.
-16. **One shared static `QueryBitSetProducer` over the root marker** — it caches per leaf
-    reader (weakly), and the root-marker query is identical across units, so per-translator
-    instances would only fragment the cache.
+16. **One shared static `QueryBitSetProducer` over the root marker.** *Question:* where
+    does a block join get its parent filter, and who owns that filter's per-segment
+    BitSet cache? *Option 1*, a fresh producer per translation: simplest, but the cache
+    is instance-owned and always cold — every segment rescanned per quantifier query.
+    *Option 2*, one producer per IndexUnit: warm within a unit, but wires unit→translator
+    for a filter query that is identical everywhere. *Option 3*, one shared static
+    instance: warm across all units and queries. *Decision: option 3* — the filter query
+    (`_parent:true`) is a constant of the backend, segments are immutable (a BitSet can
+    never go stale), and the cache map is weak and synchronized (entries die with their
+    segment reader; no leak). *Revisit if* the root marker ever becomes configurable per
+    unit — then the producer moves to the unit (option 2).
 17. **Refused, each by name:** quantifier source navigating >1 step (cross-document),
     quantifier over an attribute (COLLECTION_COUNT territory, undeclared), quantifier
     inside a quantifier (a block is one level deep — the mapper indexes a child's
@@ -87,18 +95,22 @@ bottom, delete entries once settled; settled outcomes belong in `search-access.m
 
 ## Autonomous calls in the query execution half (#8, 2026-08-18)
 
-19. **Results are materialized inside the searcher lease** — a `QueryResult`'s streams
-    outlive the searcher, so the window is collected first. A lazily paging cursor would
-    be the `SERVER_CURSORS` store feature, which this backend deliberately does not
-    declare (upstream names it as an expected `StoreFeature` neighbour).
-20. **The persisted-query catalog is a document convention** (`_qname` term + `_qxmi`
-    stored XMI, replaced by name), the Lucene analogue of Mongo's `fennec.queries`
-    collection. Catalog documents carry no root marker, so every plan's root filter keeps
-    them invisible. `saveNamedQuery` refreshes the unit once — a persisted query promises
-    read-your-writes by name, which the unit's refresh policy alone would not.
-21. **No `ConverterService` is passed into the query context** (null) — nothing in this
-    repo provides one yet; parameters convert through `ExpressionValues`' defaults. Wire
-    it up when the OSGi layer (#32) has a service to inject.
+19. ~~Results materialized inside the searcher lease~~ → **revised in review**: the
+    backend *will* offer lazy results held until `QueryResult.close()` and declare
+    `SERVER_CURSORS` — blocked on the upstream literal (emf.persistence-jpa#162); the
+    materializing implementation stays until then, because behaviour must not change
+    undeclared.
+20. ~~Persisted-query catalog as `_qname`/`_qxmi` documents~~ → **revised in review**: the
+    index does not persist queries. Named queries move to the emf.osgi EObject registry
+    (non-OSGi mode exists), and the general mechanism is requested upstream as
+    emf.persistence-jpa#163. The document convention is to be removed with the switch.
+21. **The query context carries a plain-constructed `DefaultConverterService`** (revised
+    2026-08-18 in review: the credo is that everything works and is testable without
+    OSGi). Doing so surfaced an upstream contract clash — `ExpressionValues` expects a
+    nullable converter lookup, the default service throws, and JPA/Mongo both dodge it by
+    passing null converters — filed as emf.persistence-jpa#164; a marked local bridge
+    maps the throw to null until it is decided. The OSGi layer (#32) later injects the
+    stack's shared service; a parameter-conversion test proves the plain path.
 22. **`storedField` projection gate updated to the §4.3 default**: only an explicit
     `stored=false` makes a field unprojectable — the pre-flip rule ("only ids are stored
     by convention") lived in the processor and had to move with the convention.

@@ -15,6 +15,7 @@ package org.eclipse.fennec.search.resource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.eclipse.fennec.model.query.builder.Expressions.any;
+import static org.eclipse.fennec.model.query.builder.Expressions.param;
 import static org.eclipse.fennec.model.query.builder.Expressions.path;
 import static org.eclipse.fennec.model.query.builder.Expressions.propertyPath;
 
@@ -175,6 +176,21 @@ class SearchResourceQueryTest {
 		assertThatThrownBy(() -> resource.query("nobody-saved-this", null, null))
 				.isInstanceOf(IOException.class)
 				.hasMessageContaining("nobody-saved-this");
+	}
+
+	@Test
+	void aParameterizedQueryConvertsThroughThePlainConverter() throws Exception {
+		// The credo: everything works without OSGi. The context carries a plain-constructed
+		// DefaultConverterService, so an Integer parameter lands on a double field converted,
+		// not refused.
+		Query query = QueryBuilder.from(product)
+				.where(path(price()).gt(param("floor")))
+				.countOnly()
+				.build();
+
+		try (QueryResult result = resource.query(query, Map.of("floor", 100), null)) {
+			assertThat(result.count()).isEqualTo(2);
+		}
 	}
 
 	// --- refusals surface as errors on the resource ----------------------------------------------

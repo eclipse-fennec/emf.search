@@ -362,6 +362,32 @@ class SearchResourceTest {
 		assertThat(loaded.getWarnings()).as("a complete object needs no partiality warning").isEmpty();
 	}
 
+	@Test
+	void aLoadOverDriftedDocumentsRecordsTheDiagnosticAndFails() throws Exception {
+		// Written without materialization, read with a mapping that declares STORED_OBJECT:
+		// the reconstruction refuses (rebuild), and the resource carries that as an error
+		// diagnostic plus a checked IOException — not a raw runtime exception.
+		PersistenceResource saved = resource("lucene://catalog/Product/p-1");
+		saved.getContents().add(product("p-1", "Espresso Machine"));
+		saved.save(Map.of());
+		unit.refresh();
+
+		IndexUnitMapping declared = ESEARCH.createIndexUnitMapping();
+		declared.setName("catalog");
+		declared.setEPackage(catalog);
+		DocumentMapping productMapping = ESEARCH.createDocumentMapping();
+		productMapping.setEClass((EClass) catalog.getEClassifier("Product"));
+		productMapping.setMaterialization(ESEARCH.createMaterialization());
+		declared.getDocuments().add(productMapping);
+		SearchResource drifted = new SearchResource(URI.createURI("lucene://catalog/Product/p-1"),
+				unit, DocumentMapper.of(declared));
+
+		assertThatThrownBy(() -> drifted.load(Map.of()))
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("rebuild");
+		assertThat(drifted.getErrors()).isNotEmpty();
+	}
+
 	/** Product with NESTED reviews and an ID_ONLY manufacturer — the reference round trip. */
 	private DocumentMapper idOnlyMapper() {
 		IndexUnitMapping mapping = ESEARCH.createIndexUnitMapping();
