@@ -129,16 +129,16 @@ public interface FieldMapping extends EObject {
 
 	/**
 	 * Returns the value of the '<em><b>Stored</b></em>' attribute.
-	 * The default value is <code>"false"</code>.
+	 * The default value is <code>"true"</code>.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
 	 * <!-- begin-model-doc -->
-	 * Whether the original value is stored for retrieval. Not needed when hits are materialized from the primary store or from a stored EObject (see Materialization).
+	 * Whether the original value is stored for retrieval. True by default: the partial reconstruction of hits (docs/search-access.md §4.3) reads exactly these stored values, so opting out is a per-field declaration for values that are large or come back another way (STORED_OBJECT, SOURCE_URI).
 	 * <!-- end-model-doc -->
 	 * @return the value of the '<em>Stored</em>' attribute.
 	 * @see #setStored(boolean)
 	 * @see org.eclipse.fennec.search.esearch.ESearchPackage#getFieldMapping_Stored()
-	 * @model default="false"
+	 * @model default="true"
 	 * @generated
 	 */
 	boolean isStored();
