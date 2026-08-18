@@ -163,14 +163,17 @@ class ScoreSortTest {
 	}
 
 	@Test
-	void anyOtherSortExpressionIsRefusedNamingScore() {
+	void anyOtherSortExpressionIsRefusedByDeclaration() {
+		// Since emf.persistence-jpa#165 a bare score key classifies as SCORE, so
+		// SORT_EXPRESSION is honestly undeclared again — the validator refuses any other
+		// key expression by feature name before translation would name score() as the way.
 		Query query = QueryBuilder.from(product)
 				.orderByDesc(path(price()).plus(1).toExpression())
 				.build();
 
 		assertThatThrownBy(() -> resource.query(query))
 				.isInstanceOf(IOException.class)
-				.hasMessageContaining("score()");
+				.hasMessageContaining("SORT_EXPRESSION");
 	}
 
 	@Test

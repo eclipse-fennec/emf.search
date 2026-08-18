@@ -178,11 +178,18 @@ public class SearchResource extends ResourceImpl
 
 	@Override
 	public void save(Map<?, ?> options) throws IOException {
-		for (EObject object : getContents()) {
-			MappedDocument mapped = mapper.map(object);
-			// One term for the whole object: MappedDocument.term() is on the root marker,
-			// so a re-save replaces every document of a previous block, children included.
-			unit.updateDocuments(mapped.term(), mapped.documents());
+		try {
+			for (EObject object : getContents()) {
+				MappedDocument mapped = mapper.map(object);
+				// One term for the whole object: MappedDocument.term() is on the root
+				// marker, so a re-save replaces every document of a previous block,
+				// children included.
+				unit.updateDocuments(mapped.term(), mapped.documents());
+			}
+		} catch (MappingException e) {
+			getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
+					"Failed to save resource: " + e.getMessage(), getURI(), e));
+			throw new IOException("Cannot save '" + getURI() + "': " + e.getMessage(), e);
 		}
 		setModified(false);
 	}
@@ -243,6 +250,16 @@ public class SearchResource extends ResourceImpl
 		EPackage ePackage = mapper.schema().mapping().getEPackage();
 		registry.put(ePackage.getNsURI(), ePackage);
 		return registry;
+	}
+
+	/** Every message of a diagnostic tree in one line — refusals travel whole. */
+	private static String flatten(org.eclipse.emf.common.util.Diagnostic diagnostic) {
+		StringBuilder text = new StringBuilder(
+				diagnostic.getMessage() == null ? "" : diagnostic.getMessage());
+		for (org.eclipse.emf.common.util.Diagnostic child : diagnostic.getChildren()) {
+			text.append("; ").append(flatten(child));
+		}
+		return text.toString();
 	}
 
 	private String idOf(EObject object) {
@@ -460,6 +477,14 @@ public class SearchResource extends ResourceImpl
 			if (root == null) {
 				throw new QueryException("The query names no root type and this resource's URI '" + getURI()
 						+ "' addresses no type either.");
+			}
+			// Validation first: an undeclared feature is refused with the Diagnostic naming
+			// it — the §2B contract, and what the TCK's refusal probes read the name from.
+			// Fully qualified: the inherited Resource.Diagnostic shadows the common one
+			// inside a Resource implementation.
+			org.eclipse.emf.common.util.Diagnostic validation = processor.validate(query, root);
+			if (validation.getSeverity() >= org.eclipse.emf.common.util.Diagnostic.ERROR) {
+				throw new QueryException(flatten(validation));
 			}
 			LuceneQueryPlan plan = (LuceneQueryPlan) processor.translate(query,
 					QueryContexts.of(root, converter, parameters, options));
