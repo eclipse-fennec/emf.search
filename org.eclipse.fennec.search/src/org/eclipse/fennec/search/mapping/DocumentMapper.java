@@ -44,6 +44,7 @@ import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.eclipse.fennec.persistence.helper.CompositeIds;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.FieldMapping;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
@@ -198,6 +199,19 @@ public final class DocumentMapper {
 	}
 
 	private String idOf(EObject object, DocumentMapping documentMapping, EClass eClass) {
+		if (CompositeIds.isComposite(eClass)) {
+			// The upstream keyed-access contract: k1=v1,k2=v2 in canonical attribute order.
+			// The composite fragment IS the document id, so update, delete and keyed
+			// resolution all speak the same string.
+			String fragment = CompositeIds.fragment(object);
+			if (fragment == null) {
+				throw new MappingException("Object of type " + eClass.getName() + " has an unset component "
+						+ "of its composite id (" + CompositeIds.idAttributes(eClass).stream()
+								.map(EAttribute::getName).toList()
+						+ "). Every component must carry a value.");
+			}
+			return fragment;
+		}
 		EAttribute idAttribute = schema.idAttribute(eClass);
 		if (idAttribute == null) {
 			throw new MappingException(eClass.getName() + " has no id attribute and its mapping declares "

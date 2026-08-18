@@ -420,6 +420,52 @@ class SearchResourceTest {
 				.isFalse();
 	}
 
+	// --- streaming ------------------------------------------------------------------------
+
+	@Test
+	void streamingReturnsDetachedObjects() throws Exception {
+		PersistenceResource first = resource("lucene://catalog/Product/p-1");
+		first.getContents().add(product("p-1", "one"));
+		first.save(Map.of());
+		PersistenceResource second = resource("lucene://catalog/Product/p-2");
+		second.getContents().add(product("p-2", "two"));
+		second.save(Map.of());
+		unit.refresh();
+
+		SearchResource streaming = (SearchResource) resource("lucene://catalog/Product");
+		List<EObject> streamed = streaming.stream().toList();
+
+		assertThat(streamed).hasSize(2);
+		assertThat(streamed.get(0).eResource())
+				.as("a stream hands out values, not contents ownership")
+				.isNull();
+		assertThat(streaming.getContents()).as("streaming does not load the resource").isEmpty();
+	}
+
+	// --- composite ids ----------------------------------------------------------------------
+
+	@Test
+	void compositeIdsFollowTheKeyedFragmentContract() throws Exception {
+		EClass orderLine = (EClass) catalog.getEClassifier("OrderLine");
+		EObject line = EcoreUtil.create(orderLine);
+		line.eSet(orderLine.getEStructuralFeature("orderId"), "A");
+		line.eSet(orderLine.getEStructuralFeature("lineNo"), 2);
+		line.eSet(orderLine.getEStructuralFeature("quantity"), 5);
+		PersistenceResource saved = resource("lucene://catalog/OrderLine");
+		saved.getContents().add(line);
+		saved.save(Map.of());
+		unit.refresh();
+
+		SearchResource loaded = (SearchResource) resource("lucene://catalog/OrderLine");
+		loaded.load(Map.of());
+
+		// keyed access is order-free; the canonical form is the id-attribute order
+		EObject found = loaded.getEObject("lineNo=2,orderId=A");
+		assertThat(found).isNotNull();
+		assertThat(found.eGet(orderLine.getEStructuralFeature("quantity"))).isEqualTo(5);
+		assertThat(loaded.getURIFragment(found)).isEqualTo("orderId=A,lineNo=2");
+	}
+
 	// --- URIs ---------------------------------------------------------------------------
 
 	@Test
