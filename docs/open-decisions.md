@@ -25,9 +25,14 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
 - **Query-capability narrowing** — emf.persistence-jpa**#161** (does the query side need
   `supports(feature, …)` like the command side?). *When it lands:* express the
   EXISTS/FOR_ALL-over-NESTED and equality-on-keyword narrowings through it.
-- **Score reclassification and the score column** — emf.persistence-jpa**#165**. *When the
-  bare score key flags only `SCORE`:* remove the narrowed `SORT_EXPRESSION` declaration.
-  *When a column form exists:* project the score in the row shape.
+- **Score reclassification and score delivery** — emf.persistence-jpa**#165**, moving:
+  part 1 (bare score key flags only `SCORE`) is implemented upstream, pending push —
+  *when published:* remove the narrowed `SORT_EXPRESSION` declaration. Part 2 decided as
+  a `Query.withScores` envelope flag delivered on the `QueryResult`; we answered the open
+  shape question with **hit-wrapper-first** (highlighting #14, similarity #15 and the #41
+  hit carrier are the same per-hit form) and asked for the rank-order contract sentence.
+  *When the flag lands:* implement `withScores` in translate/execute. The projected
+  score *column* is deferred upstream until a row-shape consumer pulls it.
 
 ## Taken, not yet reviewed
 
