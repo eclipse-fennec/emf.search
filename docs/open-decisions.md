@@ -71,6 +71,28 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
     old stack hardcoded weight 4 into a parameter named numberResults; nothing of that
     API is carried over.
 
+## Autonomous calls in highlighting (S12/#14, 2026-08-18)
+
+1. **Result carrier = §6.1 option (a), as recommended** — `HighlightedHit(object, score,
+   highlights)` from `HighlightSearch` in the core bundle. Options (b) projected columns
+   and (c) side-channel map stay open as upstream follow-ups if the shared `Hit` envelope
+   (persistence #165) ever grows an extension point; nothing here precludes that.
+2. **No match, no snippet** — the `UnifiedHighlighter` default returns the field's leading
+   text as a summary fallback; that is a summary, not a highlight, so it is switched off
+   (`withMaxNoHighlightPassages(0)`) and an unmatched field yields `Optional.empty()`.
+3. **Fields are requested as `EAttribute`s** (resolved through the schema like builder
+   paths), not by string name — the same type-safety line the rest of the stack draws.
+   Rationale: a string name would invent a second naming scheme next to the mapping.
+4. **Highlightable = analyzed text + stored original**; keywords and `stored=false` text
+   are refused by name with the way out. Term vectors stay an accelerator the highlighter
+   picks up on its own — requiring them would make the default mapping unhighlightable.
+5. **Default markers `<b>…</b>` are the v1 contract** — formatter/markers become request
+   options only when someone needs them; the snippet is one string per field, best
+   passages joined in document order (`maxPassages`).
+6. **Every mapped unit gets the DS service** (unlike suggest, which needs declared
+   sources) — highlightability is per-field and answered at request time, so absence of a
+   service would signal nothing.
+
 ## Autonomous calls in the TCK binding (#8, 2026-08-18)
 
 13. **No id generation — the effective id is the id.** An index has no honest counter, and

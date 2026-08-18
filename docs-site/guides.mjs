@@ -19,6 +19,7 @@ export const GUIDES = [
   { file: 'facets.md', slug: 'facets', title: 'Facets' },
   { file: 'mapping-delivery.md', slug: 'mapping-delivery', title: 'Mapping delivery' },
   { file: 'suggest.md', slug: 'suggest', title: 'Suggest' },
+  { file: 'highlighting.md', slug: 'highlighting', title: 'Highlighting' },
 ];
 
 export const EXAMPLES = [];

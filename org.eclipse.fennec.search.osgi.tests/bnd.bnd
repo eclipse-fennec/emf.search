@@ -15,6 +15,9 @@ Bundle-Description: Wiring tests for the search OSGi layer — configuration, al
 	org.eclipse.fennec.search.osgi;version=snapshot,\
 	org.eclipse.fennec.search.suggest;version=snapshot,\
 	org.eclipse.fennec.emf.osgi.eobject.registry;version=latest,\
+	org.eclipse.fennec.query.model;version=latest,\
+	org.eclipse.fennec.expression.model;version=latest,\
+	org.eclipse.fennec.persistence.query;version=latest,\
 	org.eclipse.emf.common;version=latest,\
 	org.eclipse.emf.ecore;version=latest,\
 	org.eclipse.emf.ecore.xmi;version=latest,\
