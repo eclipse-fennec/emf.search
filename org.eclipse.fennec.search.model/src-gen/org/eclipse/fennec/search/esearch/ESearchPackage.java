@@ -51,7 +51,7 @@ import org.osgi.annotation.versioning.ProviderType;
  * @generated
  */
 @ProviderType
-@EPackage(uri = ESearchPackage.eNS_URI, fingerprint = "fp1:11b9ce1fd6d7005aaa623803eae9a186b19a73efbc89bf2abb858d4f60bfb7c7", genModel = "/model/esearch.genmodel", genModelSourceLocations = {"model/esearch.genmodel","org.eclipse.fennec.search.model/model/esearch.genmodel"}, ecore = "/model/esearch.ecore", ecoreSourceLocations = "/model/esearch.ecore")
+@EPackage(uri = ESearchPackage.eNS_URI, fingerprint = "fp1:f73cf186a0f790263fe4096f79ac6d0c038d9634f9571118b3e3df4bd6ffb5e1", genModel = "/model/esearch.genmodel", genModelSourceLocations = {"model/esearch.genmodel","org.eclipse.fennec.search.model/model/esearch.genmodel"}, ecore = "/model/esearch.ecore", ecoreSourceLocations = "/model/esearch.ecore")
 public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	/**
 	 * The package name.

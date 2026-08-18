@@ -115,7 +115,7 @@ public abstract class FieldMappingImpl extends MinimalEObjectImpl.Container impl
 	 * @generated
 	 * @ordered
 	 */
-	protected static final boolean STORED_EDEFAULT = false;
+	protected static final boolean STORED_EDEFAULT = true;
 
 	/**
 	 * The cached value of the '{@link #isStored() <em>Stored</em>}' attribute.

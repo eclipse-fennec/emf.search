@@ -124,6 +124,23 @@ class DocumentReaderTest {
 	}
 
 	@Test
+	void aDeclaredFieldIsStoredByDefault() throws Exception {
+		// §4.3: opting out of storage is a declaration, not a default — a field mapping
+		// that says nothing about `stored` keeps the original value retrievable.
+		IndexUnitMapping mapping = unit();
+		DocumentMapping product = document(mapping, "Product");
+		KeywordFieldMapping name = ESEARCH.createKeywordFieldMapping();
+		name.setFeature((EAttribute) catalog.feature("Product", "name"));
+		product.getFields().add(name);
+
+		EObject back = roundTrip(mapping, catalog.create("Product", "id", "p-8", "name", "visible"));
+
+		assertThat(value(back, "name")).isEqualTo("visible");
+		assertThat(DocumentReader.of(IndexSchema.of(mapping)).omissions(catalog.eClass("Product")))
+				.doesNotContain("name");
+	}
+
+	@Test
 	void aFieldDeclaredUnstoredStaysUnsetAndIsNamedAsOmission() throws Exception {
 		IndexUnitMapping mapping = unit();
 		DocumentMapping product = document(mapping, "Product");

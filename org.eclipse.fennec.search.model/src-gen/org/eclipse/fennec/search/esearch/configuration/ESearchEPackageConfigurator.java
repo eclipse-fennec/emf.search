@@ -48,7 +48,7 @@ public class ESearchEPackageConfigurator implements EPackageConfigurator {
 	 * service property.
 	 * @generated
 	 */
-	public static final String FINGERPRINT = "fp1:11b9ce1fd6d7005aaa623803eae9a186b19a73efbc89bf2abb858d4f60bfb7c7";
+	public static final String FINGERPRINT = "fp1:f73cf186a0f790263fe4096f79ac6d0c038d9634f9571118b3e3df4bd6ffb5e1";
 
 	private ESearchPackage ePackage;
 
