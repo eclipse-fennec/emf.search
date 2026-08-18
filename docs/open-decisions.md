@@ -1,150 +1,57 @@
-# Open decisions and autonomous calls — for review
+# Open decisions — for review
 
-Internal working log, unpublished. Each entry is either a decision I took autonomously
-(with the rationale and the precedent it leans on) or a genuine open point. Review top to
-bottom, delete entries once settled; settled outcomes belong in `search-access.md`.
+Internal working log, unpublished. Two kinds of entries: **open** (blocked on an upstream
+decision, each with its revisit trigger) and **taken but not yet reviewed** (decided
+autonomously, pinned by tests, awaiting Mark's eyes). Settled entries are deleted; their
+outcomes live in `search-access.md`, the issues, and the code's own documentation.
+Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone from here.
 
-## Direction notes from Mark — settled 2026-08-18, folded into the blueprint
+## Open — blocked on upstream, with revisit triggers
 
-1. ~~KNN~~ → **decided**: own API, no IR change, sequenced after the wave-1 core — issue
-   #40, blueprint §7/§8 updated.
-2. ~~Separate APIs for what does not fit the persistence contract~~ → **decided**: facets
-   (S7, #11) get an own API as the primary surface, the honest IR subset stays — blueprint
-   §8 item 9 updated. The TCK-gating blocker is filed upstream as emf.persistence-jpa#160.
+- **TCK binding** (rest of #8) — waits for declarative capability gating,
+  emf.persistence-jpa**#160**. *When it lands:* create `search.tck`, bind
+  `AbstractPersistenceTCK`.
+- **Lazy results / `SERVER_CURSORS`** — we want to hold the searcher until
+  `QueryResult.close()` and declare the feature; waits for the `StoreFeature` literal,
+  emf.persistence-jpa**#162**. *Until then* results stay materialized, because behaviour
+  must not change undeclared.
+- **Shared named-query catalog** — our factory-attached `EObjectRegistry` is the interim;
+  emf.persistence-jpa**#163** asks for the stack-wide contract. *When it lands:* swap the
+  lookup to the shared contract.
+- **Converter contract + unexported package** — emf.persistence-jpa**#164** (nullable
+  lookup vs. throw; `persistence.converter` not exported). *Until then* the converter is
+  an injectable collaborator, null = identity. *When it lands:* consider a constructed
+  default again.
+- **Query-capability narrowing** — emf.persistence-jpa**#161** (does the query side need
+  `supports(feature, …)` like the command side?). *When it lands:* express the
+  EXISTS/FOR_ALL-over-NESTED and equality-on-keyword narrowings through it.
+- **Score reclassification and the score column** — emf.persistence-jpa**#165**. *When the
+  bare score key flags only `SCORE`:* remove the narrowed `SORT_EXPRESSION` declaration.
+  *When a column form exists:* project the score in the row shape.
 
-## Autonomous calls in #18 (2026-08-17), with rationale
+## Taken, not yet reviewed
 
-3. **Eager load, not Mongo's deferred population.** Mongo defers `doLoad` to first
-   `getContents()` because its load must diagnose an unreachable database without I/O.
-   An embedded index has no such connection problem, and the deferral machinery
-   (re-entrancy guards, WrappedException) buys nothing here. Kept: Mongo's "keep already
-   attached objects, skip incoming duplicates by id" rule.
-4. **Proxy URIs name the declared reference type** (`lucene://unit/<declared type>/<id>`).
-   ID_ONLY stores only the id, so a target indexed as a *subclass* will not resolve under
-   the declared type's discriminator. Alternatives (store the target's type alongside the
-   id) change the index layout; deferred until it hurts. Documented in
-   `DocumentReader.proxyFor`.
-5. **ID_ONLY over an abstract target class is an omission, not an error** — a proxy needs
-   an instance. Named by `DocumentReader.omissions()`, carried as a load warning.
-6. **Positional child ids (`root#ref.0`) are not written back** into reconstructed NESTED
-   children — they never existed on the original object; the child's real id attribute
-   round-trips through its own stored field.
-7. **`FieldMapping.stored` default flips to `true` in the metamodel** — §4.3 says opt-out,
-   and a non-unsettable boolean cannot express "unset", so the default literal is the only
-   place the opt-out semantic can live. Needs one Eclipse generation round.
-8. **Warning granularity: one per EClass, statically derived** (`DocumentReader.omissions`),
-   not per object. Per-object warnings would flood `getWarnings()` on a type-level load
-   and say nothing new.
-9. **`getEObject(fragment)` falls back to the mapping's id attribute** after the intrinsic
-   EMF ID lookup, because a declared `idFeature` need not be an `iD` attribute — otherwise
-   proxies would only resolve for models with intrinsic ids.
+1. **ID_ONLY over an abstract target class is an omission, not an error** — a proxy needs
+   an instance; named by `omissions()`, carried as a load warning.
+2. **Positional child ids (`root#ref.0`) are not written back** into reconstructed NESTED
+   children — they never existed on the original object.
+3. **Partiality warnings are per EClass, statically derived**, not per object — per-object
+   warnings would flood `getWarnings()` on a type-level load and say nothing new.
+4. **`getEObject(fragment)` falls back to the mapping's id attribute** after the intrinsic
+   EMF ID lookup — a declared `idFeature` need not be an `iD` attribute.
+5. **Non-containment targets inside a STORED_OBJECT blob keep the original's URIs**
+   (standard EMF binary rules); a target living in no resource serializes as a dangling
+   ref — EMF's own semantics, not re-validated here.
+6. **`ObjectSerializers` is an immutable, constructor-filled registry** (the
+   `AnalyzerRegistry` pattern); the OSGi whiteboard half lands with #32.
+7. **Deserialization uses the caller's package registry** (ResourceSet's when present,
+   always plus the unit's own EPackage), never the global registry implicitly — the
+   codec's `PackageResolver` stance.
+8. **No separate user-docs page for the query path yet** — §5 of the blueprint carries the
+   design; a user page comes when the own search API (#41) gives users a surface.
+9. **DESC = best-first for a score sort** — Lucene's natural relevance order is what
+   descending means for a score-valued key; ASC inverts. Pinned ordinally only.
 
-## Autonomous calls in the STORED_OBJECT / SOURCE_URI tiers (2026-08-17)
-
-10. **A document written before a materialization declaration is refused** (`MappingException`
-    naming the rebuild), never silently served partial. "Declaration = behaviour" is the
-    upstream conformance doctrine (§2B of their conformance doc); a declared STORED_OBJECT
-    that quietly downgrades would overstate itself exactly the way the TCK's
-    `commandCapabilitiesMatchDeclaredBehaviour` exists to catch. Same stance for unreadable
-    bytes after a `format` change.
-11. **Serialization copies** (`EcoreUtil.copy`) rather than detaching/reattaching the live
-    object — a failed serialize must not be able to corrupt the caller's containment tree.
-    Costs one copy per materialized write; measurable in the perf suites if it ever matters.
-12. **Non-containment targets inside a STORED_OBJECT blob keep the original's URIs**
-    (standard EMF external-reference rules of the binary format). A target living in no
-    resource serializes as a dangling ref — EMF's own semantics; not re-validated here.
-13. **`ObjectSerializers` is an immutable, constructor-filled registry** (same pattern as
-    the unit's `AnalyzerRegistry`): plain-Java `withDefaults()`/`of(...)`, the OSGi layer
-    later builds one from whiteboard services. No dynamic lookup in the core (§2.2). The
-    whiteboard half waits for the OSGi `Resource.Factory` (#32), where mapper construction
-    happens.
-14. **SearchResource deserializes against the caller's package registry** (ResourceSet
-    registry when present, always including the unit's own EPackage), never the global
-    `EPackage.Registry.INSTANCE` implicitly — the codec's `PackageResolver` takes the same
-    stance upstream.
-
-## Autonomous calls in the block join (S11/#9, 2026-08-18)
-
-15. **Quantifier semantics are the Mongo backend's, verbatim** — the four faces reduce to
-    two shapes with the inner predicate translated under the same negation flag: EXISTS /
-    ¬FOR_ALL = one `ToParentBlockJoinQuery` over matching children; FOR_ALL / ¬EXISTS =
-    root filter minus a block join over the *escaping* children. UNKNOWN children escape a
-    FOR_ALL and block a ¬EXISTS, childless parents pass both — pinned by tests mirroring
-    the TCK's `queryForAllIsVacuouslyTrueOnEmpty`.
-16. **One shared static `QueryBitSetProducer` over the root marker.** *Question:* where
-    does a block join get its parent filter, and who owns that filter's per-segment
-    BitSet cache? *Option 1*, a fresh producer per translation: simplest, but the cache
-    is instance-owned and always cold — every segment rescanned per quantifier query.
-    *Option 2*, one producer per IndexUnit: warm within a unit, but wires unit→translator
-    for a filter query that is identical everywhere. *Option 3*, one shared static
-    instance: warm across all units and queries. *Decision: option 3* — the filter query
-    (`_parent:true`) is a constant of the backend, segments are immutable (a BitSet can
-    never go stale), and the cache map is weak and synchronized (entries die with their
-    segment reader; no leak). *Revisit if* the root marker ever becomes configurable per
-    unit — then the producer moves to the unit (option 2).
-17. **Refused, each by name:** quantifier source navigating >1 step (cross-document),
-    quantifier over an attribute (COLLECTION_COUNT territory, undeclared), quantifier
-    inside a quantifier (a block is one level deep — the mapper indexes a child's
-    attributes, not its references), correlated paths back to the root from child scope,
-    and paths bound to a foreign iterator variable. `EXISTS`/`FOR_ALL` are *declared*
-    backend-wide although they only work over NESTED — same stance as `UPDATE_BY_SELECTOR`
-    per-EClass narrowing upstream (§5.4): a narrowed feature still counts as supported, and
-    the narrower case refuses by name in validate/translate.
-18. **Docs**: §5.2 of the blueprint already carries the design and reindex semantics; no
-    separate user page until the query path itself is user-facing (QueryableResource).
-
-## Autonomous calls in the query execution half (#8, 2026-08-18)
-
-19. ~~Results materialized inside the searcher lease~~ → **revised in review**: the
-    backend *will* offer lazy results held until `QueryResult.close()` and declare
-    `SERVER_CURSORS` — blocked on the upstream literal (emf.persistence-jpa#162); the
-    materializing implementation stays until then, because behaviour must not change
-    undeclared.
-20. ~~Persisted-query catalog as `_qname`/`_qxmi` documents~~ → **done (2026-08-18)**: the
-    index does not persist queries. Named queries live in an emf.osgi `EObjectRegistry`
-    attached to the factory (`EObjectRegistries.createRegistry` is the non-OSGi mode);
-    the catalog stores copies in both directions so no one mutates anyone's instance.
-    Without a catalog, a named query runs but says it was not persisted (warning), and
-    lookup by name refuses. The shared upstream mechanism stays requested as
-    emf.persistence-jpa#163.
-21. **The converter is an injectable collaborator of resource and factory; null means
-    identity** — the `ExpressionValues` contract, and what JpaQueries/MongoQueries pass
-    today. Wiring the upstream plain default surfaced two upstream findings, both on
-    emf.persistence-jpa#164: the lookup contract clash (`ExpressionValues` expects null,
-    `DefaultConverterService` throws — for types no converter claims, which is the
-    normal case), and the package `persistence.converter` being **unexported**, so the
-    documented plain construction path fails OSGi resolution (caught by our resolver,
-    invisible to plain JUnit). Until #164 lands, callers construct their own converter
-    (the credo test injects one and proves a String parameter converts on the way to a
-    point query); the OSGi layer (#32) injects the stack's shared service.
-22. **`storedField` projection gate updated to the §4.3 default**: only an explicit
-    `stored=false` makes a field unprojectable — the pre-flip rule ("only ids are stored
-    by convention") lived in the processor and had to move with the convention.
-
-## Autonomous calls in SCORE (S6/#10, 2026-08-18)
-
-23. **`SORT_EXPRESSION` is declared, narrowed to the bare score key.** *Question:* the
-    analyzer classifies any `OrderBy.key` expression — including bare `score()` — as
-    `SORT_EXPRESSION`; relevance order would otherwise be unreachable without claiming
-    arbitrary expression sorts. *Options:* not declare (score sort impossible until
-    upstream reclassifies), declare narrowed (the #114 doctrine: narrowed counts as
-    supported, the rest refuses by name), or wait. *Decision:* declare narrowed; the
-    reclassification question is emf.persistence-jpa#165 — when a bare score key flags
-    only `SCORE`, the `SORT_EXPRESSION` declaration here gets removed again. *Revisit
-    when #165 lands.*
-24. **Score is order, never a filter and not yet a column.** Comparisons against
-    `score()` refuse by name (absolute scores carry no reference semantics — the #100
-    model doc itself); the projected score column has no IR form (`Selection` is
-    path-only) and waits on #165 rather than being smuggled through a pipeline alias.
-25. **DESC = best-first.** Lucene's natural relevance order is highest score first, which
-    is what descending means for a score-valued key; ASC inverts. Pinned ordinally, never
-    against absolute values.
-
-## Known gaps left deliberately (tracked)
+## Tracked gaps (issues exist, nothing to decide)
 
 - The read side still ignores `FieldUse`/`subFields` — #39.
-- `EMBED` reconstruction is refused by design (§4.3), not a gap.
-- The `stored` default flip (true) in the metamodel awaits one Eclipse generation round;
-  until then a declared field without an explicit `stored="true"` is not stored.
-- `QueryShape.OBJECTS` results through the query path still need the execution half of #8;
-  the reader is ready for it.
