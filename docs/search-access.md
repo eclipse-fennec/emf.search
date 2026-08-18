@@ -616,7 +616,7 @@ what cannot be built here alone because it requires query vocabulary in
 
 | Feature | Why it waits |
 |---|---|
-| KNN / vector search + hybrid retrieval | Biggest single change: needs an `EmbeddingProvider` SPI (indexing becomes slow and fallible), new IR vocabulary for similarity search with a k and a prefilter, and a decision whether the IR carries a vector or a text to embed. KNN is a top-k retriever, not a predicate — it does not compose with `BooleanQuery` the way `WHERE_EQ` does, and the capability must say so. Practical constraints: the codec's default dimension limit (verify against Lucene 10 — a custom `KnnVectorsFormat`/codec is needed for embedding models above it), and an embedding-model change is a full reindex, so the model version is index metadata. The metamodel slot is reserved in §4 so this stays additive. RAG shape, if it comes: chunk-as-child-document + block join (§5.2) for parent rollup, plus hand-rolled fusion of BM25 and KNN unless Lucene 10 ships something for it. |
+| KNN / vector search + hybrid retrieval | **Re-routed 2026-08-18 (issue #40): an own API next to the persistence contract**, the road suggest (§6) takes — which dissolves the "new IR vocabulary" half of the original blocker entirely: KNN is a top-k retriever, not a predicate, and an own API can say so instead of bending the IR. Sequenced after the wave-1 core, not into wave 2. What remains real: the `EmbeddingProvider` SPI (indexing becomes slow and fallible), the codec's default dimension limit (verify against Lucene 10 — a custom `KnnVectorsFormat`/codec is needed for embedding models above it), and an embedding-model change is a full reindex, so provider id + model version are index metadata (the §4.3 format rule again). The metamodel slot has been in §4 since S2. RAG shape, if it comes: chunk-as-child-document + block join (§5.2) for parent rollup, plus hand-rolled fusion of BM25 and KNN unless Lucene 10 ships something for it. |
 | Standing queries / reverse search (`monitor`) | Structurally the best fit in the whole list — a registered query is an Expression IR EObject, so it is persistable, versionable and transportable over the typed-event/pushstream stack — but it only pays off together with the v2 change feed (S10), and it is a second execution model (documents pass queries) that deserves its own concept round. |
 | Analysis-chain enrichment (`analysis.icu`, `.phonetic`, `.opennlp`, synonym graphs) | Index-time NLP (NER into facet fields, lemmatization) and phonetic matching are per-domain decisions, not backend decisions. Attractive Fennec angle for later: maintain the thesaurus/synonym set *as an EMF model* on the same registry plane as the mapping model. |
 | `classification` | Auto-tagging from an existing index; nearly free once the index exists, but no consumer asks for it yet. |
@@ -677,7 +677,10 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
 8. **S6 (#10) — SCORE**: relevance sort + projected score (emf.persistence-jpa#100
    vocabulary), ordinal conformance cases (higher score sorts first on constructed
    corpora).
-9. **S7 (#11) — facets**: the GROUP_BY/AGG_COUNT subset of §5, taxonomy vs. SSDV decision.
+9. **S7 (#11) — facets**: decided 2026-08-18 — an **own facet API is the primary surface**
+   (the §6 pattern: everything that does not fit the persistence contract gets its own
+   API), with the GROUP_BY/AGG_COUNT pipeline subset of §5 kept only where it maps
+   honestly. Taxonomy vs. SSDV decision unchanged.
 10. **S8 (#12) — suggest** (`search.suggest`): §6 API + mapping-model extension + impl.
 11. **S9 (#13) — geo**: `GeoWithin`/`GeoDistance` over `LatLonPoint` plus distance sort —
     G-P3 of `geo-vocabulary.md`. **No longer blocked**: the vocabulary landed as
@@ -728,8 +731,9 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
     Lucene → keyed finds, consistency notes (index lag is visible and documented). Builds
     on S18 for resume and interacts with S11's parent-scoped reindex.
 
-**Wave 2** (§7, reserved — no issues cut yet): KNN/vector search + hybrid retrieval,
-standing queries via `monitor`, analysis-chain enrichment, `classification`.
+**Wave 2** (§7, reserved): standing queries via `monitor`, analysis-chain enrichment,
+`classification`. KNN left this list on 2026-08-18 — as an own API it needs no IR change
+and is cut as issue #40, sequenced after the wave-1 core.
 
 Issues still to raise in `emf.persistence-jpa` for wave 1 (as of 2026-08-07 none of these
 exist there yet): interval vocabulary (S15), the result shape for grouping representatives
