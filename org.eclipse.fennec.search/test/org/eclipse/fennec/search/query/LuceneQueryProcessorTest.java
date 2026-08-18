@@ -75,7 +75,9 @@ class LuceneQueryProcessorTest {
 				QueryFeature.EXISTS, QueryFeature.FOR_ALL,
 				// relevance (S6, #10); SORT_EXPRESSION narrowed to the score key
 				// (emf.persistence-jpa#165)
-				QueryFeature.SCORE, QueryFeature.SORT_EXPRESSION);
+				QueryFeature.SCORE, QueryFeature.SORT_EXPRESSION,
+				// the group-by subset over facet fields (S7, #11)
+				QueryFeature.GROUP_BY, QueryFeature.AGG_COUNT);
 	}
 
 	@Test
@@ -88,8 +90,7 @@ class LuceneQueryProcessorTest {
 				QueryFeature.TEMPORAL_FUNCTIONS, QueryFeature.EXPAND, QueryFeature.DISTINCT,
 				QueryFeature.PIPELINE, QueryFeature.PIPELINE_COMPUTE,
 				// not yet: each of these has a task
-				QueryFeature.GROUP_BY,
-				QueryFeature.AGG_COUNT, QueryFeature.GEO_WITHIN, QueryFeature.GEO_DISTANCE);
+				QueryFeature.GEO_WITHIN, QueryFeature.GEO_DISTANCE);
 	}
 
 	@Test
@@ -294,12 +295,26 @@ class LuceneQueryProcessorTest {
 	}
 
 	@Test
-	void aPipelineIsRefusedWithThePlannedAlternative() {
+	void aGroupByWithoutAFacetDeclarationIsRefusedWithTheWayOut() {
+		// The group-by subset (S7, #11) answers from facet fields; this mapping declares
+		// none on condition, so the refusal names the missing FacetMapping. The working
+		// subset lives in SearchResourceQueryTest and FacetSearchTest.
 		Query query = QueryBuilder.from(product).groupBy(feature("Product", "condition"))
 				.countOf("n").build();
 		assertThatThrownBy(() -> translate(query))
 				.isInstanceOf(QueryException.class)
-				.hasMessageContaining("facets");
+				.hasMessageContaining("FacetMapping");
+	}
+
+	@Test
+	void aPipelineBeyondTheSingleGroupByIsRefused() {
+		Query query = QueryBuilder.from(product).groupBy(feature("Product", "condition"))
+				.countOf("n")
+				.having(Expressions.aliasRef("n").ge(2))
+				.build();
+		assertThatThrownBy(() -> translate(query))
+				.isInstanceOf(QueryException.class)
+				.hasMessageContaining("single GROUP BY");
 	}
 
 	@Test

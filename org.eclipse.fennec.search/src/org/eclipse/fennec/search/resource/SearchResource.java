@@ -24,6 +24,8 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.facet.FacetsCollector;
+import org.apache.lucene.facet.FacetsCollectorManager;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
@@ -64,6 +66,7 @@ import org.eclipse.fennec.persistence.query.support.QueryResults;
 import org.eclipse.fennec.persistence.resource.PersistenceResource;
 import org.eclipse.fennec.search.mapping.DocumentMapper;
 import org.eclipse.fennec.search.mapping.DocumentReader;
+import org.eclipse.fennec.search.mapping.FacetFields;
 import org.eclipse.fennec.search.mapping.IndexSchema;
 import org.eclipse.fennec.search.mapping.MappedDocument;
 import org.eclipse.fennec.search.mapping.MappingException;
@@ -416,6 +419,9 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 		if (plan.shape() == QueryShape.COUNT) {
 			return QueryResults.count(unit.<Integer>search(searcher -> searcher.count(plan.query())));
 		}
+		if (plan.shape() == QueryShape.AGGREGATION) {
+			return QueryResults.rows(plan.shape(), aggregationRows(plan).stream());
+		}
 		DocumentReader reader = DocumentReader.of(mapper.schema(), mapper.serializers(), packages());
 		if (plan.shape() == QueryShape.PROJECTION) {
 			List<IndexSchema.Field> columns = new ArrayList<>();
@@ -444,6 +450,30 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 			return collected;
 		});
 		return QueryResults.objects(objects.stream());
+	}
+
+	/**
+	 * The group-by subset's rows: every value of the plan's facet dimension with its
+	 * object count, converted back to the key attribute's EMF type — count-descending,
+	 * ties by value, the paging window applied to the rows.
+	 */
+	private List<QueryResultRow> aggregationRows(LuceneQueryPlan plan) throws IOException {
+		LuceneQueryPlan.Aggregation aggregation = plan.aggregation();
+		FacetFields facets = FacetFields.of(mapper.schema());
+		List<FacetFields.Count> counts = unit.search(searcher -> {
+			FacetsCollector collected = FacetsCollectorManager
+					.search(searcher, plan.query(), 1, new FacetsCollectorManager()).facetsCollector();
+			return facets.countAll(searcher, collected, aggregation.dimension());
+		});
+		int from = Math.min(plan.skip(), counts.size());
+		int to = plan.limit() >= 0 ? Math.min(from + plan.limit(), counts.size()) : counts.size();
+		List<QueryResultRow> rows = new ArrayList<>(to - from);
+		EDataType keyType = aggregation.key().getEAttributeType();
+		for (FacetFields.Count count : counts.subList(from, to)) {
+			rows.add(QueryResultRows.of(plan.rowAliases(),
+					List.of(EcoreUtil.createFromString(keyType, count.value()), count.count())));
+		}
+		return rows;
 	}
 
 	/** The plan's paging window, in plan order — sorted when the plan says so. */

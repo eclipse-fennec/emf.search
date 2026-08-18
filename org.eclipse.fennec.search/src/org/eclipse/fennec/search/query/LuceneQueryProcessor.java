@@ -26,6 +26,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.eclipse.emf.common.util.BasicDiagnostic;
 import org.eclipse.emf.common.util.Diagnostic;
+import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
@@ -33,10 +34,14 @@ import org.eclipse.fennec.model.expression.Expression;
 import org.eclipse.fennec.model.expression.PropertyPath;
 import org.eclipse.fennec.model.expression.Quantifier;
 import org.eclipse.fennec.model.expression.Score;
+import org.eclipse.fennec.model.query.Aggregate;
+import org.eclipse.fennec.model.query.AggregateMethod;
+import org.eclipse.fennec.model.query.GroupByStage;
 import org.eclipse.fennec.model.query.OrderBy;
 import org.eclipse.fennec.model.query.Query;
 import org.eclipse.fennec.model.query.Selection;
 import org.eclipse.fennec.model.query.SortDirection;
+import org.eclipse.fennec.model.query.Stage;
 import org.eclipse.fennec.persistence.capabilities.QueryCapabilities;
 import org.eclipse.fennec.persistence.capabilities.QueryCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.capabilities.QueryFeature;
@@ -47,6 +52,7 @@ import org.eclipse.fennec.persistence.query.api.QueryProcessor;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
 import org.eclipse.fennec.persistence.query.support.QueryValidator;
 import org.eclipse.fennec.search.esearch.FieldMapping;
+import org.eclipse.fennec.search.mapping.FacetFields;
 import org.eclipse.fennec.search.mapping.IndexSchema;
 import org.eclipse.fennec.search.mapping.MappingException;
 
@@ -103,7 +109,11 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 					// analyzer classifies a bare score() sort key as one (upstream
 					// emf.persistence-jpa#165); it is narrowed to exactly that key — any
 					// other sort expression refuses by name.
-					QueryFeature.SCORE, QueryFeature.SORT_EXPRESSION)
+					QueryFeature.SCORE, QueryFeature.SORT_EXPRESSION,
+					// The honest group-by subset (S7, #11): one group key that is a declared
+					// facet dimension, one COUNT — anything beyond refuses by name. A
+					// single GroupByStage flags no PIPELINE, so this does not overstate.
+					QueryFeature.GROUP_BY, QueryFeature.AGG_COUNT)
 			// Paths reach as far as the mapping flattened the document with EMBED; how far
 			// that is depends on the mapping, not on the engine, so the depth stays open and
 			// a path that leaves the document is refused by name during validation.
@@ -229,6 +239,7 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 		Sort sort = sortOf(query, root);
 		List<String> rowFields = new ArrayList<>();
 		List<String> rowAliases = new ArrayList<>();
+		LuceneQueryPlan.Aggregation aggregation = null;
 		if (shape == QueryShape.PROJECTION) {
 			for (Selection selection : query.getSelect()) {
 				IndexSchema.Field field = storedField(root, selection);
@@ -238,8 +249,64 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 						: selection.getAlias());
 			}
 		}
+		if (shape == QueryShape.AGGREGATION) {
+			aggregation = aggregation(query, root);
+			rowAliases.add(aggregation.keyAlias());
+			rowAliases.add(aggregation.countAlias());
+		}
 		return new LuceneQueryPlan(query, shape, builder.build(), sort, Math.max(0, query.getSkip()),
-				query.getTop() > 0 ? query.getTop() : -1, rowFields, rowAliases);
+				query.getTop() > 0 ? query.getTop() : -1, rowFields, rowAliases, aggregation);
+	}
+
+	/**
+	 * The one pipeline this backend answers: a single GROUP BY over one declared facet
+	 * dimension with a single COUNT. Everything beyond is refused by name — the point of
+	 * the subset is that its answer comes exactly from the facet fields (#11), not from a
+	 * pipeline engine this backend does not have.
+	 */
+	private LuceneQueryPlan.Aggregation aggregation(Query query, EClass root) throws QueryException {
+		List<Stage> stages = query.getApply().getStages();
+		if (stages.size() != 1 || !(stages.get(0) instanceof GroupByStage groupBy)) {
+			throw new QueryException("The pipeline goes beyond a single GROUP BY, which is the subset the "
+					+ "facet fields answer (one group key, one count). Compute and having stages have no "
+					+ "Lucene equivalent that stays exact — route them to the primary store.");
+		}
+		if (!groupBy.getKeys().isEmpty()) {
+			throw new QueryException("An expression-valued group key would have to be evaluated per "
+					+ "document; the facet subset groups by a declared dimension's stored values.");
+		}
+		if (groupBy.getPaths().size() != 1) {
+			throw new QueryException("The facet subset groups by exactly one key; "
+					+ groupBy.getPaths().size() + " were given.");
+		}
+		PropertyPath keyPath = groupBy.getPaths().get(0);
+		if (keyPath.getSegments().size() != 1
+				|| !(keyPath.getSegments().get(0) instanceof EAttribute attribute)) {
+			throw new QueryException("The group key must be one attribute of the root type — a path "
+					+ "crossing a reference groups by another document's values.");
+		}
+		FieldMapping field = schema.fieldMapping(root, attribute);
+		if (field == null || field.getFacet() == null) {
+			throw new QueryException("Grouping by '" + attribute.getName() + "' needs a declared facet "
+					+ "dimension on it — the subset counts from facet fields (#11). Declare a FacetMapping "
+					+ "for the field.");
+		}
+		if (groupBy.getAggregates().size() != 1) {
+			throw new QueryException("The facet subset computes exactly one aggregate; "
+					+ groupBy.getAggregates().size() + " were given.");
+		}
+		Aggregate aggregate = groupBy.getAggregates().get(0);
+		if (aggregate.getMethod() != AggregateMethod.COUNT
+				|| aggregate.getPath() != null || aggregate.getSource() != null) {
+			throw new QueryException("The facet subset counts group members (COUNT); " + aggregate.getMethod()
+					+ (aggregate.getPath() != null || aggregate.getSource() != null ? " over a value" : "")
+					+ " would need per-group evaluation this backend refuses.");
+		}
+		String countAlias = aggregate.getAlias() == null || aggregate.getAlias().isBlank()
+				? "count"
+				: aggregate.getAlias();
+		return new LuceneQueryPlan.Aggregation(FacetFields.dimensionName(schema, field, attribute),
+				attribute, attribute.getName(), countAlias);
 	}
 
 	// --- shape, sort and projection --------------------------------------------------------
@@ -247,6 +314,9 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 	private QueryShape shapeOf(Query query) throws QueryException {
 		if (query.isCountOnly()) {
 			return QueryShape.COUNT;
+		}
+		if (query.getApply() != null && !query.getApply().getStages().isEmpty()) {
+			return QueryShape.AGGREGATION;
 		}
 		if (!query.getSelect().isEmpty()) {
 			return QueryShape.PROJECTION;
@@ -340,11 +410,6 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 	// --- refusals that are about the query as a whole ---------------------------------------
 
 	private void refuseUndeclared(Query query) throws QueryException {
-		if (query.getApply() != null && !query.getApply().getStages().isEmpty()) {
-			throw new QueryException("Pipelines are not declared. The two stages Lucene can answer natively "
-					+ "are grouping and counting, which arrive as facets in S7 (issue #11) and grouping in "
-					+ "S19 (issue #21); a general compute/having pipeline it cannot answer at all.");
-		}
 		if (!query.getExpand().isEmpty()) {
 			throw new QueryException("EXPAND prefetches along references, which means following them at "
 					+ "query time — the join this backend does not offer (docs/search-access.md §5).");
