@@ -4,19 +4,13 @@ Internal working log, unpublished. Each entry is either a decision I took autono
 (with the rationale and the precedent it leans on) or a genuine open point. Review top to
 bottom, delete entries once settled; settled outcomes belong in `search-access.md`.
 
-## Direction notes from Mark, 2026-08-17 (not yet folded into the blueprint)
+## Direction notes from Mark — settled 2026-08-18, folded into the blueprint
 
-1. **KNN for ML must be supportable.** Today KNN sits in wave 2 (epic #3), gated on new
-   query-IR vocabulary upstream. Mark's separate-APIs directive (below) opens a second
-   route: KNN as its **own API next to the persistence contract** — like suggest (§6) —
-   which needs no IR change at all and could land earlier. The metamodel slot
-   (`VectorFieldMapping`) already exists. *Open:* whether KNN-as-own-API is wave 1.5 or
-   stays wave 2; the `EmbeddingProvider` SPI question is unchanged either way.
-2. **Everything that does not fit the persistence contract gets its own API** — suggester,
-   facets, and by extension similarity/highlighting/KNN. Suggest already follows this
-   (§6, own bundle). New consequence for **facets (S7, #11)**: a dedicated facet API is
-   the primary surface; the GROUP_BY/AGG_COUNT pipeline subset in the query IR remains
-   only where it maps honestly. I will design S7 that way unless objected.
+1. ~~KNN~~ → **decided**: own API, no IR change, sequenced after the wave-1 core — issue
+   #40, blueprint §7/§8 updated.
+2. ~~Separate APIs for what does not fit the persistence contract~~ → **decided**: facets
+   (S7, #11) get an own API as the primary surface, the honest IR subset stays — blueprint
+   §8 item 9 updated. The TCK-gating blocker is filed upstream as emf.persistence-jpa#160.
 
 ## Autonomous calls in #18 (2026-08-17), with rationale
 
