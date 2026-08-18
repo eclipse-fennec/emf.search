@@ -23,15 +23,6 @@ import java.util.Optional;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.StoredFields;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.eclipse.emf.ecore.EAttribute;
@@ -45,7 +36,6 @@ import org.eclipse.fennec.search.esearch.FieldMapping;
 import org.eclipse.fennec.search.mapping.DocumentReader;
 import org.eclipse.fennec.search.mapping.IndexSchema;
 import org.eclipse.fennec.search.mapping.MappingException;
-import org.eclipse.fennec.search.mapping.SearchFields;
 import org.eclipse.fennec.search.query.LuceneQueryPlan;
 import org.eclipse.fennec.search.query.LuceneQueryProcessor;
 import org.eclipse.fennec.search.unit.IndexUnit;
@@ -162,7 +152,7 @@ public final class HighlightSearch {
 			List<HighlightedHit> hits = new ArrayList<>(count);
 			for (int i = 0; i < count; i++) {
 				Document root = stored.document(docIds[i]);
-				EObject object = reader.read(root, childrenOf(searcher, stored, root));
+				EObject object = reader.read(root, DocumentReader.blockChildren(searcher, stored, root));
 				Map<String, String> highlights = new LinkedHashMap<>();
 				for (String field : fields) {
 					String snippet = snippets.get(field)[i];
@@ -176,27 +166,6 @@ public final class HighlightSearch {
 		});
 	}
 
-	/** The child documents of one block, in write order — hits reconstruct like every read. */
-	private List<Document> childrenOf(IndexSearcher searcher,
-			StoredFields stored, Document root) throws IOException {
-		String rootId = root.get(SearchFields.ROOT);
-		Query children = new BooleanQuery.Builder()
-				.add(new TermQuery(new Term(SearchFields.ROOT, rootId)),
-						Occur.FILTER)
-				.add(new TermQuery(
-						new Term(SearchFields.PARENT, SearchFields.PARENT_VALUE)), Occur.MUST_NOT)
-				.build();
-		int count = searcher.count(children);
-		if (count == 0) {
-			return List.of();
-		}
-		TopDocs top = searcher.search(children, count, new Sort(SortField.FIELD_DOC));
-		List<Document> block = new ArrayList<>(count);
-		for (ScoreDoc hit : top.scoreDocs) {
-			block.add(stored.document(hit.doc));
-		}
-		return block;
-	}
 
 	/** The effective field name of a highlightable attribute — refused by name otherwise. */
 	private String highlightable(EClass root, EAttribute attribute)

@@ -21,6 +21,16 @@ import java.util.Objects;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
@@ -404,4 +414,29 @@ public final class DocumentReader {
 		}
 		return null;
 	}
+
+	/**
+	 * The child documents of one block, in the order the mapper wrote them — the shared
+	 * fetch for every reader that reconstructs a hit ({@code read(root, children)}).
+	 */
+	public static List<Document> blockChildren(IndexSearcher searcher, StoredFields stored,
+			Document root) throws IOException {
+		String rootId = root.get(SearchFields.ROOT);
+		org.apache.lucene.search.Query query = new BooleanQuery.Builder()
+				.add(new TermQuery(new Term(SearchFields.ROOT, rootId)), Occur.FILTER)
+				.add(new TermQuery(new Term(SearchFields.PARENT, SearchFields.PARENT_VALUE)),
+						Occur.MUST_NOT)
+				.build();
+		int count = searcher.count(query);
+		if (count == 0) {
+			return List.of();
+		}
+		TopDocs top = searcher.search(query, count, new Sort(SortField.FIELD_DOC));
+		List<Document> children = new ArrayList<>(count);
+		for (ScoreDoc hit : top.scoreDocs) {
+			children.add(stored.document(hit.doc));
+		}
+		return children;
+	}
+
 }

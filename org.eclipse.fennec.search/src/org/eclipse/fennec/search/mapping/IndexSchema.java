@@ -18,9 +18,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.util.BytesRef;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
+import org.eclipse.emf.ecore.EClassifier;
 import org.eclipse.emf.ecore.EEnum;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
@@ -400,4 +405,29 @@ public final class IndexSchema {
 	static Class<?> nonNull(Class<?> type) {
 		return type == null ? Object.class : type;
 	}
+	/**
+	 * A term set over the discriminator values of a class and its indexed concrete
+	 * subtypes — the "only this type's documents" filter every read and query applies.
+	 *
+	 * @throws MappingException if no indexed concrete class matches the type, so a read
+	 *         from it could never have a hit — refused rather than silently empty
+	 */
+	public Query typeFilter(EClass type) {
+		TreeSet<BytesRef> names = new TreeSet<>();
+		if (!type.isAbstract() && !type.isInterface()) {
+			names.add(new BytesRef(typeNameOf(type)));
+		}
+		for (EClassifier classifier : mapping.getEPackage().getEClassifiers()) {
+			if (classifier instanceof EClass candidate && candidate != type && !candidate.isAbstract()
+					&& !candidate.isInterface() && type.isSuperTypeOf(candidate)) {
+				names.add(new BytesRef(typeNameOf(candidate)));
+			}
+		}
+		if (names.isEmpty()) {
+			throw new MappingException("No indexed concrete class matches type " + type.getName()
+					+ ", so a read from it can never have a hit. Refused rather than silently empty.");
+		}
+		return new TermInSetQuery(typeField(), new ArrayList<>(names));
+	}
+
 }

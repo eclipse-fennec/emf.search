@@ -48,6 +48,17 @@ resource sees the new mapping, and a warning states the consequence — document
 under the previous shape are not rewritten; a shape-relevant change means a rebuild of
 the index.
 
+### Deliver the mapping before the units
+
+The mapping registry should be up **before** the unit configurations, because a unit reads
+its index order from the mapping at activation and that order is fixed when the writer is
+created (see the index-units guide). A registry that arrives late therefore restarts the
+unit component — correct, but it discards an in-memory index and briefly replaces the
+`IndexUnit` service, so anything already holding one sees a closed unit. Order the
+configurations (or let the provider's files be present at framework start) and the unit
+activates once, with its order. The per-unit services — suggest, highlight, similarity —
+follow a replaced unit on their own.
+
 In plain Java the same mechanism is one line, not a parallel implementation:
 
 ```java

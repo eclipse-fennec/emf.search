@@ -589,7 +589,11 @@ required.
 term statistics of the already-indexed corpus. Exposed as a search-local API for the same
 reason as 6.1, and worth having *before* vectors: it is the honest baseline that makes the
 wave-2 KNN work measurable, and it costs almost nothing beyond declaring which fields
-carry term vectors (§4).
+carry term vectors (§4). Shipped in S13 as `SimilaritySearch`/`SimilarityRequest`: the
+anchor must be indexed (an unseen object has no term statistics — refused with the way
+out), fields must be analyzed text with recoverable terms (term vectors or the stored
+original; refusals name both roads), hits are same-type objects excluding the anchor,
+frequency thresholds default to 1 so any corpus size answers. See the similarity guide.
 
 ## 7. Feature radar
 
@@ -698,8 +702,8 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
 12. **S12 (#14) — highlighting**: ✅ `HighlightSearch`/`HighlightRequest` in the core (option
     (a) of §6.1), per-unit DS service, refusals for non-text/unstored fields and non-object
     shapes.
-13. **S13 (#15) — similarity**: `MoreLikeThis` API (§6.2), term-vector declaration in the
-    mapping model.
+13. **S13 (#15) — similarity**: ✅ `SimilaritySearch`/`SimilarityRequest` (§6.2), per-unit DS
+    service; anchor-must-be-indexed and unrecoverable-terms refusals; thresholds default 1.
 14. **S14 (#16) — rank signals**: `FeatureField` declaration and saturation/log queries (§5.3).
 15. **S15 (#17) — interval fields**: `LongRange`/`DoubleRange` mapping and
     `INTERSECTS`/`WITHIN`/`CONTAINS` translation. **Blocked on a new IR issue** for

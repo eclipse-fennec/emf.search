@@ -634,7 +634,7 @@ final class QueryTranslator {
 					+ pathName(typeCheck.getSource()) + "' asks about the type of a referenced object, "
 					+ "which lives in another document. Only the root type is checkable here.");
 		}
-		Query positive = typeFilter(typeCheck.getType());
+		Query positive = typeFilterOf(typeCheck.getType());
 		return negated
 				? new BooleanQuery.Builder()
 						.add(MatchAllDocsQuery.INSTANCE, BooleanClause.Occur.MUST)
@@ -643,23 +643,14 @@ final class QueryTranslator {
 				: positive;
 	}
 
-	/** A term set over the discriminator values of a class and its indexed concrete subtypes. */
-	Query typeFilter(EClass type) throws QueryException {
-		TreeSet<BytesRef> names = new TreeSet<>();
-		if (!type.isAbstract() && !type.isInterface()) {
-			names.add(new BytesRef(schema.typeNameOf(type)));
+
+	/** The schema's type filter, with its refusal spoken in query vocabulary. */
+	private Query typeFilterOf(EClass type) throws QueryException {
+		try {
+			return schema.typeFilter(type);
+		} catch (MappingException e) {
+			throw new QueryException(e.getMessage(), e);
 		}
-		for (EClassifier classifier : schema.mapping().getEPackage().getEClassifiers()) {
-			if (classifier instanceof EClass candidate && candidate != type && !candidate.isAbstract()
-					&& !candidate.isInterface() && type.isSuperTypeOf(candidate)) {
-				names.add(new BytesRef(schema.typeNameOf(candidate)));
-			}
-		}
-		if (names.isEmpty()) {
-			throw new QueryException("No indexed concrete class matches type " + type.getName()
-					+ ", so a query from it can never have a hit. Refused rather than silently empty.");
-		}
-		return new TermInSetQuery(schema.typeField(), new ArrayList<>(names));
 	}
 
 	// --- guards and helpers ---------------------------------------------------------------
@@ -866,6 +857,6 @@ final class QueryTranslator {
 
 	/** The root-document marker every plan filters on, so block children never count. */
 	static Query rootFilter() {
-		return new TermQuery(new Term(SearchFields.PARENT, SearchFields.PARENT_VALUE));
+		return SearchFields.rootFilter();
 	}
 }

@@ -12,6 +12,10 @@
  ********************************************************************/
 package org.eclipse.fennec.search.mapping;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+
 /**
  * The fields the mapper writes on its own, beside the mapped ones.
  * <p>
@@ -63,4 +67,9 @@ public final class SearchFields {
 
 	private SearchFields() {
 	}
+	/** The root-document marker every read filters on, so block children never count. */
+	public static Query rootFilter() {
+		return new TermQuery(new Term(PARENT, PARENT_VALUE));
+	}
+
 }
