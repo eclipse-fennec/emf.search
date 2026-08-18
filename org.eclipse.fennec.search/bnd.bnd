@@ -16,6 +16,7 @@ Bundle-Description: Lucene index units for the Fennec search backend — writer 
 	org.eclipse.fennec.query.model;version=latest,\
 	org.eclipse.fennec.expression.model;version=latest,\
 	org.apache.lucene.core;version=latest,\
+	org.apache.lucene.join;version=latest,\
 	org.osgi.annotation.bundle;version=latest,\
 	org.osgi.annotation.versioning;version=latest
 

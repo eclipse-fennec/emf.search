@@ -69,6 +69,28 @@ bottom, delete entries once settled; settled outcomes belong in `search-access.m
     `EPackage.Registry.INSTANCE` implicitly — the codec's `PackageResolver` takes the same
     stance upstream.
 
+## Autonomous calls in the block join (S11/#9, 2026-08-18)
+
+15. **Quantifier semantics are the Mongo backend's, verbatim** — the four faces reduce to
+    two shapes with the inner predicate translated under the same negation flag: EXISTS /
+    ¬FOR_ALL = one `ToParentBlockJoinQuery` over matching children; FOR_ALL / ¬EXISTS =
+    root filter minus a block join over the *escaping* children. UNKNOWN children escape a
+    FOR_ALL and block a ¬EXISTS, childless parents pass both — pinned by tests mirroring
+    the TCK's `queryForAllIsVacuouslyTrueOnEmpty`.
+16. **One shared static `QueryBitSetProducer` over the root marker** — it caches per leaf
+    reader (weakly), and the root-marker query is identical across units, so per-translator
+    instances would only fragment the cache.
+17. **Refused, each by name:** quantifier source navigating >1 step (cross-document),
+    quantifier over an attribute (COLLECTION_COUNT territory, undeclared), quantifier
+    inside a quantifier (a block is one level deep — the mapper indexes a child's
+    attributes, not its references), correlated paths back to the root from child scope,
+    and paths bound to a foreign iterator variable. `EXISTS`/`FOR_ALL` are *declared*
+    backend-wide although they only work over NESTED — same stance as `UPDATE_BY_SELECTOR`
+    per-EClass narrowing upstream (§5.4): a narrowed feature still counts as supported, and
+    the narrower case refuses by name in validate/translate.
+18. **Docs**: §5.2 of the blueprint already carries the design and reindex semantics; no
+    separate user page until the query path itself is user-facing (QueryableResource).
+
 ## Known gaps left deliberately (tracked)
 
 - The read side still ignores `FieldUse`/`subFields` — #39.
