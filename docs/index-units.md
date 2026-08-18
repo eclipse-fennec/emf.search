@@ -136,3 +136,31 @@ Two of those are worth carrying into a decision. Commit policy dominates write t
 searcher. And "near real time" means exactly the reopen interval: `RefreshTrigger.background`
 is the whole latency budget, so a consumer that needs its write visible sooner has to ask for
 a `refresh()`, not hope.
+
+## Index order
+
+A unit can be physically sorted: the mapping declares the dominant order once
+(`IndexUnitMapping.sort`, one or more entries over single-valued, doc-values-carrying
+fields), and the unit writes its segments in that order — fixed at index creation, which
+is why it is *declared* in the mapping rather than configured on the unit: changing the
+order is a rebuild, like every shape-relevant mapping change.
+
+```xml
+<esearch:IndexUnitMapping name="events" ePackage="...#/">
+  <sort>
+    <entries feature="...#//Event/timestamp" descending="true" missingLast="true"/>
+  </sort>
+</esearch:IndexUnitMapping>
+```
+
+The payoff is on the read side: a query whose sort matches the index order stops
+collecting once its top hits are settled — Lucene does this automatically, no query-side
+opt-in — which is what makes "newest first over a very large unit" cheap. That is the
+time-ordered case the v2 change feed will lean on.
+
+What a physical order refuses, by name: multi-valued attributes (one document needs one
+position), analyzed text (tokens have no value order) and fields without doc values.
+`missingLast` is mandatory semantics, not decoration — a sorted index with unspecified
+absence ordering would page differently per segment. In OSGi the unit derives the order
+from its mapping automatically when the mapping registry is present; in plain Java it is
+one line: `IndexUnitConfig.builder(...).indexSort(IndexOrders.indexSort(schema))`.
