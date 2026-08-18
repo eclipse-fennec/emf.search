@@ -21,6 +21,11 @@ import java.util.List;
 import java.util.Locale;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.Sort;
+import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistry;
+import org.eclipse.fennec.search.mapping.IndexOrders;
+import org.eclipse.fennec.search.mapping.IndexSchema;
+import org.eclipse.fennec.search.mapping.RegistryMappingSource;
 import org.eclipse.fennec.search.unit.AccessMode;
 import org.eclipse.fennec.search.unit.AnalyzerRegistry;
 import org.eclipse.fennec.search.unit.CommitPolicy;
@@ -129,11 +134,15 @@ public class IndexUnitComponent {
 	public IndexUnitComponent(BundleContext context, UnitConfig config,
 			@Reference(name = "analyzers", service = Analyzer.class,
 					cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.STATIC,
-					policyOption = ReferencePolicyOption.GREEDY) List<ServiceReference<Analyzer>> analyzers)
+					policyOption = ReferencePolicyOption.GREEDY) List<ServiceReference<Analyzer>> analyzers,
+			@Reference(name = "mappingRegistry", cardinality = ReferenceCardinality.OPTIONAL,
+					policy = ReferencePolicy.STATIC, policyOption = ReferencePolicyOption.GREEDY,
+					target = "(emf.eobject.registry.name=" + SearchConstants.MAPPING_REGISTRY_NAME + ")")
+					EObjectRegistry mappingRegistry)
 			throws IOException {
 
 		AnalyzerRegistry registry = buildRegistry(context, config, analyzers);
-		this.unit = IndexUnit.open(toUnitConfig(config, registry));
+		this.unit = IndexUnit.open(toUnitConfig(config, registry, indexSort(config, mappingRegistry)));
 
 		Dictionary<String, Object> properties = new Hashtable<>();
 		properties.put(SearchConstants.UNIT_ALIAS, config.alias());
@@ -188,7 +197,26 @@ public class IndexUnitComponent {
 		return builder.build();
 	}
 
+	/**
+	 * The declared index order of this unit's mapping (S17, #19) — static and greedy like
+	 * the analyzers: the order is fixed at {@code IndexWriter} creation, so a mapping
+	 * registry appearing or changing reopens the unit rather than mutating a live writer.
+	 * No registry or no declared sort simply means index order.
+	 */
+	private static Sort indexSort(UnitConfig config, EObjectRegistry mappingRegistry) {
+		if (mappingRegistry == null) {
+			return null;
+		}
+		return RegistryMappingSource.of(mappingRegistry).mappingFor(config.alias())
+				.map(mapping -> IndexOrders.indexSort(IndexSchema.of(mapping)))
+				.orElse(null);
+	}
+
 	private static IndexUnitConfig toUnitConfig(UnitConfig config, AnalyzerRegistry registry) {
+		return toUnitConfig(config, registry, null);
+	}
+
+	private static IndexUnitConfig toUnitConfig(UnitConfig config, AnalyzerRegistry registry, Sort indexSort) {
 		IndexLocation location = "memory".equalsIgnoreCase(config.location())
 				? IndexLocation.inMemory()
 				: IndexLocation.path(Path.of(config.location()));
@@ -207,6 +235,7 @@ public class IndexUnitComponent {
 				.refresh(refresh)
 				.commit(new CommitPolicy(config.commit_max_documents(),
 						Duration.ofMillis(config.commit_interval_ms()), config.commit_on_close()))
+				.indexSort(indexSort)
 				.build();
 	}
 
