@@ -24,9 +24,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
@@ -42,20 +39,18 @@ import org.apache.lucene.search.TopDocs;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
-import org.eclipse.emf.ecore.EClassifier;
 import org.eclipse.emf.ecore.EDataType;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.impl.EPackageRegistryImpl;
 import org.eclipse.emf.ecore.resource.impl.ResourceImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistryWriter;
 import org.eclipse.fennec.model.query.Selection;
 import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
 import org.eclipse.fennec.persistence.api.ConverterService;
-import org.eclipse.fennec.persistence.api.TypeConverter;
 import org.eclipse.fennec.persistence.capabilities.StoreCapabilitiesBuilder;
-import org.eclipse.fennec.persistence.converter.DefaultConverterService;
 import org.eclipse.fennec.persistence.diagnostic.PersistenceDiagnostic;
 import org.eclipse.fennec.persistence.query.QueryException;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
@@ -112,39 +107,38 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 			CommandCapabilitiesBuilder.create().build(),
 			StoreCapabilitiesBuilder.create().build());
 
-	/**
-	 * Plain-Java default, following the credo that everything works without OSGi; the
-	 * OSGi layer (#32) injects the stack's shared service instead.
-	 * <p>
-	 * The override bridges a contract mismatch reported upstream: {@code ExpressionValues}
-	 * treats a null converter lookup as "pass the value through", but the default service
-	 * throws where no converter claims the type — which is the normal case for plain
-	 * EDouble/EInt comparisons. Until upstream reconciles the two, absence maps to null
-	 * here, so declared converters apply and everything else stays identity.
-	 */
-	private static final ConverterService CONVERTER = new DefaultConverterService() {
-		@Override
-		public TypeConverter getConverter(EClassifier eDataType) {
-			try {
-				return super.getConverter(eDataType);
-			} catch (IllegalStateException noConverterClaimsTheType) {
-				return null;
-			}
-		}
-	};
-
 	private final IndexUnit unit;
 	private final DocumentMapper mapper;
 	private final LuceneQueryProcessor processor;
+	private final EObjectRegistryWriter queryCatalog;
+	private final ConverterService converter;
 	private final SearchUris address;
 	private final Map<ActionType, Map<Object, Object>> defaultOptions = new EnumMap<>(ActionType.class);
 
 	public SearchResource(URI uri, IndexUnit unit, DocumentMapper mapper) {
+		this(uri, unit, mapper, null, null);
+	}
+
+	/**
+	 * @param queryCatalog where named queries live — an emf.osgi EObject registry, because
+	 *        the index itself does not persist queries (emf.persistence-jpa#163); null
+	 *        means named queries execute but are not persisted
+	 * @param converter converts parameter and literal values into the persistence
+	 *        representation; null means identity, exactly the {@code ExpressionValues}
+	 *        contract and what JpaQueries/MongoQueries pass today. The upstream plain
+	 *        default lives in an unexported package and its lookup contract is under
+	 *        discussion (emf.persistence-jpa#164), so the choice stays with the caller —
+	 *        plain Java constructs one, the OSGi layer (#32) injects the stack's service.
+	 */
+	public SearchResource(URI uri, IndexUnit unit, DocumentMapper mapper,
+			EObjectRegistryWriter queryCatalog, ConverterService converter) {
 		super(uri);
 		this.unit = Objects.requireNonNull(unit, "unit");
 		this.mapper = Objects.requireNonNull(mapper, "mapper");
 		this.processor = LuceneQueryProcessor.of(mapper.schema(),
 				unit.config().analyzers().defaultAnalyzer());
+		this.queryCatalog = queryCatalog;
+		this.converter = converter;
 		this.address = SearchUris.parse(uri);
 	}
 
@@ -403,7 +397,7 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 						+ "' addresses no type either.");
 			}
 			LuceneQueryPlan plan = (LuceneQueryPlan) processor.translate(query,
-					QueryContexts.of(root, CONVERTER, parameters, options));
+					QueryContexts.of(root, converter, parameters, options));
 			return execute(plan, root);
 		} catch (QueryException | MappingException e) {
 			getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
@@ -497,36 +491,40 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 	// --- the persisted-query catalog ------------------------------------------------------
 
 	/**
-	 * The catalog analogue of Mongo's {@code fennec.queries} collection: one document per
-	 * name, invisible to every plan (no root marker). The refresh after a save is
-	 * deliberate: a persisted query promises read-your-writes by name, which the unit's
-	 * refresh policy otherwise does not.
+	 * Named queries live in an EObject registry, not in the index: a query is IR metadata,
+	 * and the registry is where the Fennec stack keeps named model instances — the shared
+	 * mechanism is requested upstream (emf.persistence-jpa#163). The catalog stores a copy,
+	 * so the caller's query instance stays the caller's.
+	 * <p>
+	 * Without a catalog attached the query still runs, and the un-kept promise is stated:
+	 * a warning names the query that was not persisted.
 	 */
-	private void saveNamedQuery(String name, org.eclipse.fennec.model.query.Query query)
-			throws IOException, QueryException {
-		Document document = new Document();
-		document.add(new StringField(SearchFields.QUERY_NAME, name, Field.Store.YES));
-		document.add(new StoredField(SearchFields.QUERY_XMI, PersistedQueries.toXmi(query)));
-		unit.updateDocuments(new Term(SearchFields.QUERY_NAME, name), List.of(document));
-		unit.refresh();
+	private void saveNamedQuery(String name, org.eclipse.fennec.model.query.Query query) {
+		if (queryCatalog == null) {
+			getWarnings().add(PersistenceDiagnostic.warning(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
+					"Query '" + name + "' is named but not persisted: no query catalog is attached to "
+							+ "this resource. Attach an EObjectRegistry to the factory to keep named "
+							+ "queries.",
+					getURI()));
+			return;
+		}
+		queryCatalog.put(LuceneQueryProcessor.DIAGNOSTIC_SOURCE, name, EcoreUtil.copy(query), Map.of());
 	}
 
 	private org.eclipse.fennec.model.query.Query loadNamedQuery(String name) throws IOException {
-		String xmi = unit.search(searcher -> {
-			TopDocs top = searcher.search(new TermQuery(new Term(SearchFields.QUERY_NAME, name)), 1);
-			if (top.scoreDocs.length == 0) {
-				return null;
-			}
-			return searcher.storedFields().document(top.scoreDocs[0].doc).get(SearchFields.QUERY_XMI);
-		});
-		if (xmi == null) {
-			throw new IOException("No persisted query named '" + name + "' in unit '" + unit.name() + "'");
+		if (queryCatalog == null) {
+			throw new IOException("No query catalog is attached to this resource, so the name '" + name
+					+ "' cannot resolve. Attach an EObjectRegistry to the factory.");
 		}
-		try {
-			return PersistedQueries.fromXmi(name, xmi, packages());
-		} catch (QueryException e) {
-			throw new IOException("Persisted query '" + name + "' cannot be read back: " + e.getMessage(), e);
+		EObject stored = queryCatalog.getRegistry().get(name).orElseThrow(
+				() -> new IOException("No persisted query named '" + name + "' in catalog '"
+						+ queryCatalog.getRegistry().getName() + "'"));
+		if (!(stored instanceof org.eclipse.fennec.model.query.Query query)) {
+			throw new IOException("Catalog entry '" + name + "' is a " + stored.eClass().getName()
+					+ ", not a Query — the catalog is shared, and this name belongs to something else.");
 		}
+		// A copy again: execution must not mutate the catalog's instance.
+		return EcoreUtil.copy(query);
 	}
 
 	// --- lifecycle ----------------------------------------------------------------------
