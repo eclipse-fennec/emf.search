@@ -43,7 +43,8 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
    (standard EMF binary rules); a target living in no resource serializes as a dangling
    ref — EMF's own semantics, not re-validated here.
 6. **`ObjectSerializers` is an immutable, constructor-filled registry** (the
-   `AnalyzerRegistry` pattern); the OSGi whiteboard half lands with #32.
+   `AnalyzerRegistry` pattern); the OSGi whiteboard landed with #32 — `ObjectSerializer`
+   services join the binary default in the resource-factory component.
 7. **Deserialization uses the caller's package registry** (ResourceSet's when present,
    always plus the unit's own EPackage), never the global registry implicitly — the
    codec's `PackageResolver` stance.
