@@ -25,14 +25,14 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
 - **Query-capability narrowing** — emf.persistence-jpa**#161** (does the query side need
   `supports(feature, …)` like the command side?). *When it lands:* express the
   EXISTS/FOR_ALL-over-NESTED and equality-on-keyword narrowings through it.
-- **Score reclassification and score delivery** — emf.persistence-jpa**#165**, moving:
-  part 1 (bare score key flags only `SCORE`) is implemented upstream, pending push —
-  *when published:* remove the narrowed `SORT_EXPRESSION` declaration. Part 2 decided as
-  a `Query.withScores` envelope flag delivered on the `QueryResult`; we answered the open
-  shape question with **hit-wrapper-first** (highlighting #14, similarity #15 and the #41
-  hit carrier are the same per-hit form) and asked for the rank-order contract sentence.
-  *When the flag lands:* implement `withScores` in translate/execute. The projected
-  score *column* is deferred upstream until a row-shape consumer pulls it.
+- **Score delivery** — emf.persistence-jpa**#165** is decided end to end (2026-08-18):
+  bare score key flags only `SCORE`; `Query.withScores` envelope flag; `QueryResult.hits()`
+  as the primary per-hit carrier (`Hit` = the extensible envelope our highlighting and
+  rank-signal payloads grow into), `scores()` as the derived metadata view, rank order as
+  contract; the backend hands `QueryResults.hits(Stream<Hit>, Map<String,Double>)` itself.
+  All on one upstream branch, **snapshot publish follows the push**. *When published:*
+  (1) implement `withScores` in plan+execution, (2) remove the narrowed `SORT_EXPRESSION`
+  declaration, (3) start the TCK binding — one publish unblocks all three.
 
 ## Taken, not yet reviewed
 
