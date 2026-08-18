@@ -229,7 +229,11 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 		// NESTED child would count as a result and inflate a count — and only the requested
 		// type, since one unit holds several.
 		builder.add(QueryTranslator.rootFilter(), BooleanClause.Occur.MUST);
-		builder.add(translator.typeFilter(root), BooleanClause.Occur.MUST);
+		try {
+			builder.add(schema.typeFilter(root), BooleanClause.Occur.MUST);
+		} catch (MappingException e) {
+			throw new QueryException(e.getMessage(), e);
+		}
 		if (query.getPredicate() != null) {
 			builder.add(translator.predicate(query.getPredicate()), BooleanClause.Occur.MUST);
 		}

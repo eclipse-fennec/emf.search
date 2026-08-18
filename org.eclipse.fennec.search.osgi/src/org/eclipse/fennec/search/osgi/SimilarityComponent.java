@@ -12,8 +12,6 @@
  ********************************************************************/
 package org.eclipse.fennec.search.osgi;
 
-import java.lang.System.Logger;
-import java.lang.System.Logger.Level;
 import java.util.Dictionary;
 import java.util.Hashtable;
 import java.util.Map;
@@ -23,9 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistry;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.mapping.IndexSchema;
-import org.eclipse.fennec.search.mapping.MappingException;
 import org.eclipse.fennec.search.mapping.RegistryMappingSource;
-import org.eclipse.fennec.search.suggest.SuggestSearch;
+import org.eclipse.fennec.search.similarity.SimilaritySearch;
 import org.eclipse.fennec.search.unit.IndexUnit;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
@@ -38,25 +35,23 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 
 /**
- * Publishes one {@link SuggestSearch} per index unit whose mapping declares suggest
- * sources — the §6 "DS service per index unit", and nothing else: the mechanics live in
- * the plain suggest bundle. A unit whose mapping declares no source gets no service;
- * absence is the signal, exactly like the registry components upstream.
+ * Publishes one {@link SimilaritySearch} per index unit that has a mapping — the same "DS
+ * service per index unit" shape as suggest and highlight; the mechanics live in the plain
+ * core bundle. Every mapped unit gets the service: which fields can feed term statistics
+ * is a per-field question the API answers at request time.
  *
  * @author Data In Motion Consulting
  */
-@Component(name = "SearchSuggest", immediate = true)
-public class SuggestComponent {
-
-	private static final Logger LOG = System.getLogger(SuggestComponent.class.getName());
+@Component(name = "SearchSimilarity", immediate = true)
+public class SimilarityComponent {
 
 	private final BundleContext context;
 	private final Map<String, IndexUnit> units = new ConcurrentHashMap<>();
-	private final Map<String, ServiceRegistration<SuggestSearch>> registrations = new ConcurrentHashMap<>();
+	private final Map<String, ServiceRegistration<SimilaritySearch>> registrations = new ConcurrentHashMap<>();
 	private volatile EObjectRegistry mappingRegistry;
 
 	@Activate
-	public SuggestComponent(BundleContext context) {
+	public SimilarityComponent(BundleContext context) {
 		this.context = context;
 	}
 
@@ -84,7 +79,7 @@ public class SuggestComponent {
 			units.put(name, unit);
 			// A replaced unit (static-greedy reactivation upstream) binds before the old one
 			// unbinds: rebuild, so the service never wraps a closed unit.
-			ServiceRegistration<SuggestSearch> stale = registrations.remove(name);
+			ServiceRegistration<SimilaritySearch> stale = registrations.remove(name);
 			if (stale != null) {
 				stale.unregister();
 			}
@@ -97,7 +92,7 @@ public class SuggestComponent {
 		// Only the departure of the published unit tears the service down — on a swap the
 		// old unit's unbind arrives after the replacement and must not win.
 		if (alias instanceof String name && units.remove(name, unit)) {
-			ServiceRegistration<SuggestSearch> registration = registrations.remove(name);
+			ServiceRegistration<SimilaritySearch> registration = registrations.remove(name);
 			if (registration != null) {
 				registration.unregister();
 			}
@@ -113,17 +108,11 @@ public class SuggestComponent {
 		if (mapping.isEmpty()) {
 			return;
 		}
-		try {
-			SuggestSearch suggest = SuggestSearch.of(unit, IndexSchema.of(mapping.get()));
-			Dictionary<String, Object> serviceProperties = new Hashtable<>();
-			serviceProperties.put(SearchConstants.UNIT_ALIAS, name);
-			registrations.put(name, context.registerService(SuggestSearch.class, suggest, serviceProperties));
-		} catch (MappingException noSources) {
-			// The mapping declares no suggest source (or refuses one): no service — the
-			// refusal is resolution-time and belongs to whoever authored the mapping.
-			LOG.log(Level.DEBUG, "Unit ''{0}'' publishes no suggest service: {1}", name,
-					noSources.getMessage());
-		}
+		SimilaritySearch similarity = SimilaritySearch.of(unit, IndexSchema.of(mapping.get()));
+		Dictionary<String, Object> serviceProperties = new Hashtable<>();
+		serviceProperties.put(SearchConstants.UNIT_ALIAS, name);
+		registrations.put(name,
+				context.registerService(SimilaritySearch.class, similarity, serviceProperties));
 	}
 
 	@Deactivate

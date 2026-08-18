@@ -89,14 +89,21 @@ public class HighlightComponent {
 		Object alias = properties.get(SearchConstants.UNIT_ALIAS);
 		if (alias instanceof String name && !name.isBlank()) {
 			units.put(name, unit);
+			// A replaced unit (static-greedy reactivation upstream) binds before the old one
+			// unbinds: rebuild, so the service never wraps a closed unit.
+			ServiceRegistration<HighlightSearch> stale = registrations.remove(name);
+			if (stale != null) {
+				stale.unregister();
+			}
 			publish(name, unit);
 		}
 	}
 
 	void removeUnit(IndexUnit unit, Map<String, Object> properties) {
 		Object alias = properties.get(SearchConstants.UNIT_ALIAS);
-		if (alias instanceof String name) {
-			units.remove(name, unit);
+		// Only the departure of the published unit tears the service down — on a swap the
+		// old unit's unbind arrives after the replacement and must not win.
+		if (alias instanceof String name && units.remove(name, unit)) {
 			ServiceRegistration<HighlightSearch> registration = registrations.remove(name);
 			if (registration != null) {
 				registration.unregister();

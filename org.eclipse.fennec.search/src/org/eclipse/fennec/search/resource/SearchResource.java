@@ -306,7 +306,7 @@ public class SearchResource extends ResourceImpl
 				StoredFields stored = searcher.storedFields();
 				for (ScoreDoc hit : top.scoreDocs) {
 					Document root = stored.document(hit.doc);
-					objects.add(reader.read(root, childrenOf(searcher, stored, root)));
+					objects.add(reader.read(root, DocumentReader.blockChildren(searcher, stored, root)));
 				}
 				return objects;
 			});
@@ -320,25 +320,6 @@ public class SearchResource extends ResourceImpl
 		}
 	}
 
-	/** The child documents of one block, in the order the mapper wrote them. */
-	private List<Document> childrenOf(IndexSearcher searcher, StoredFields stored, Document root)
-			throws IOException {
-		String rootId = root.get(SearchFields.ROOT);
-		Query query = new BooleanQuery.Builder()
-				.add(new TermQuery(new Term(SearchFields.ROOT, rootId)), Occur.FILTER)
-				.add(new TermQuery(new Term(SearchFields.PARENT, SearchFields.PARENT_VALUE)), Occur.MUST_NOT)
-				.build();
-		int count = searcher.count(query);
-		if (count == 0) {
-			return List.of();
-		}
-		TopDocs top = searcher.search(query, count, new Sort(SortField.FIELD_DOC));
-		List<Document> children = new ArrayList<>(count);
-		for (ScoreDoc hit : top.scoreDocs) {
-			children.add(stored.document(hit.doc));
-		}
-		return children;
-	}
 
 	/** One warning per loaded class whose reconstruction is incomplete, naming what is not there. */
 	private void warnAboutOmissions(List<EObject> loaded) {
@@ -535,7 +516,7 @@ public class SearchResource extends ResourceImpl
 			List<EObject> collected = new ArrayList<>();
 			StoredFields stored = searcher.storedFields();
 			for (Document document : window(searcher, plan)) {
-				collected.add(reader.read(document, childrenOf(searcher, stored, document)));
+				collected.add(reader.read(document, DocumentReader.blockChildren(searcher, stored, document)));
 			}
 			return collected;
 		});
@@ -564,7 +545,7 @@ public class SearchResource extends ResourceImpl
 			StoredFields stored = searcher.storedFields();
 			for (int i = plan.skip(); i < top.scoreDocs.length; i++) {
 				Document root = stored.document(top.scoreDocs[i].doc);
-				EObject object = reader.read(root, childrenOf(searcher, stored, root));
+				EObject object = reader.read(root, DocumentReader.blockChildren(searcher, stored, root));
 				hits.add(QueryResults.hit(object, top.scoreDocs[i].score));
 				scores.put(root.get(SearchFields.ID), (double) top.scoreDocs[i].score);
 			}

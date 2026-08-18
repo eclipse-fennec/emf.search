@@ -46,6 +46,8 @@ import org.eclipse.fennec.search.esearch.SuggestSource;
 import org.eclipse.fennec.search.highlight.HighlightRequest;
 import org.eclipse.fennec.search.highlight.HighlightSearch;
 import org.eclipse.fennec.search.osgi.SearchConstants;
+import org.eclipse.fennec.search.similarity.SimilarityRequest;
+import org.eclipse.fennec.search.similarity.SimilaritySearch;
 import org.eclipse.fennec.search.suggest.SuggestSearch;
 import org.eclipse.fennec.search.unit.IndexUnit;
 import org.junit.jupiter.api.Test;
@@ -130,19 +132,26 @@ class MappingDeliveryWiringTest {
 		Configuration unitConfiguration = admin.createFactoryConfiguration(SearchConstants.UNIT_PID, "?");
 		try {
 			registryConfiguration.update(registryProperties());
-			unitConfiguration.update(unitProperties());
 
 			EObjectRegistry mappings = await(context, EObjectRegistry.class,
 					"(emf.eobject.registry.name=" + SearchConstants.MAPPING_REGISTRY_NAME + ")");
 			assertThat(mappings).as("the mapping registry loaded the authored file").isNotNull();
 			assertThat(mappings.get("wired")).as("the mapping is registry content").isPresent();
+
+			// Only now the unit: the unit component's registry reference is static-greedy on
+			// purpose (the index order is fixed at writer creation, #19), so a registry that
+			// arrives after the unit restarts it — deliver the registry first and the unit
+			// activates once, with its order.
+			unitConfiguration.update(unitProperties());
 			Resource.Factory factory = await(context, Resource.Factory.class, "(emf.protocol=lucene)");
 			assertThat(factory).as("the lucene Resource.Factory is published").isNotNull();
 			IndexUnit unit = await(context, IndexUnit.class,
 					"(" + SearchConstants.UNIT_ALIAS + "=wired)");
 			assertThat(unit).as("the configured unit is published").isNotNull();
 
-			Resource out = factory.createResource(URI.createURI("lucene://wired/Item/i-1"));
+			// The factory service is published before its optional mapping-registry
+			// reference binds — poll until the mapper resolves instead of racing DS.
+			Resource out = awaitResource(factory, URI.createURI("lucene://wired/Item/i-1"));
 			EObject object = EcoreUtil.create(item);
 			object.eSet(id, "i-1");
 			object.eSet(label, "through the registry");
@@ -178,6 +187,23 @@ class MappingDeliveryWiringTest {
 					.field(label));
 			assertThat(hits).hasSize(1);
 			assertThat(hits.get(0).highlight("label").orElseThrow()).contains("<b>registry</b>");
+
+			// The similarity service of the same unit — one neighbour proves the chain.
+			Resource second = factory.createResource(URI.createURI("lucene://wired/Item/i-2"));
+			EObject neighbour = EcoreUtil.create(item);
+			neighbour.eSet(id, "i-2");
+			neighbour.eSet(label, "through the looking glass");
+			second.getContents().add(neighbour);
+			second.save(null);
+			// The mapping registry's late binding may have restarted the unit component
+			// (static-greedy reference): refresh the live unit, not a captured one.
+			await(context, IndexUnit.class, "(" + SearchConstants.UNIT_ALIAS + "=wired)").refresh();
+			SimilaritySearch similarity = await(context, SimilaritySearch.class,
+					"(" + SearchConstants.UNIT_ALIAS + "=wired)");
+			assertThat(similarity).as("the similarity service is published per unit").isNotNull();
+			assertThat(similarity.search(SimilarityRequest.to(object).field(label)))
+					.extracting(hit -> hit.object().eGet(hit.object().eClass().getEStructuralFeature("id")))
+					.containsExactly("i-2");
 		} finally {
 			registryConfiguration.delete();
 			unitConfiguration.delete();
@@ -204,6 +230,20 @@ class MappingDeliveryWiringTest {
 		properties.put("location", "memory");
 		properties.put("refresh", "MANUAL");
 		return properties;
+	}
+
+	private static Resource awaitResource(Resource.Factory factory, URI uri) throws Exception {
+		long deadline = System.currentTimeMillis() + TIMEOUT;
+		IllegalStateException unresolved = null;
+		while (System.currentTimeMillis() < deadline) {
+			try {
+				return factory.createResource(uri);
+			} catch (IllegalStateException notYetBound) {
+				unresolved = notYetBound;
+				Thread.sleep(20);
+			}
+		}
+		throw unresolved;
 	}
 
 	@SuppressWarnings("unchecked")

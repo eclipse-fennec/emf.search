@@ -93,6 +93,34 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
    sources) — highlightability is per-field and answered at request time, so absence of a
    service would signal nothing.
 
+## Autonomous calls in similarity (S13/#15, 2026-08-18)
+
+1. **The anchor must be indexed** — `MoreLikeThis.like(docNum)` over the corpus's own
+   statistics; an unindexed object has none, so it is refused with the way out ("index it
+   first") rather than silently answered from re-analyzed live values. A like-from-text
+   mode for unindexed objects stays a possible additive follow-up if a use case appears.
+2. **Neighbours are same-type only** (anchor's EClass, concrete subtypes included) — the
+   type filter every query applies. Cross-type similarity would compare statistics of
+   fields that happen to share a name; if wanted later it becomes an explicit request
+   option, never the default.
+3. **Frequency thresholds default to 1/1**, not Lucene's 2/5 — the API answers on any
+   corpus size out of the box; the knobs (`minTermFreq`/`minDocFreq`) are on the request
+   for large-corpus precision. Logged because it deviates from the engine default.
+4. **Terms must be recoverable**: term vectors or the stored original. `stored=false`
+   without vectors is refused naming both ways out; with declared vectors an unstored
+   field works (pinned by test) — vectors are the declared fast path of §6.2.
+5. **Refactor rider**: the root filter moved to `SearchFields.rootFilter()`, the type
+   filter to `IndexSchema.typeFilter(EClass)`, block reconstruction to
+   `DocumentReader.blockChildren(...)`, and the mapper grew public `documentId(EObject)` —
+   shared by resource, highlight and similarity instead of three private copies;
+   `QueryTranslator` stays package-private.
+6. **DS races fixed while wiring**: the three per-unit components (suggest, highlight,
+   similarity) rebuild their service when a unit is *replaced* (bind-before-unbind order)
+   and tear down only when the published unit departs; the wiring test delivers the
+   mapping registry before the unit config, because the unit component's static-greedy
+   registry reference restarts the unit by design (#19: index order fixed at writer
+   creation) — the deployment advice is in the mapping-delivery guide's rebuild note.
+
 ## Autonomous calls in the TCK binding (#8, 2026-08-18)
 
 13. **No id generation — the effective id is the id.** An index has no honest counter, and

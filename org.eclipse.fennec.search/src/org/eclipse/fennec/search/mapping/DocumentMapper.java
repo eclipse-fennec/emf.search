@@ -189,6 +189,15 @@ public final class DocumentMapper {
 
 	// --- resolution ---------------------------------------------------------------------
 
+	/**
+	 * The document id this mapper writes for the object — the composite fragment or the id
+	 * attribute's value, exactly as {@code map} computes it.
+	 */
+	public String documentId(EObject object) {
+		EClass eClass = object.eClass();
+		return idOf(object, resolve(eClass), eClass);
+	}
+
 	/** The declared mapping for this class, or the nearest one inherited from a supertype. */
 	private DocumentMapping resolve(EClass eClass) {
 		return schema.documentMapping(eClass);
