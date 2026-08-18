@@ -105,11 +105,10 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 					// The block join (S11, #9): supported over NESTED containment only; a
 					// quantifier over EMBED or ID_ONLY is still refused by name in translation.
 					QueryFeature.EXISTS, QueryFeature.FOR_ALL,
-					// Relevance (S6, #10). SORT_EXPRESSION rides along only because the
-					// analyzer classifies a bare score() sort key as one (upstream
-					// emf.persistence-jpa#165); it is narrowed to exactly that key — any
-					// other sort expression refuses by name.
-					QueryFeature.SCORE, QueryFeature.SORT_EXPRESSION,
+					// Relevance (S6, #10): the score sort key, and scored hits under the
+					// withScores envelope flag. Since emf.persistence-jpa#165 a bare score
+					// key classifies as SCORE alone, so nothing else rides along.
+					QueryFeature.SCORE,
 					// The honest group-by subset (S7, #11): one group key that is a declared
 					// facet dimension, one COUNT — anything beyond refuses by name. A
 					// single GroupByStage flags no PIPELINE, so this does not overstate.
@@ -236,6 +235,10 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 		}
 
 		QueryShape shape = shapeOf(query);
+		if (query.isWithScores() && shape != QueryShape.OBJECTS) {
+			throw new QueryException("withScores rides on hits, and a " + shape
+					+ " result has none — a count or a row carries no per-object relevance.");
+		}
 		Sort sort = sortOf(query, root);
 		List<String> rowFields = new ArrayList<>();
 		List<String> rowAliases = new ArrayList<>();

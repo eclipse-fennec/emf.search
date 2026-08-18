@@ -122,6 +122,47 @@ class ScoreSortTest {
 	}
 
 	@Test
+	void withScoresDeliversRankedHitsAndTheScoreView() throws Exception {
+		Query query = QueryBuilder.from(product)
+				.where(path(description()).contains("coffee"))
+				.withScores()
+				.build();
+
+		try (var result = resource.query(query)) {
+			var hits = result.hits().toList();
+			assertThat(hits).extracting(hit -> hit.object().eGet(
+					hit.object().eClass().getEStructuralFeature("name")))
+					.as("without an explicit sort, iteration order is rank order")
+					.containsExactly("double", "single");
+			assertThat(hits.get(0).score()).isGreaterThan(hits.get(1).score());
+			assertThat(result.scores())
+					.as("the metadata view is complete and keyed by id")
+					.containsKeys("double", "single");
+		}
+	}
+
+	@Test
+	void hitsWithoutTheFlagAreAHardAccessor() throws Exception {
+		Query query = QueryBuilder.from(product)
+				.where(path(description()).contains("coffee"))
+				.build();
+
+		try (var result = resource.query(query)) {
+			assertThatThrownBy(result::hits).isInstanceOf(IllegalStateException.class);
+			assertThat(result.scores()).as("the soft accessor is empty, never throwing").isEmpty();
+		}
+	}
+
+	@Test
+	void withScoresOnACountShapeIsRefused() {
+		Query query = QueryBuilder.from(product).withScores().countOnly().build();
+
+		assertThatThrownBy(() -> resource.query(query))
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("withScores");
+	}
+
+	@Test
 	void anyOtherSortExpressionIsRefusedNamingScore() {
 		Query query = QueryBuilder.from(product)
 				.orderByDesc(path(price()).plus(1).toExpression())
