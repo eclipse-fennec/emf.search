@@ -213,3 +213,6 @@ org.eclipse.fennec.persistence:org.eclipse.fennec.persistence.workspace.library:
 # -buildpath, and the TCK is not in it. So the coordinate lives here until upstream
 # ships it (issue #34); it belongs on a -testpath, never on a -buildpath.
 org.eclipse.fennec.persistence:org.eclipse.fennec.persistence.tck:0.1.0-SNAPSHOT
+# The derived-reference support the TCK's two derivedReference* cases register; like the
+# TCK itself, not part of the workspace library's index.
+org.eclipse.fennec.persistence:org.eclipse.fennec.persistence.query.derived:0.1.0-SNAPSHOT

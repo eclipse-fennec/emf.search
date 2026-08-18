@@ -8,28 +8,14 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
 
 ## Open — blocked on upstream, with revisit triggers
 
-- **TCK binding** (rest of #8) — waits for declarative capability gating,
-  emf.persistence-jpa**#160**. *When it lands:* create `search.tck`, bind
-  `AbstractPersistenceTCK`.
-- **Lazy results / `SERVER_CURSORS`** — we want to hold the searcher until
-  `QueryResult.close()` and declare the feature; waits for the `StoreFeature` literal,
-  emf.persistence-jpa**#162**. *Until then* results stay materialized, because behaviour
-  must not change undeclared.
+- **Lazy results / `SERVER_CURSORS`** — the `StoreFeature` literal exists since the
+  2026-08-18 publish (#162); implementing means holding the searcher lease until
+  `QueryResult.close()` (an `IndexUnit` acquire/release surface) and declaring the
+  feature. Next sizeable unit-lifecycle task; until built, results stay materialized —
+  behaviour must not change undeclared.
 - **Shared named-query catalog** — our factory-attached `EObjectRegistry` is the interim;
   emf.persistence-jpa**#163** asks for the stack-wide contract. *When it lands:* swap the
   lookup to the shared contract.
-- **Converter contract + unexported package** — emf.persistence-jpa**#164** (nullable
-  lookup vs. throw; `persistence.converter` not exported). *Until then* the converter is
-  an injectable collaborator, null = identity. *When it lands:* consider a constructed
-  default again.
-- **Score delivery** — emf.persistence-jpa**#165** is decided end to end (2026-08-18):
-  bare score key flags only `SCORE`; `Query.withScores` envelope flag; `QueryResult.hits()`
-  as the primary per-hit carrier (`Hit` = the extensible envelope our highlighting and
-  rank-signal payloads grow into), `scores()` as the derived metadata view, rank order as
-  contract; the backend hands `QueryResults.hits(Stream<Hit>, Map<String,Double>)` itself.
-  All on one upstream branch, **snapshot publish follows the push**. *When published:*
-  (1) implement `withScores` in plan+execution, (2) remove the narrowed `SORT_EXPRESSION`
-  declaration, (3) start the TCK binding — one publish unblocks all three.
 
 ## Decided upstream, zero change here
 
@@ -84,6 +70,20 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
 12. **Weights come from data** (the declared attribute's doc values per document) — the
     old stack hardcoded weight 4 into a parameter named numberResults; nothing of that
     API is carried over.
+
+## Autonomous calls in the TCK binding (#8, 2026-08-18)
+
+13. **No id generation — the effective id is the id.** An index has no honest counter, and
+    post-#37 an unset numeric id *is* its default: the TCK's generation case is overridden
+    (the sanctioned Mongo route) to pin what actually happens — save succeeds under id 0,
+    nothing is written back, and two id-less objects collide into one document. Callers
+    own their ids; the divergence is documented in the override, not hidden.
+14. **The TCK unit commits per document with refresh-on-commit** — deliberate suite
+    tuning for the read-your-writes the TCK assumes, explicitly marked as what no
+    production configuration should copy.
+15. **One index, one field type per name** — Person.name keyword forces Company.name
+    keyword; Lucene refuses a field analyzed in one document and keyword in the next.
+    Worth remembering when mappings grow: the field-name universe is per unit.
 
 ## Tracked gaps (issues exist, nothing to decide)
 
