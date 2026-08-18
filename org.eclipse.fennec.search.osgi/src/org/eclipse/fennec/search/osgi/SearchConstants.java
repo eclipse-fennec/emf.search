@@ -35,6 +35,23 @@ public final class SearchConstants {
 	 */
 	public static final String ANALYZER_NAME = "search.analyzer.name";
 
+	/** Component name of the lucene {@code Resource.Factory}. */
+	public static final String RESOURCE_FACTORY_NAME = "LuceneResourceFactory";
+
+	/**
+	 * Default name of the EObject registry carrying authored {@code *.esearch} mappings —
+	 * the deployment delivery path of #32. Override with the {@code mappingRegistry.target}
+	 * reference target.
+	 */
+	public static final String MAPPING_REGISTRY_NAME = "search-mappings";
+
+	/**
+	 * Default name of the EObject registry persisting named queries
+	 * (emf.persistence-jpa#163). Override with the {@code queryCatalog.target} reference
+	 * target.
+	 */
+	public static final String QUERY_CATALOG_NAME = "search-queries";
+
 	private SearchConstants() {
 	}
 }

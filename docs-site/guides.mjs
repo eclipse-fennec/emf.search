@@ -17,6 +17,7 @@ export const GUIDES = [
   { file: 'index-units.md', slug: 'index-units', title: 'Index units' },
   { file: 'materialization.md', slug: 'materialization', title: 'Loading & materialization' },
   { file: 'facets.md', slug: 'facets', title: 'Facets' },
+  { file: 'mapping-delivery.md', slug: 'mapping-delivery', title: 'Mapping delivery' },
 ];
 
 export const EXAMPLES = [];
