@@ -69,7 +69,9 @@ class LuceneQueryProcessorTest {
 				QueryFeature.STRING_MATCH_CASE_INSENSITIVE, QueryFeature.LOGICAL_AND,
 				QueryFeature.LOGICAL_OR, QueryFeature.LOGICAL_NOT, QueryFeature.SORT,
 				QueryFeature.LIMIT, QueryFeature.SKIP, QueryFeature.COUNT, QueryFeature.TYPE_CHECK,
-				QueryFeature.TYPE_FILTER, QueryFeature.PROJECTION, QueryFeature.PARAMETERS);
+				QueryFeature.TYPE_FILTER, QueryFeature.PROJECTION, QueryFeature.PARAMETERS,
+				// the block join (S11, #9): quantifiers over NESTED containment
+				QueryFeature.EXISTS, QueryFeature.FOR_ALL);
 	}
 
 	@Test
@@ -82,7 +84,7 @@ class LuceneQueryProcessorTest {
 				QueryFeature.TEMPORAL_FUNCTIONS, QueryFeature.EXPAND, QueryFeature.DISTINCT,
 				QueryFeature.PIPELINE, QueryFeature.PIPELINE_COMPUTE, QueryFeature.SORT_EXPRESSION,
 				// not yet: each of these has a task
-				QueryFeature.EXISTS, QueryFeature.FOR_ALL, QueryFeature.SCORE, QueryFeature.GROUP_BY,
+				QueryFeature.SCORE, QueryFeature.GROUP_BY,
 				QueryFeature.AGG_COUNT, QueryFeature.GEO_WITHIN, QueryFeature.GEO_DISTANCE);
 	}
 
@@ -245,15 +247,27 @@ class LuceneQueryProcessorTest {
 	}
 
 	@Test
-	void aQuantifierPointsAtTheBlockJoinTask() {
+	void aQuantifierOverTheNestedBlockTranslates() throws Exception {
+		// Declared since S11 (#9); the behaviour lives in BlockJoinQuantifierTest — here
+		// only that the processor accepts what its capabilities now claim.
 		EReference reviews = (EReference) feature("Product", "reviews");
 		Query query = QueryBuilder.from(product)
 				.where(Expressions.any(Expressions.propertyPath(reviews),
 						it -> it.path(feature("Review", "rating")).gt(3)))
 				.build();
+		assertThat(translate(query).query().toString()).contains("ToParentBlockJoinQuery");
+	}
+
+	@Test
+	void aQuantifierOverAnUnmappedReferenceIsRefusedByName() {
+		EReference manufacturer = (EReference) feature("Product", "manufacturer");
+		Query query = QueryBuilder.from(product)
+				.where(Expressions.any(Expressions.propertyPath(manufacturer),
+						it -> it.path(feature("Manufacturer", "name")).eq("Acme")))
+				.build();
 		assertThatThrownBy(() -> translate(query))
 				.isInstanceOf(QueryException.class)
-				.hasMessageContaining("S11");
+				.hasMessageContaining("NESTED");
 	}
 
 	@Test

@@ -38,6 +38,10 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
@@ -45,12 +49,14 @@ import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EClassifier;
 import org.eclipse.emf.ecore.EEnum;
+import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.fennec.model.expression.Arithmetic;
 import org.eclipse.fennec.model.expression.Between;
 import org.eclipse.fennec.model.expression.CollectionCount;
 import org.eclipse.fennec.model.expression.Comparison;
 import org.eclipse.fennec.model.expression.ComparisonOperator;
+import org.eclipse.fennec.model.expression.Exists;
 import org.eclipse.fennec.model.expression.Expression;
 import org.eclipse.fennec.model.expression.GeoDistance;
 import org.eclipse.fennec.model.expression.GeoWithin;
@@ -68,10 +74,14 @@ import org.eclipse.fennec.model.expression.StringMatch;
 import org.eclipse.fennec.model.expression.StringMatchKind;
 import org.eclipse.fennec.model.expression.TemporalFunction;
 import org.eclipse.fennec.model.expression.TypeCheck;
+import org.eclipse.fennec.model.expression.Variable;
 import org.eclipse.fennec.persistence.query.QueryException;
 import org.eclipse.fennec.persistence.query.api.QueryContext;
 import org.eclipse.fennec.persistence.query.expr.ExpressionValues;
+import org.eclipse.fennec.persistence.query.support.QueryContexts;
 import org.eclipse.fennec.search.esearch.NumericKind;
+import org.eclipse.fennec.search.esearch.ReferenceMapping;
+import org.eclipse.fennec.search.esearch.ReferenceStrategy;
 import org.eclipse.fennec.search.mapping.IndexSchema;
 import org.eclipse.fennec.search.mapping.IndexSchema.FieldKind;
 import org.eclipse.fennec.search.mapping.MappingException;
@@ -96,14 +106,29 @@ import org.eclipse.fennec.search.mapping.SearchFields;
  */
 final class QueryTranslator {
 
+	/**
+	 * The one parent filter every block join in this backend uses. {@code
+	 * QueryBitSetProducer} caches the bit set per leaf reader (weakly, so closed readers
+	 * release it), and the root-marker query is identical for every unit — one shared
+	 * producer keeps the cache shared too.
+	 */
+	private static final BitSetProducer PARENT_FILTER = new QueryBitSetProducer(rootFilter());
+
 	private final IndexSchema schema;
 	private final QueryContext context;
 	private final Analyzer analyzer;
+	/** The iterator variable when this translator runs inside a quantifier; null at root. */
+	private final Variable scope;
 
 	QueryTranslator(IndexSchema schema, QueryContext context, Analyzer analyzer) {
+		this(schema, context, analyzer, null);
+	}
+
+	private QueryTranslator(IndexSchema schema, QueryContext context, Analyzer analyzer, Variable scope) {
 		this.schema = schema;
 		this.context = context;
 		this.analyzer = analyzer;
+		this.scope = scope;
 	}
 
 	/** Translates a predicate; the entry point, with negation not yet applied. */
@@ -146,11 +171,8 @@ final class QueryTranslator {
 		if (expression instanceof TypeCheck typeCheck) {
 			return typeCheck(typeCheck, negated);
 		}
-		if (expression instanceof Quantifier) {
-			throw new QueryException("EXISTS/FOR_ALL over a reference needs the index-time block join, "
-					+ "which is task S11 (issue #9). Until then quantifiers are not declared and this "
-					+ "query is refused rather than answered on flattened values, where two different "
-					+ "children could satisfy the two halves of a predicate.");
+		if (expression instanceof Quantifier quantifier) {
+			return quantifier(quantifier, negated);
 		}
 		if (expression instanceof Score) {
 			throw new QueryException("Relevance score as query vocabulary is task S6 (issue #10) and not "
@@ -505,6 +527,92 @@ final class QueryTranslator {
 		return tokens;
 	}
 
+	// --- quantifiers ----------------------------------------------------------------------
+
+	/**
+	 * EXISTS/FOR_ALL over a {@code NESTED} reference, through the index-time block join
+	 * (docs/search-access.md §5.2) — the one join this backend offers, because parent and
+	 * children were written as one block and the "join" is a fact of the index, not of the
+	 * query.
+	 * <p>
+	 * The four faces reduce to two shapes, mirroring the Mongo backend's
+	 * {@code $elemMatch}/{@code $nor} recipe. With {@code inner} translated in child scope
+	 * under the same negation flag: EXISTS and ¬FOR_ALL ask for <em>a child that matches
+	 * inner</em> — one {@code ToParentBlockJoinQuery}. FOR_ALL and ¬EXISTS ask for <em>no
+	 * child escaping inner</em> — root documents minus a block join over the escaping
+	 * children. That last shape is where the §5.1 duality lives: the {@code MUST_NOT} is
+	 * guarded by the root filter as its positive clause, so a parent with no children at
+	 * all stays a match for FOR_ALL (vacuously true) and for ¬EXISTS, while a child whose
+	 * predicate is UNKNOWN escapes both — not TRUE blocks FOR_ALL, not FALSE blocks
+	 * ¬EXISTS.
+	 */
+	private Query quantifier(Quantifier quantifier, boolean negated) throws QueryException {
+		if (scope != null) {
+			throw new QueryException("A quantifier inside a quantifier asks about children of children, "
+					+ "and a block is one level deep: the mapper indexes a NESTED child's attributes, not "
+					+ "its own references. Restructure the mapping or route to the primary store.");
+		}
+		EReference reference = nestedReference(quantifier);
+		QueryTranslator child = new QueryTranslator(schema,
+				QueryContexts.of(reference.getEReferenceType(), context.converter(), context.parameters(),
+						context.options()),
+				analyzer, quantifier.getVariable());
+		Query inner = child.translate(quantifier.getPredicate(), negated);
+		Query childScope = new TermQuery(new Term(SearchFields.NESTED, reference.getName()));
+		boolean someChildMatches = (quantifier instanceof Exists) != negated;
+		if (someChildMatches) {
+			return new ToParentBlockJoinQuery(new BooleanQuery.Builder()
+					.add(childScope, BooleanClause.Occur.FILTER)
+					.add(inner, BooleanClause.Occur.MUST)
+					.build(), PARENT_FILTER, ScoreMode.None);
+		}
+		Query escaping = new BooleanQuery.Builder()
+				.add(childScope, BooleanClause.Occur.FILTER)
+				.add(inner, BooleanClause.Occur.MUST_NOT)
+				.build();
+		return new BooleanQuery.Builder()
+				.add(rootFilter(), BooleanClause.Occur.MUST)
+				.add(new ToParentBlockJoinQuery(escaping, PARENT_FILTER, ScoreMode.None),
+						BooleanClause.Occur.MUST_NOT)
+				.build();
+	}
+
+	/**
+	 * The NESTED reference a quantifier ranges over; everything else is refused by name.
+	 * Shared with {@code LuceneQueryProcessor.validate}, so validation and translation
+	 * cannot disagree about what a quantifier may quantify.
+	 */
+	static EReference nestedReference(IndexSchema schema, EClass root, Quantifier quantifier)
+			throws QueryException {
+		if (!(quantifier.getSource() instanceof PropertyPath source) || source.getSegments().isEmpty()) {
+			throw new QueryException("A quantifier needs a reference path as its source");
+		}
+		if (source.getSegments().size() > 1) {
+			throw new QueryException("The quantifier source '" + pathName(source) + "' navigates more than "
+					+ "one step. A block holds the root's own children; anything deeper lives in another "
+					+ "document, and following it would be the query-time join this backend refuses (§5.2).");
+		}
+		if (!(source.getSegments().get(0) instanceof EReference reference)) {
+			throw new QueryException("The quantifier source '" + pathName(source) + "' is an attribute. "
+					+ "Quantifying over the values of one attribute is COLLECTION_COUNT territory, which "
+					+ "is not declared; over children it needs a reference.");
+		}
+		ReferenceMapping referenceMapping = schema.referenceMapping(root, reference);
+		if (referenceMapping == null || referenceMapping.getStrategy() != ReferenceStrategy.NESTED) {
+			throw new QueryException("EXISTS/FOR_ALL over '" + reference.getName() + "' needs the reference "
+					+ "mapped NESTED, and it is "
+					+ (referenceMapping == null ? "not mapped" : "mapped " + referenceMapping.getStrategy())
+					+ ". EMBED flattens children into parallel values and loses which child carried which — "
+					+ "two different children could satisfy the two halves of a predicate; ID_ONLY keeps no "
+					+ "child values at all.");
+		}
+		return reference;
+	}
+
+	private EReference nestedReference(Quantifier quantifier) throws QueryException {
+		return nestedReference(schema, context.rootEClass(), quantifier);
+	}
+
 	// --- type checks ----------------------------------------------------------------------
 
 	/**
@@ -587,6 +695,20 @@ final class QueryTranslator {
 	IndexSchema.Field path(Expression expression) throws QueryException {
 		if (!(expression instanceof PropertyPath propertyPath)) {
 			throw new QueryException("Expected a feature path but found " + name(expression));
+		}
+		if (scope == null && propertyPath.getBase() != null) {
+			throw new QueryException("The path '" + pathName(propertyPath) + "' is scoped to an iterator "
+					+ "variable, but no quantifier encloses it here.");
+		}
+		if (scope != null && propertyPath.getBase() == null) {
+			throw new QueryException("The path '" + pathName(propertyPath) + "' reaches back to the root "
+					+ "object from inside a quantifier over a NESTED block. A correlated predicate compares "
+					+ "across two documents, which is the query-time join this backend refuses (§5.2).");
+		}
+		if (scope != null && propertyPath.getBase() != scope) {
+			throw new QueryException("The path '" + pathName(propertyPath) + "' is scoped to a different "
+					+ "iterator variable than the enclosing quantifier's — nested scopes end at the block "
+					+ "boundary.");
 		}
 		try {
 			return schema.resolve(context.rootEClass(), propertyPath.getSegments());

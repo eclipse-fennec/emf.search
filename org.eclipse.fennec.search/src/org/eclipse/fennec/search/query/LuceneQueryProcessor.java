@@ -27,9 +27,11 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.eclipse.emf.common.util.BasicDiagnostic;
 import org.eclipse.emf.common.util.Diagnostic;
 import org.eclipse.emf.ecore.EClass;
+import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.fennec.model.expression.Expression;
 import org.eclipse.fennec.model.expression.PropertyPath;
+import org.eclipse.fennec.model.expression.Quantifier;
 import org.eclipse.fennec.model.query.OrderBy;
 import org.eclipse.fennec.model.query.Query;
 import org.eclipse.fennec.model.query.Selection;
@@ -58,8 +60,9 @@ import org.eclipse.fennec.search.mapping.MappingException;
  * query-time joins, arithmetic and function push-down, field-to-field comparisons,
  * pipelines, {@code EXPAND} — is left undeclared so a consumer can route around it
  * before executing anything, instead of discovering the gap through a wrong answer.
- * Several undeclared features are not "impossible" but "not yet": quantifiers arrive with
- * the block join (S11), relevance with S6, facets with S7, geo with S9.
+ * Several undeclared features are not "impossible" but "not yet": relevance arrives with
+ * S6, facets with S7, geo with S9. Quantifiers are declared since S11 — the block join
+ * over NESTED containment, the one join that is an index-time fact (§5.2).
  * <p>
  * Translation is pure: it reads the mapping and the query, never the index. One processor
  * belongs to one index unit, because which field carries a feature — and whether it is a
@@ -91,7 +94,10 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 					QueryFeature.LOGICAL_AND, QueryFeature.LOGICAL_OR, QueryFeature.LOGICAL_NOT,
 					QueryFeature.SORT, QueryFeature.LIMIT, QueryFeature.SKIP, QueryFeature.COUNT,
 					QueryFeature.TYPE_CHECK, QueryFeature.TYPE_FILTER, QueryFeature.PROJECTION,
-					QueryFeature.PARAMETERS, QueryFeature.FEATUREPATH_NESTED)
+					QueryFeature.PARAMETERS, QueryFeature.FEATUREPATH_NESTED,
+					// The block join (S11, #9): supported over NESTED containment only; a
+					// quantifier over EMBED or ID_ONLY is still refused by name in translation.
+					QueryFeature.EXISTS, QueryFeature.FOR_ALL)
 			// Paths reach as far as the mapping flattened the document with EMBED; how far
 			// that is depends on the mapping, not on the engine, so the depth stays open and
 			// a path that leaves the document is refused by name during validation.
@@ -151,12 +157,14 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 			return capabilities;
 		}
 		List<Diagnostic> problems = new ArrayList<>();
-		for (PropertyPath path : paths(query)) {
+		List<ScopedPath> paths = new ArrayList<>();
+		collect(query.getPredicate(), rootEClass, paths, problems);
+		for (ScopedPath scoped : paths) {
 			try {
-				schema.resolve(rootEClass, path.getSegments());
+				schema.resolve(scoped.scope(), scoped.path().getSegments());
 			} catch (MappingException e) {
 				problems.add(new BasicDiagnostic(Diagnostic.ERROR, DIAGNOSTIC_SOURCE, CODE_UNMAPPED_PATH,
-						e.getMessage(), new Object[] { path }));
+						e.getMessage(), new Object[] { scoped.path() }));
 			}
 		}
 		for (Selection selection : query.getSelect()) {
@@ -333,27 +341,41 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 		}
 	}
 
-	/** Every property path the query mentions, so validation can resolve them all. */
-	private List<PropertyPath> paths(Query query) {
-		List<PropertyPath> paths = new ArrayList<>();
-		collect(query.getPredicate(), paths);
-		return paths;
+	/** A path together with the class its segments resolve against. */
+	private record ScopedPath(EClass scope, PropertyPath path) {
 	}
 
-	private void collect(Expression expression, List<PropertyPath> paths) {
+	/**
+	 * Collects every property path with the class it resolves against. A quantifier is the
+	 * one construct that changes scope: its source is checked here with the same rule the
+	 * translator applies ({@link QueryTranslator#nestedReference}), and its predicate's
+	 * paths resolve against the child class of the block.
+	 */
+	private void collect(Expression expression, EClass scope, List<ScopedPath> paths,
+			List<Diagnostic> problems) {
 		if (expression == null) {
+			return;
+		}
+		if (expression instanceof Quantifier quantifier) {
+			try {
+				EReference reference = QueryTranslator.nestedReference(schema, scope, quantifier);
+				collect(quantifier.getPredicate(), reference.getEReferenceType(), paths, problems);
+			} catch (QueryException e) {
+				problems.add(new BasicDiagnostic(Diagnostic.ERROR, DIAGNOSTIC_SOURCE, CODE_UNMAPPED_PATH,
+						e.getMessage(), new Object[] { quantifier }));
+			}
 			return;
 		}
 		if (expression instanceof PropertyPath path) {
 			if (!path.getSegments().isEmpty() && path.getSegments()
 					.get(path.getSegments().size() - 1) instanceof EStructuralFeature) {
-				paths.add(path);
+				paths.add(new ScopedPath(scope, path));
 			}
 			return;
 		}
 		expression.eContents().forEach(child -> {
 			if (child instanceof Expression nested) {
-				collect(nested, paths);
+				collect(nested, scope, paths, problems);
 			}
 		});
 	}
