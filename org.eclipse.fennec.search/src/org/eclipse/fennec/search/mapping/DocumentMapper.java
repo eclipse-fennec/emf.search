@@ -77,11 +77,13 @@ public final class DocumentMapper {
 	private final IndexUnitMapping mapping;
 	private final IndexSchema schema;
 	private final ObjectSerializers serializers;
+	private final FacetFields facets;
 
 	private DocumentMapper(IndexSchema schema, ObjectSerializers serializers) {
 		this.schema = schema;
 		this.mapping = schema.mapping();
 		this.serializers = serializers;
+		this.facets = FacetFields.of(schema);
 	}
 
 	/** Compiles a mapping into a mapper. */
@@ -139,8 +141,12 @@ public final class DocumentMapper {
 		writeReferences(root, children, object, documentMapping, id, 1);
 		writeMaterialization(root, object, eClass);
 
-		List<Document> block = new ArrayList<>(children);
-		block.add(root);
+		// The facet build step is Lucene's contract for SSDV facets; identity without any.
+		List<Document> block = new ArrayList<>(children.size() + 1);
+		for (Document child : children) {
+			block.add(facets.build(child));
+		}
+		block.add(facets.build(root));
 		return new MappedDocument(id, block);
 	}
 
@@ -283,6 +289,9 @@ public final class DocumentMapper {
 					continue;
 				}
 				writeValue(document, name, attribute, field, value);
+				if (field.getFacet() != null) {
+					facets.add(document, field, schema, attribute, stringOf(attribute, value));
+				}
 			}
 		}
 		for (FieldMapping sub : field.getSubFields()) {

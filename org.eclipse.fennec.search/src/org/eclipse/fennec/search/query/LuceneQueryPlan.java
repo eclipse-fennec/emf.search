@@ -17,6 +17,7 @@ import java.util.Objects;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
+import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.fennec.persistence.query.api.QueryPlan;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
 
@@ -33,6 +34,20 @@ import org.eclipse.fennec.persistence.query.api.QueryShape;
  */
 public final class LuceneQueryPlan implements QueryPlan {
 
+	/**
+	 * The honest group-by subset (S7, #11): one group key that is a declared facet
+	 * dimension, one COUNT — answered from the same SortedSet doc values the facet API
+	 * counts.
+	 *
+	 * @param dimension the facet dimension the key resolves to
+	 * @param key the group key attribute, for converting labels back to EMF values
+	 * @param keyAlias the key column's name in the rows (the feature name)
+	 * @param countAlias the count column's name (the aggregate's alias)
+	 */
+	public record Aggregation(String dimension, EAttribute key, String keyAlias,
+			String countAlias) {
+	}
+
 	private final org.eclipse.fennec.model.query.Query source;
 	private final QueryShape shape;
 	private final Query query;
@@ -41,9 +56,15 @@ public final class LuceneQueryPlan implements QueryPlan {
 	private final int limit;
 	private final List<String> rowFields;
 	private final List<String> rowAliases;
+	private final Aggregation aggregation;
 
 	LuceneQueryPlan(org.eclipse.fennec.model.query.Query source, QueryShape shape, Query query, Sort sort,
 			int skip, int limit, List<String> rowFields, List<String> rowAliases) {
+		this(source, shape, query, sort, skip, limit, rowFields, rowAliases, null);
+	}
+
+	LuceneQueryPlan(org.eclipse.fennec.model.query.Query source, QueryShape shape, Query query, Sort sort,
+			int skip, int limit, List<String> rowFields, List<String> rowAliases, Aggregation aggregation) {
 		this.source = Objects.requireNonNull(source, "source");
 		this.shape = Objects.requireNonNull(shape, "shape");
 		this.query = Objects.requireNonNull(query, "query");
@@ -52,6 +73,7 @@ public final class LuceneQueryPlan implements QueryPlan {
 		this.limit = limit;
 		this.rowFields = rowFields == null ? List.of() : List.copyOf(rowFields);
 		this.rowAliases = rowAliases == null ? List.of() : List.copyOf(rowAliases);
+		this.aggregation = aggregation;
 	}
 
 	@Override
@@ -96,6 +118,11 @@ public final class LuceneQueryPlan implements QueryPlan {
 	/** For {@link QueryShape#PROJECTION}: the column name of each row field, in order. */
 	public List<String> rowAliases() {
 		return rowAliases;
+	}
+
+	/** For {@link QueryShape#AGGREGATION}: the group-by subset; null otherwise. */
+	public Aggregation aggregation() {
+		return aggregation;
 	}
 
 	@Override
