@@ -34,6 +34,8 @@ import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectProvider;
+import org.eclipse.fennec.model.query.builder.Expressions;
+import org.eclipse.fennec.model.query.builder.QueryBuilder;
 import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistry;
 import org.eclipse.fennec.emf.osgi.eobject.registry.FileEObjectProvider;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
@@ -41,6 +43,8 @@ import org.eclipse.fennec.search.esearch.ESearchPackage;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.esearch.SuggestSource;
+import org.eclipse.fennec.search.highlight.HighlightRequest;
+import org.eclipse.fennec.search.highlight.HighlightSearch;
 import org.eclipse.fennec.search.osgi.SearchConstants;
 import org.eclipse.fennec.search.suggest.SuggestSearch;
 import org.eclipse.fennec.search.unit.IndexUnit;
@@ -162,6 +166,18 @@ class MappingDeliveryWiringTest {
 			assertThat(suggest.suggest("labels", "through", 5))
 					.extracting(SuggestSearch.Suggestion::text)
 					.containsExactly("through the registry");
+
+			// The highlight service of the same unit — one snippet proves the chain.
+			HighlightSearch highlights = await(context, HighlightSearch.class,
+					"(" + SearchConstants.UNIT_ALIAS + "=wired)");
+			assertThat(highlights).as("the highlight service is published per unit").isNotNull();
+			var hits = highlights.search(HighlightRequest
+					.over(QueryBuilder.from(item)
+							.where(Expressions.path(label).contains("registry"))
+							.build())
+					.field(label));
+			assertThat(hits).hasSize(1);
+			assertThat(hits.get(0).highlight("label").orElseThrow()).contains("<b>registry</b>");
 		} finally {
 			registryConfiguration.delete();
 			unitConfiguration.delete();

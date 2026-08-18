@@ -571,14 +571,17 @@ Same reasoning, different coupling: the `UnifiedHighlighter` needs the executed 
 the live searcher, so highlighting lives inside the search core rather than in a sibling
 bundle — but it gets its own small API instead of being pushed into the query IR.
 
-The open contract question is where highlights *go*. The result contract is "EObjects or
-rows out", and an EObject has no slot for per-hit passages. Three options, to be decided
-in S12: (a) a search-local result type that carries `EObject` + score + highlights,
-returned by a search-core-specific entry point; (b) highlights as projected columns in
-the row shape, which needs per-hit metadata in the IR result model — an
-`emf.persistence-jpa` issue; (c) a side-channel map keyed by object id. Option (a) is the
-default recommendation: it keeps the ground rule of §3 intact (no search-only vocabulary
-in the shared IR) and mirrors what suggest already does.
+The contract question — where highlights *go*, given a result contract of "EObjects or
+rows out" and an EObject with no slot for per-hit passages — was decided in S12 for
+**option (a)**: a search-local hit type (`HighlightedHit`: object, score, snippet per
+requested field) returned by `HighlightSearch`, the core's own entry point. It keeps the
+ground rule of §3 intact (no search-only vocabulary in the shared IR) and mirrors what
+suggest already does. The alternatives — (b) highlights as projected columns, which needs
+per-hit metadata in the IR result model, and (c) a side-channel map keyed by object id —
+stay available if the shared `Hit` envelope ever grows an extension point upstream. The
+snippet contract lives in the highlighting guide: analyzed stored text only (refusals by
+name otherwise), no match means no snippet, term vectors accelerate but are never
+required.
 
 ### 6.2 Similarity (`MoreLikeThis`)
 
@@ -692,7 +695,9 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
     points of §5.5 — the polygon differential against the reference engine, and the additive
     metamodel change for the packed binding (codegen round). S9 also confirms whether the
     `spatial` bundle is needed at all (§2).
-12. **S12 (#14) — highlighting**: `UnifiedHighlighter` + the result-carrier decision of §6.1.
+12. **S12 (#14) — highlighting**: ✅ `HighlightSearch`/`HighlightRequest` in the core (option
+    (a) of §6.1), per-unit DS service, refusals for non-text/unstored fields and non-object
+    shapes.
 13. **S13 (#15) — similarity**: `MoreLikeThis` API (§6.2), term-vector declaration in the
     mapping model.
 14. **S14 (#16) — rank signals**: `FeatureField` declaration and saturation/log queries (§5.3).
