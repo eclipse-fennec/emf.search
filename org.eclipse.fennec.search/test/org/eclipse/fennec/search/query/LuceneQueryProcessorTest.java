@@ -73,9 +73,9 @@ class LuceneQueryProcessorTest {
 				QueryFeature.TYPE_FILTER, QueryFeature.PROJECTION, QueryFeature.PARAMETERS,
 				// the block join (S11, #9): quantifiers over NESTED containment
 				QueryFeature.EXISTS, QueryFeature.FOR_ALL,
-				// relevance (S6, #10); SORT_EXPRESSION narrowed to the score key
-				// (emf.persistence-jpa#165)
-				QueryFeature.SCORE, QueryFeature.SORT_EXPRESSION,
+				// relevance (S6, #10); the bare score key classifies as SCORE alone
+				// since emf.persistence-jpa#165
+				QueryFeature.SCORE,
 				// the group-by subset over facet fields (S7, #11)
 				QueryFeature.GROUP_BY, QueryFeature.AGG_COUNT);
 	}
@@ -88,7 +88,7 @@ class LuceneQueryProcessorTest {
 				QueryFeature.FIELD_TO_FIELD, QueryFeature.ARITHMETIC, QueryFeature.STRING_FUNCTIONS,
 				QueryFeature.STRING_FUNCTIONS_EXTENDED, QueryFeature.NUMERIC_FUNCTIONS,
 				QueryFeature.TEMPORAL_FUNCTIONS, QueryFeature.EXPAND, QueryFeature.DISTINCT,
-				QueryFeature.PIPELINE, QueryFeature.PIPELINE_COMPUTE,
+				QueryFeature.PIPELINE, QueryFeature.PIPELINE_COMPUTE, QueryFeature.SORT_EXPRESSION,
 				// not yet: each of these has a task
 				QueryFeature.GEO_WITHIN, QueryFeature.GEO_DISTANCE);
 	}

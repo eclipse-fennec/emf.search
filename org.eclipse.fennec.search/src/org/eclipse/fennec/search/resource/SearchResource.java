@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -54,9 +55,11 @@ import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
 import org.eclipse.fennec.persistence.api.ConverterService;
 import org.eclipse.fennec.persistence.capabilities.StoreCapabilitiesBuilder;
+import org.eclipse.fennec.persistence.converter.DefaultConverterService;
 import org.eclipse.fennec.persistence.diagnostic.PersistenceDiagnostic;
 import org.eclipse.fennec.persistence.helper.CompositeIds;
 import org.eclipse.fennec.persistence.query.QueryException;
+import org.eclipse.fennec.persistence.query.api.Hit;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
 import org.eclipse.fennec.persistence.query.api.QueryResultRow;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
@@ -114,6 +117,9 @@ public class SearchResource extends ResourceImpl
 			CommandCapabilitiesBuilder.create().build(),
 			StoreCapabilitiesBuilder.create().build());
 
+	/** The stack's plain default — concrete and exported since emf.persistence-jpa#164. */
+	private static final ConverterService DEFAULT_CONVERTERS = new DefaultConverterService();
+
 	private final IndexUnit unit;
 	private final DocumentMapper mapper;
 	private final LuceneQueryProcessor processor;
@@ -131,11 +137,9 @@ public class SearchResource extends ResourceImpl
 	 *        the index itself does not persist queries (emf.persistence-jpa#163); null
 	 *        means named queries execute but are not persisted
 	 * @param converter converts parameter and literal values into the persistence
-	 *        representation; null means identity, exactly the {@code ExpressionValues}
-	 *        contract and what JpaQueries/MongoQueries pass today. The upstream plain
-	 *        default lives in an unexported package and its lookup contract is under
-	 *        discussion (emf.persistence-jpa#164), so the choice stays with the caller —
-	 *        plain Java constructs one, the OSGi layer (#32) injects the stack's service.
+	 *        representation; null means the stack's plain default (#164 made it concrete,
+	 *        exported and nullable-contracted) — the OSGi layer (#32) injects the shared
+	 *        service instead.
 	 */
 	public SearchResource(URI uri, IndexUnit unit, DocumentMapper mapper,
 			EObjectRegistryWriter queryCatalog, ConverterService converter) {
@@ -145,7 +149,7 @@ public class SearchResource extends ResourceImpl
 		this.processor = LuceneQueryProcessor.of(mapper.schema(),
 				unit.config().analyzers().defaultAnalyzer());
 		this.queryCatalog = queryCatalog;
-		this.converter = converter;
+		this.converter = converter == null ? DEFAULT_CONVERTERS : converter;
 		this.address = SearchUris.parse(uri);
 	}
 
@@ -499,6 +503,9 @@ public class SearchResource extends ResourceImpl
 			});
 			return QueryResults.rows(plan.shape(), rows.stream());
 		}
+		if (plan.withScores()) {
+			return scoredHits(plan, reader);
+		}
 		List<EObject> objects = unit.search(searcher -> {
 			List<EObject> collected = new ArrayList<>();
 			StoredFields stored = searcher.storedFields();
@@ -508,6 +515,37 @@ public class SearchResource extends ResourceImpl
 			return collected;
 		});
 		return QueryResults.objects(objects.stream());
+	}
+
+	/**
+	 * The scored form of the OBJECTS shape (emf.persistence-jpa#165): the same window, but
+	 * every hit keeps the score Lucene had before the object existed. Without an explicit
+	 * sort the natural order already is the rank order — the contract sentence on the
+	 * envelope flag — and with one, {@code doDocScores} fills the scores the sort would
+	 * otherwise skip.
+	 */
+	private QueryResult scoredHits(LuceneQueryPlan plan, DocumentReader reader) throws IOException {
+		List<Hit> hits = new ArrayList<>();
+		Map<String, Double> scores = new LinkedHashMap<>();
+		unit.search(searcher -> {
+			int limit = plan.limit() >= 0 ? plan.limit() : searcher.count(plan.query()) - plan.skip();
+			int wanted = plan.skip() + Math.max(0, limit);
+			if (wanted == 0) {
+				return null;
+			}
+			TopDocs top = plan.sort() != null
+					? searcher.search(plan.query(), wanted, plan.sort(), true)
+					: searcher.search(plan.query(), wanted);
+			StoredFields stored = searcher.storedFields();
+			for (int i = plan.skip(); i < top.scoreDocs.length; i++) {
+				Document root = stored.document(top.scoreDocs[i].doc);
+				EObject object = reader.read(root, childrenOf(searcher, stored, root));
+				hits.add(QueryResults.hit(object, top.scoreDocs[i].score));
+				scores.put(root.get(SearchFields.ID), (double) top.scoreDocs[i].score);
+			}
+			return null;
+		});
+		return QueryResults.hits(hits.stream(), Map.copyOf(scores));
 	}
 
 	/**

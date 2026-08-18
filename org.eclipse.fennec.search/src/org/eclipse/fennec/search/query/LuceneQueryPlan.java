@@ -57,6 +57,7 @@ public final class LuceneQueryPlan implements QueryPlan {
 	private final List<String> rowFields;
 	private final List<String> rowAliases;
 	private final Aggregation aggregation;
+	private final boolean withScores;
 
 	LuceneQueryPlan(org.eclipse.fennec.model.query.Query source, QueryShape shape, Query query, Sort sort,
 			int skip, int limit, List<String> rowFields, List<String> rowAliases) {
@@ -74,6 +75,12 @@ public final class LuceneQueryPlan implements QueryPlan {
 		this.rowFields = rowFields == null ? List.of() : List.copyOf(rowFields);
 		this.rowAliases = rowAliases == null ? List.of() : List.copyOf(rowAliases);
 		this.aggregation = aggregation;
+		this.withScores = source.isWithScores();
+	}
+
+	/** Whether the envelope asked for scored hits (emf.persistence-jpa#165). */
+	public boolean withScores() {
+		return withScores;
 	}
 
 	@Override
