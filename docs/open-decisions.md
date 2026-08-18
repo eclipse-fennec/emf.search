@@ -100,17 +100,23 @@ bottom, delete entries once settled; settled outcomes belong in `search-access.m
     `SERVER_CURSORS` — blocked on the upstream literal (emf.persistence-jpa#162); the
     materializing implementation stays until then, because behaviour must not change
     undeclared.
-20. ~~Persisted-query catalog as `_qname`/`_qxmi` documents~~ → **revised in review**: the
-    index does not persist queries. Named queries move to the emf.osgi EObject registry
-    (non-OSGi mode exists), and the general mechanism is requested upstream as
-    emf.persistence-jpa#163. The document convention is to be removed with the switch.
-21. **The query context carries a plain-constructed `DefaultConverterService`** (revised
-    2026-08-18 in review: the credo is that everything works and is testable without
-    OSGi). Doing so surfaced an upstream contract clash — `ExpressionValues` expects a
-    nullable converter lookup, the default service throws, and JPA/Mongo both dodge it by
-    passing null converters — filed as emf.persistence-jpa#164; a marked local bridge
-    maps the throw to null until it is decided. The OSGi layer (#32) later injects the
-    stack's shared service; a parameter-conversion test proves the plain path.
+20. ~~Persisted-query catalog as `_qname`/`_qxmi` documents~~ → **done (2026-08-18)**: the
+    index does not persist queries. Named queries live in an emf.osgi `EObjectRegistry`
+    attached to the factory (`EObjectRegistries.createRegistry` is the non-OSGi mode);
+    the catalog stores copies in both directions so no one mutates anyone's instance.
+    Without a catalog, a named query runs but says it was not persisted (warning), and
+    lookup by name refuses. The shared upstream mechanism stays requested as
+    emf.persistence-jpa#163.
+21. **The converter is an injectable collaborator of resource and factory; null means
+    identity** — the `ExpressionValues` contract, and what JpaQueries/MongoQueries pass
+    today. Wiring the upstream plain default surfaced two upstream findings, both on
+    emf.persistence-jpa#164: the lookup contract clash (`ExpressionValues` expects null,
+    `DefaultConverterService` throws — for types no converter claims, which is the
+    normal case), and the package `persistence.converter` being **unexported**, so the
+    documented plain construction path fails OSGi resolution (caught by our resolver,
+    invisible to plain JUnit). Until #164 lands, callers construct their own converter
+    (the credo test injects one and proves a String parameter converts on the way to a
+    point query); the OSGi layer (#32) injects the stack's shared service.
 22. **`storedField` projection gate updated to the §4.3 default**: only an explicit
     `stored=false` makes a field unprojectable — the pre-flip rule ("only ids are stored
     by convention") lived in the processor and had to move with the convention.

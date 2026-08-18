@@ -17,6 +17,8 @@ import java.util.Objects;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.impl.ResourceFactoryImpl;
+import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistryWriter;
+import org.eclipse.fennec.persistence.api.ConverterService;
 import org.eclipse.fennec.search.mapping.DocumentMapper;
 import org.eclipse.fennec.search.unit.IndexUnit;
 
@@ -33,10 +35,27 @@ public class SearchResourceFactory extends ResourceFactoryImpl {
 
 	private final IndexUnit unit;
 	private final DocumentMapper mapper;
+	private final EObjectRegistryWriter queryCatalog;
+	private final ConverterService converter;
 
 	public SearchResourceFactory(IndexUnit unit, DocumentMapper mapper) {
+		this(unit, mapper, null, null);
+	}
+
+	/**
+	 * A fully equipped factory. The catalog is where named queries live — an emf.osgi
+	 * EObject registry, because the index does not persist queries
+	 * (emf.persistence-jpa#163); null means named queries execute but are not persisted,
+	 * and lookup by name refuses. The converter turns parameter values into their
+	 * persistence representation; null means identity, like the JPA and Mongo backends
+	 * pass today (emf.persistence-jpa#164).
+	 */
+	public SearchResourceFactory(IndexUnit unit, DocumentMapper mapper,
+			EObjectRegistryWriter queryCatalog, ConverterService converter) {
 		this.unit = Objects.requireNonNull(unit, "unit");
 		this.mapper = Objects.requireNonNull(mapper, "mapper");
+		this.queryCatalog = queryCatalog;
+		this.converter = converter;
 	}
 
 	@Override
@@ -46,6 +65,6 @@ public class SearchResourceFactory extends ResourceFactoryImpl {
 			throw new IllegalArgumentException("URI '" + uri + "' names index unit '" + address.unit()
 					+ "', but this factory serves '" + unit.name() + "'");
 		}
-		return new SearchResource(uri, unit, mapper);
+		return new SearchResource(uri, unit, mapper, queryCatalog, converter);
 	}
 }

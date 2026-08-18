@@ -28,7 +28,12 @@ import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
+import org.eclipse.emf.ecore.EClassifier;
+import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistries;
+import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistryWriter;
 import org.eclipse.fennec.model.query.Query;
+import org.eclipse.fennec.persistence.api.ConverterService;
+import org.eclipse.fennec.persistence.api.TypeConverter;
 import org.eclipse.fennec.model.query.builder.QueryBuilder;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
@@ -62,6 +67,7 @@ class SearchResourceQueryTest {
 
 	private IndexUnit unit;
 	private SearchResource resource;
+	private EObjectRegistryWriter queries;
 
 	@BeforeAll
 	static void loadModel() {
@@ -74,8 +80,9 @@ class SearchResourceQueryTest {
 		unit = IndexUnit.open(IndexUnitConfig.inMemory("catalog")
 				.refresh(RefreshTrigger.manual())
 				.build());
+		queries = EObjectRegistries.createRegistry("queries");
 		resource = new SearchResource(URI.createURI("lucene://catalog/Product"), unit,
-				DocumentMapper.of(mapping()));
+				DocumentMapper.of(mapping()), queries, doubleFromStringConverter());
 		save(product("p-1", "Espresso Machine", 499.0, review("r-1", "ada", 5)));
 		save(product("p-2", "Grinder", 129.0, review("r-2", "bob", 2)));
 		save(product("p-3", "Kettle", 39.0));
@@ -159,13 +166,14 @@ class SearchResourceQueryTest {
 	// --- persisted queries ----------------------------------------------------------------------
 
 	@Test
-	void aNamedQueryIsPersistedAndRunsByName() throws Exception {
+	void aNamedQueryLandsInTheCatalogAndRunsByName() throws Exception {
 		Query query = QueryBuilder.from(product).named("expensive")
 				.where(path(price()).gt(100.0)).countOnly().build();
 		try (QueryResult first = resource.query(query)) {
 			assertThat(first.count()).isEqualTo(2);
 		}
 
+		assertThat(queries.getRegistry().get("expensive")).isPresent();
 		try (QueryResult byName = resource.query("expensive", null, null)) {
 			assertThat(byName.count()).isEqualTo(2);
 		}
@@ -179,18 +187,72 @@ class SearchResourceQueryTest {
 	}
 
 	@Test
+	void withoutACatalogANamedQueryRunsButSaysItWasNotPersisted() throws Exception {
+		SearchResource detached = new SearchResource(URI.createURI("lucene://catalog/Product"), unit,
+				DocumentMapper.of(mapping()));
+		Query query = QueryBuilder.from(product).named("expensive")
+				.where(path(price()).gt(100.0)).countOnly().build();
+
+		try (QueryResult result = detached.query(query)) {
+			assertThat(result.count()).isEqualTo(2);
+		}
+		assertThat(detached.getWarnings())
+				.anySatisfy(warning -> assertThat(warning.getMessage()).contains("not persisted"));
+		assertThatThrownBy(() -> detached.query("expensive", null, null))
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("catalog");
+	}
+
+	@Test
 	void aParameterizedQueryConvertsThroughThePlainConverter() throws Exception {
-		// The credo: everything works without OSGi. The context carries a plain-constructed
-		// DefaultConverterService, so an Integer parameter lands on a double field converted,
-		// not refused.
+		// The credo: everything works without OSGi. The converter is a plain-constructed
+		// collaborator of the resource, and it demonstrably runs: the parameter arrives as
+		// a String and only matches because the converter turned it into the double the
+		// point field needs.
 		Query query = QueryBuilder.from(product)
 				.where(path(price()).gt(param("floor")))
 				.countOnly()
 				.build();
 
-		try (QueryResult result = resource.query(query, Map.of("floor", 100), null)) {
+		try (QueryResult result = resource.query(query, Map.of("floor", "100"), null)) {
 			assertThat(result.count()).isEqualTo(2);
 		}
+	}
+
+	/** String → Double for EDouble features; identity for everything else. */
+	private static ConverterService doubleFromStringConverter() {
+		TypeConverter toDouble = new TypeConverter() {
+			@Override
+			public String getName() {
+				return "test-double";
+			}
+
+			@Override
+			public boolean isConverterForType(EClassifier eDataType) {
+				return eDataType.getInstanceClass() == double.class;
+			}
+
+			@Override
+			public Object convertEMFToValue(EClassifier eDataType, Object emfValue) {
+				return emfValue instanceof String text ? Double.valueOf(text) : emfValue;
+			}
+
+			@Override
+			public Object convertValueToEMF(EClassifier eDataType, Object value) {
+				return value;
+			}
+		};
+		return new ConverterService() {
+			@Override
+			public TypeConverter getConverter(EClassifier eDataType) {
+				return toDouble.isConverterForType(eDataType) ? toDouble : null;
+			}
+
+			@Override
+			public TypeConverter getConverter(String name) {
+				return toDouble.getName().equals(name) ? toDouble : null;
+			}
+		};
 	}
 
 	// --- refusals surface as errors on the resource ----------------------------------------------
