@@ -175,8 +175,9 @@ final class QueryTranslator {
 			return quantifier(quantifier, negated);
 		}
 		if (expression instanceof Score) {
-			throw new QueryException("Relevance score as query vocabulary is task S6 (issue #10) and not "
-					+ "declared yet.");
+			throw new QueryException("score() is a sort key, not a predicate: absolute score values carry "
+					+ "no reference semantics (emf.persistence-jpa#100), so comparing against them would "
+					+ "put numbers under contract that are not one. Order by score instead.");
 		}
 		if (expression instanceof GeoWithin || expression instanceof GeoDistance) {
 			throw new QueryException("Geo predicates are task S9 (issue #13) — the vocabulary exists "
@@ -219,6 +220,11 @@ final class QueryTranslator {
 	private Query comparison(Comparison comparison, boolean negated) throws QueryException {
 		Expression left = comparison.getLeft();
 		Expression right = comparison.getRight();
+		if (left instanceof Score || right instanceof Score) {
+			throw new QueryException("score() is a sort key, not a predicate: absolute score values carry "
+					+ "no reference semantics (emf.persistence-jpa#100), so comparing against them would "
+					+ "put numbers under contract that are not one. Order by score instead.");
+		}
 		if (left instanceof PropertyPath && right instanceof PropertyPath) {
 			throw new QueryException("Comparing two fields of the same document (FIELD_TO_FIELD) is not "
 					+ "something an inverted index can answer — a term dictionary knows values, not "

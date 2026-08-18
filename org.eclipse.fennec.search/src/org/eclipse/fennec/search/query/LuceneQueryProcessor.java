@@ -32,6 +32,7 @@ import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.fennec.model.expression.Expression;
 import org.eclipse.fennec.model.expression.PropertyPath;
 import org.eclipse.fennec.model.expression.Quantifier;
+import org.eclipse.fennec.model.expression.Score;
 import org.eclipse.fennec.model.query.OrderBy;
 import org.eclipse.fennec.model.query.Query;
 import org.eclipse.fennec.model.query.Selection;
@@ -97,7 +98,12 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 					QueryFeature.PARAMETERS, QueryFeature.FEATUREPATH_NESTED,
 					// The block join (S11, #9): supported over NESTED containment only; a
 					// quantifier over EMBED or ID_ONLY is still refused by name in translation.
-					QueryFeature.EXISTS, QueryFeature.FOR_ALL)
+					QueryFeature.EXISTS, QueryFeature.FOR_ALL,
+					// Relevance (S6, #10). SORT_EXPRESSION rides along only because the
+					// analyzer classifies a bare score() sort key as one (upstream
+					// emf.persistence-jpa#165); it is narrowed to exactly that key — any
+					// other sort expression refuses by name.
+					QueryFeature.SCORE, QueryFeature.SORT_EXPRESSION)
 			// Paths reach as far as the mapping flattened the document with EMBED; how far
 			// that is depends on the mapping, not on the engine, so the depth stays open and
 			// a path that leaves the document is refused by name during validation.
@@ -261,9 +267,16 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 
 	private SortField sortField(EClass root, OrderBy orderBy) throws QueryException {
 		if (orderBy.getPath() == null) {
-			throw new QueryException("Sorting by a computed expression (SORT_EXPRESSION) is not declared: a "
-					+ "doc-values sort reads a stored value, it does not evaluate. Index the value as its "
-					+ "own field and sort on that. Relevance order arrives with S6 (issue #10).");
+			if (orderBy.getKey() instanceof Score) {
+				// DESC is the natural relevance order — best first — which is Lucene's
+				// default for a score sort; ASC inverts it.
+				return new SortField(null, SortField.Type.SCORE,
+						orderBy.getDirection() == SortDirection.ASC);
+			}
+			throw new QueryException("The one sort expression this backend serves is score() — relevance "
+					+ "is computed during collection anyway. Anything else would have to be evaluated "
+					+ "per document, which a doc-values sort cannot do: index the value as its own "
+					+ "field and sort on that.");
 		}
 		IndexSchema.Field field = resolve(root, orderBy.getPath());
 		boolean reverse = orderBy.getDirection() == SortDirection.DESC;

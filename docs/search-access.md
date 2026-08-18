@@ -674,9 +674,11 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
 
 **Wave 1, parallelizable after S5 (S11 first where it touches the document shape):**
 
-8. **S6 (#10) — SCORE**: relevance sort + projected score (emf.persistence-jpa#100
-   vocabulary), ordinal conformance cases (higher score sorts first on constructed
-   corpora).
+8. **S6 (#10) — SCORE**: relevance sort landed (ordinal cases pinned: higher score sorts
+   first on a constructed corpus; DESC is best-first). The **projected score column has no
+   IR form yet** — `Selection` carries only paths — and a bare `score()` sort key is
+   classified `SORT_EXPRESSION` by the analyzer; both raised as emf.persistence-jpa#165.
+   Until decided, `SORT_EXPRESSION` is declared narrowed to exactly the score key.
 9. **S7 (#11) — facets**: decided 2026-08-18 — an **own facet API is the primary surface**
    (the §6 pattern: everything that does not fit the persistence contract gets its own
    API), with the GROUP_BY/AGG_COUNT pipeline subset of §5 kept only where it maps

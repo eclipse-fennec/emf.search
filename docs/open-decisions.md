@@ -121,6 +121,25 @@ bottom, delete entries once settled; settled outcomes belong in `search-access.m
     `stored=false` makes a field unprojectable — the pre-flip rule ("only ids are stored
     by convention") lived in the processor and had to move with the convention.
 
+## Autonomous calls in SCORE (S6/#10, 2026-08-18)
+
+23. **`SORT_EXPRESSION` is declared, narrowed to the bare score key.** *Question:* the
+    analyzer classifies any `OrderBy.key` expression — including bare `score()` — as
+    `SORT_EXPRESSION`; relevance order would otherwise be unreachable without claiming
+    arbitrary expression sorts. *Options:* not declare (score sort impossible until
+    upstream reclassifies), declare narrowed (the #114 doctrine: narrowed counts as
+    supported, the rest refuses by name), or wait. *Decision:* declare narrowed; the
+    reclassification question is emf.persistence-jpa#165 — when a bare score key flags
+    only `SCORE`, the `SORT_EXPRESSION` declaration here gets removed again. *Revisit
+    when #165 lands.*
+24. **Score is order, never a filter and not yet a column.** Comparisons against
+    `score()` refuse by name (absolute scores carry no reference semantics — the #100
+    model doc itself); the projected score column has no IR form (`Selection` is
+    path-only) and waits on #165 rather than being smuggled through a pipeline alias.
+25. **DESC = best-first.** Lucene's natural relevance order is highest score first, which
+    is what descending means for a score-valued key; ASC inverts. Pinned ordinally, never
+    against absolute values.
+
 ## Known gaps left deliberately (tracked)
 
 - The read side still ignores `FieldUse`/`subFields` — #39.
