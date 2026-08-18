@@ -24,6 +24,10 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -44,22 +48,37 @@ import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.impl.EPackageRegistryImpl;
 import org.eclipse.emf.ecore.resource.impl.ResourceImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.eclipse.fennec.model.query.Selection;
 import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
 import org.eclipse.fennec.persistence.capabilities.StoreCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.diagnostic.PersistenceDiagnostic;
+import org.eclipse.fennec.persistence.query.QueryException;
+import org.eclipse.fennec.persistence.query.api.QueryResult;
+import org.eclipse.fennec.persistence.query.api.QueryResultRow;
+import org.eclipse.fennec.persistence.query.api.QueryShape;
+import org.eclipse.fennec.persistence.query.api.QueryableResource;
+import org.eclipse.fennec.persistence.query.support.PersistedQueries;
+import org.eclipse.fennec.persistence.query.support.QueryContexts;
+import org.eclipse.fennec.persistence.query.support.QueryResultRows;
+import org.eclipse.fennec.persistence.query.support.QueryResults;
 import org.eclipse.fennec.persistence.resource.PersistenceResource;
 import org.eclipse.fennec.search.mapping.DocumentMapper;
 import org.eclipse.fennec.search.mapping.DocumentReader;
+import org.eclipse.fennec.search.mapping.IndexSchema;
 import org.eclipse.fennec.search.mapping.MappedDocument;
+import org.eclipse.fennec.search.mapping.MappingException;
 import org.eclipse.fennec.search.mapping.SearchFields;
+import org.eclipse.fennec.search.query.LuceneQueryPlan;
 import org.eclipse.fennec.search.query.LuceneQueryProcessor;
 import org.eclipse.fennec.search.unit.IndexUnit;
 
 /**
- * An index unit behind the {@link PersistenceResource} contract: save writes documents,
- * delete removes them, count and exist answer from the searcher, and load reconstructs
- * EObjects from the documents the URI addresses.
+ * An index unit behind the {@link PersistenceResource} and {@link QueryableResource}
+ * contracts: save writes documents, delete removes them, count and exist answer from the
+ * searcher, load reconstructs EObjects from the documents the URI addresses, and query
+ * runs a canonical query through the {@link LuceneQueryProcessor} — hits come back through
+ * the same three-tier materialization the load path uses.
  * <p>
  * Two contract limits are stated rather than papered over.
  * <p>
@@ -77,7 +96,7 @@ import org.eclipse.fennec.search.unit.IndexUnit;
  *
  * @author Data In Motion Consulting
  */
-public class SearchResource extends ResourceImpl implements PersistenceResource {
+public class SearchResource extends ResourceImpl implements PersistenceResource, QueryableResource {
 
 	/**
 	 * The query view is the backend's one declaration; command and store stay empty until
@@ -91,6 +110,7 @@ public class SearchResource extends ResourceImpl implements PersistenceResource 
 
 	private final IndexUnit unit;
 	private final DocumentMapper mapper;
+	private final LuceneQueryProcessor processor;
 	private final SearchUris address;
 	private final Map<ActionType, Map<Object, Object>> defaultOptions = new EnumMap<>(ActionType.class);
 
@@ -98,6 +118,8 @@ public class SearchResource extends ResourceImpl implements PersistenceResource 
 		super(uri);
 		this.unit = Objects.requireNonNull(unit, "unit");
 		this.mapper = Objects.requireNonNull(mapper, "mapper");
+		this.processor = LuceneQueryProcessor.of(mapper.schema(),
+				unit.config().analyzers().defaultAnalyzer());
 		this.address = SearchUris.parse(uri);
 	}
 
@@ -314,6 +336,162 @@ public class SearchResource extends ResourceImpl implements PersistenceResource 
 			builder.add(new TermQuery(new Term(SearchFields.ROOT, address.id())), Occur.FILTER);
 		}
 		return builder.build();
+	}
+
+	// --- querying -----------------------------------------------------------------------
+
+	@Override
+	public QueryResult query(org.eclipse.fennec.model.query.Query query) throws IOException {
+		return query(query, null, null);
+	}
+
+	@Override
+	public QueryResult query(String name, Map<String, Object> parameters, Map<?, ?> options)
+			throws IOException {
+		Objects.requireNonNull(name, "query name must not be null");
+		return query(loadNamedQuery(name), parameters, options);
+	}
+
+	@Override
+	public QueryResult query(org.eclipse.fennec.model.query.Query query, Map<String, Object> parameters,
+			Map<?, ?> options) throws IOException {
+		Objects.requireNonNull(query, "query must not be null");
+		try {
+			String catalogName = PersistedQueries.catalogName(query);
+			if (catalogName != null) {
+				saveNamedQuery(catalogName, query);
+			}
+			EClass root = query.getFrom() != null ? query.getFrom()
+					: address.type() != null ? mapper.schema().eClassOf(address.type()) : null;
+			if (root == null) {
+				throw new QueryException("The query names no root type and this resource's URI '" + getURI()
+						+ "' addresses no type either.");
+			}
+			LuceneQueryPlan plan = (LuceneQueryPlan) processor.translate(query,
+					QueryContexts.of(root, null, parameters, options));
+			return execute(plan, root);
+		} catch (QueryException | MappingException e) {
+			getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
+					"Query rejected: " + e.getMessage(), getURI(), e));
+			throw new IOException("Query rejected: " + e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * Runs a plan and materializes the window inside the searcher lease — the streams a
+	 * {@link QueryResult} hands out live longer than the searcher, so they are built over
+	 * collected results. A server-side cursor would be the {@code SERVER_CURSORS} store
+	 * feature, which this backend does not declare.
+	 */
+	private QueryResult execute(LuceneQueryPlan plan, EClass root) throws IOException, QueryException {
+		if (plan.shape() == QueryShape.COUNT) {
+			return QueryResults.count(unit.<Integer>search(searcher -> searcher.count(plan.query())));
+		}
+		DocumentReader reader = DocumentReader.of(mapper.schema(), mapper.serializers(), packages());
+		if (plan.shape() == QueryShape.PROJECTION) {
+			List<IndexSchema.Field> columns = new ArrayList<>();
+			for (Selection selection : plan.source().getSelect()) {
+				columns.add(resolveColumn(root, selection));
+			}
+			List<QueryResultRow> rows = unit.search(searcher -> {
+				List<QueryResultRow> collected = new ArrayList<>();
+				for (Document document : window(searcher, plan)) {
+					List<Object> values = new ArrayList<>(columns.size());
+					for (IndexSchema.Field column : columns) {
+						values.add(columnValue(document, column, reader));
+					}
+					collected.add(QueryResultRows.of(plan.rowAliases(), values));
+				}
+				return collected;
+			});
+			return QueryResults.rows(plan.shape(), rows.stream());
+		}
+		List<EObject> objects = unit.search(searcher -> {
+			List<EObject> collected = new ArrayList<>();
+			StoredFields stored = searcher.storedFields();
+			for (Document document : window(searcher, plan)) {
+				collected.add(reader.read(document, childrenOf(searcher, stored, document)));
+			}
+			return collected;
+		});
+		return QueryResults.objects(objects.stream());
+	}
+
+	/** The plan's paging window, in plan order — sorted when the plan says so. */
+	private List<Document> window(IndexSearcher searcher, LuceneQueryPlan plan) throws IOException {
+		int limit = plan.limit() >= 0 ? plan.limit() : searcher.count(plan.query()) - plan.skip();
+		int wanted = plan.skip() + Math.max(0, limit);
+		if (wanted == 0) {
+			return List.of();
+		}
+		TopDocs top = plan.sort() != null
+				? searcher.search(plan.query(), wanted, plan.sort())
+				: searcher.search(plan.query(), wanted);
+		StoredFields stored = searcher.storedFields();
+		List<Document> documents = new ArrayList<>();
+		for (int i = plan.skip(); i < top.scoreDocs.length; i++) {
+			documents.add(stored.document(top.scoreDocs[i].doc));
+		}
+		return documents;
+	}
+
+	private IndexSchema.Field resolveColumn(EClass root, Selection selection) throws QueryException {
+		try {
+			return mapper.schema().resolve(root, selection.getPath().getSegments());
+		} catch (MappingException e) {
+			throw new QueryException(e.getMessage(), e);
+		}
+	}
+
+	/** A column's EMF-typed value: null when absent, the value, or a list for many. */
+	private Object columnValue(Document document, IndexSchema.Field column, DocumentReader reader) {
+		IndexableField[] stored = document.getFields(column.name());
+		if (stored.length == 0) {
+			return null;
+		}
+		if (!column.attribute().isMany()) {
+			return reader.storedValue(stored[0], column.attribute());
+		}
+		List<Object> values = new ArrayList<>(stored.length);
+		for (IndexableField field : stored) {
+			values.add(reader.storedValue(field, column.attribute()));
+		}
+		return values;
+	}
+
+	// --- the persisted-query catalog ------------------------------------------------------
+
+	/**
+	 * The catalog analogue of Mongo's {@code fennec.queries} collection: one document per
+	 * name, invisible to every plan (no root marker). The refresh after a save is
+	 * deliberate: a persisted query promises read-your-writes by name, which the unit's
+	 * refresh policy otherwise does not.
+	 */
+	private void saveNamedQuery(String name, org.eclipse.fennec.model.query.Query query)
+			throws IOException, QueryException {
+		Document document = new Document();
+		document.add(new StringField(SearchFields.QUERY_NAME, name, Field.Store.YES));
+		document.add(new StoredField(SearchFields.QUERY_XMI, PersistedQueries.toXmi(query)));
+		unit.updateDocuments(new Term(SearchFields.QUERY_NAME, name), List.of(document));
+		unit.refresh();
+	}
+
+	private org.eclipse.fennec.model.query.Query loadNamedQuery(String name) throws IOException {
+		String xmi = unit.search(searcher -> {
+			TopDocs top = searcher.search(new TermQuery(new Term(SearchFields.QUERY_NAME, name)), 1);
+			if (top.scoreDocs.length == 0) {
+				return null;
+			}
+			return searcher.storedFields().document(top.scoreDocs[0].doc).get(SearchFields.QUERY_XMI);
+		});
+		if (xmi == null) {
+			throw new IOException("No persisted query named '" + name + "' in unit '" + unit.name() + "'");
+		}
+		try {
+			return PersistedQueries.fromXmi(name, xmi, packages());
+		} catch (QueryException e) {
+			throw new IOException("Persisted query '" + name + "' cannot be read back: " + e.getMessage(), e);
+		}
 	}
 
 	// --- lifecycle ----------------------------------------------------------------------

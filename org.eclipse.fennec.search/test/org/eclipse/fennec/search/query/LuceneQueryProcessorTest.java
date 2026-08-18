@@ -20,6 +20,7 @@ import static org.eclipse.fennec.model.query.builder.Expressions.path;
 import static org.eclipse.fennec.model.query.builder.Expressions.score;
 
 import org.eclipse.emf.common.util.Diagnostic;
+import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
@@ -163,9 +164,18 @@ class LuceneQueryProcessorTest {
 	}
 
 	@Test
-	void projectingAFieldTheMappingDoesNotStoreIsRefused() {
+	void projectingAFieldDeclaredUnstoredIsRefused() {
+		// Storage is the default since §4.3; only an explicit stored=false opts out — and
+		// then a projection honestly cannot give the value back.
+		IndexUnitMapping withOptOut = mapping();
+		var stock = ESEARCH.createNumericFieldMapping();
+		stock.setFeature((EAttribute) feature("Product", "stock"));
+		stock.setStored(false);
+		withOptOut.getDocuments().get(0).getFields().add(stock);
 		Query query = QueryBuilder.from(product).select(feature("Product", "stock")).build();
-		assertThatThrownBy(() -> translate(query))
+
+		assertThatThrownBy(() -> LuceneQueryProcessor.of(IndexSchema.of(withOptOut), null)
+				.translate(query, QueryContexts.of(product, null)))
 				.isInstanceOf(QueryException.class)
 				.hasMessageContaining("does not store")
 				.hasMessageContaining("stored=true");
@@ -330,7 +340,7 @@ class LuceneQueryProcessorTest {
 		var document = ESEARCH.createDocumentMapping();
 		document.setEClass(product);
 		KeywordFieldMapping id = ESEARCH.createKeywordFieldMapping();
-		id.setFeature((org.eclipse.emf.ecore.EAttribute) feature("Product", "id"));
+		id.setFeature((EAttribute) feature("Product", "id"));
 		id.setStored(true);
 		id.setDocValues(true);
 		document.getFields().add(id);
