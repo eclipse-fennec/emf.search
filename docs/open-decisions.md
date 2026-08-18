@@ -22,9 +22,6 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   lookup vs. throw; `persistence.converter` not exported). *Until then* the converter is
   an injectable collaborator, null = identity. *When it lands:* consider a constructed
   default again.
-- **Query-capability narrowing** — emf.persistence-jpa**#161** (does the query side need
-  `supports(feature, …)` like the command side?). *When it lands:* express the
-  EXISTS/FOR_ALL-over-NESTED and equality-on-keyword narrowings through it.
 - **Score delivery** — emf.persistence-jpa**#165** is decided end to end (2026-08-18):
   bare score key flags only `SCORE`; `Query.withScores` envelope flag; `QueryResult.hits()`
   as the primary per-hit carrier (`Hit` = the extensible envelope our highlighting and
@@ -33,6 +30,15 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   All on one upstream branch, **snapshot publish follows the push**. *When published:*
   (1) implement `withScores` in plan+execution, (2) remove the narrowed `SORT_EXPRESSION`
   declaration, (3) start the TCK binding — one publish unblocks all three.
+
+## Decided upstream, zero change here
+
+- **#161 (query-capability narrowing): refused with reasons** (2026-08-18) — query
+  capabilities stay backend-wide by definition; the mapping-dependent truth is
+  `validate()`'s job, a mapping-dependent refusal is a Diagnostic with the way out. That
+  is exactly what this backend already does; the #114-by-analogy stance is now the stated
+  upstream rule. *Revisit trigger (upstream's):* a real pre-validation router would make
+  the `EStructuralFeature` overload a purely additive extension.
 
 ## Taken, not yet reviewed
 
