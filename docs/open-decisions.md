@@ -91,6 +91,24 @@ bottom, delete entries once settled; settled outcomes belong in `search-access.m
 18. **Docs**: §5.2 of the blueprint already carries the design and reindex semantics; no
     separate user page until the query path itself is user-facing (QueryableResource).
 
+## Autonomous calls in the query execution half (#8, 2026-08-18)
+
+19. **Results are materialized inside the searcher lease** — a `QueryResult`'s streams
+    outlive the searcher, so the window is collected first. A lazily paging cursor would
+    be the `SERVER_CURSORS` store feature, which this backend deliberately does not
+    declare (upstream names it as an expected `StoreFeature` neighbour).
+20. **The persisted-query catalog is a document convention** (`_qname` term + `_qxmi`
+    stored XMI, replaced by name), the Lucene analogue of Mongo's `fennec.queries`
+    collection. Catalog documents carry no root marker, so every plan's root filter keeps
+    them invisible. `saveNamedQuery` refreshes the unit once — a persisted query promises
+    read-your-writes by name, which the unit's refresh policy alone would not.
+21. **No `ConverterService` is passed into the query context** (null) — nothing in this
+    repo provides one yet; parameters convert through `ExpressionValues`' defaults. Wire
+    it up when the OSGi layer (#32) has a service to inject.
+22. **`storedField` projection gate updated to the §4.3 default**: only an explicit
+    `stored=false` makes a field unprojectable — the pre-flip rule ("only ids are stored
+    by convention") lived in the processor and had to move with the convention.
+
 ## Known gaps left deliberately (tracked)
 
 - The read side still ignores `FieldUse`/`subFields` — #39.

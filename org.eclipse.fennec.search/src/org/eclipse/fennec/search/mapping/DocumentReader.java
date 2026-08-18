@@ -246,6 +246,16 @@ public final class DocumentReader {
 		}
 	}
 
+	/**
+	 * The EMF-typed value of one stored field occurrence — the projection path of the
+	 * query execution reads row values through this, so rows and reconstructed objects
+	 * cannot disagree about a value's type.
+	 */
+	public Object storedValue(IndexableField stored, EAttribute attribute) {
+		FieldMapping declared = schema.fieldMapping(attribute.getEContainingClass(), attribute);
+		return valueOf(stored, attribute, declared, stored.name());
+	}
+
 	/** Mirrors how {@link DocumentMapper} stored the value: by declaration, else by type. */
 	private Object valueOf(IndexableField field, EAttribute attribute, FieldMapping declared, String name) {
 		if (numericStored(attribute, declared)) {

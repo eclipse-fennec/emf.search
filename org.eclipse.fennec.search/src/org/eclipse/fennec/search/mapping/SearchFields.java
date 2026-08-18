@@ -61,6 +61,16 @@ public final class SearchFields {
 	 */
 	public static final String SOURCE = "_source";
 
+	/**
+	 * The name term of a persisted query's catalog document — the Lucene analogue of the
+	 * Mongo backend's {@code fennec.queries} collection. Catalog documents carry no
+	 * {@link #PARENT} marker, so every plan's root filter keeps them out of results.
+	 */
+	public static final String QUERY_NAME = "_qname";
+
+	/** The persisted query's XMI payload, on the same catalog document. */
+	public static final String QUERY_XMI = "_qxmi";
+
 	private SearchFields() {
 	}
 }

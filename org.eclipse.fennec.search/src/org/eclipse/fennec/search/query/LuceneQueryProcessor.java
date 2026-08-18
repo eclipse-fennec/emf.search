@@ -304,7 +304,9 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 		IndexSchema.Field field = resolve(root, selection.getPath());
 		FieldMapping declared = schema.fieldMapping(field.attribute().getEContainingClass(),
 				field.attribute());
-		boolean stored = declared != null ? declared.isStored() : field.attribute().isID();
+		// Storage is the default since §4.3 — by convention and as the declared default —
+		// so only an explicit stored=false opt-out makes a field unprojectable.
+		boolean stored = declared == null || declared.isStored();
 		if (!stored) {
 			throw new QueryException("Projection asks for '" + field.name() + "', which the mapping does not "
 					+ "store. An inverted index can find a document by a value without being able to give "
