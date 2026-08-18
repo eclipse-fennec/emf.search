@@ -40,6 +40,11 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   upstream rule. *Revisit trigger (upstream's):* a real pre-validation router would make
   the `EStructuralFeature` overload a purely additive extension.
 
+- **Fuzzy string matching** — requested upstream as emf.persistence-jpa**#167** (new
+  `StringMatchKind.FUZZY` with `maxEdits`/`prefixLength`, one new `QueryFeature`).
+  *When it lands:* translate to `FuzzyQuery` on keyword projections, refuse analyzed
+  sources like the anchored kinds, declare the feature.
+
 ## Taken, not yet reviewed
 
 1. **ID_ONLY over an abstract target class is an omission, not an error** — a proxy needs
