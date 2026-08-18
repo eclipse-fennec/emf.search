@@ -18,6 +18,7 @@ export const GUIDES = [
   { file: 'materialization.md', slug: 'materialization', title: 'Loading & materialization' },
   { file: 'facets.md', slug: 'facets', title: 'Facets' },
   { file: 'mapping-delivery.md', slug: 'mapping-delivery', title: 'Mapping delivery' },
+  { file: 'suggest.md', slug: 'suggest', title: 'Suggest' },
 ];
 
 export const EXAMPLES = [];

@@ -38,8 +38,11 @@ import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistry;
 import org.eclipse.fennec.emf.osgi.eobject.registry.FileEObjectProvider;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
 import org.eclipse.fennec.search.esearch.ESearchPackage;
+import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
+import org.eclipse.fennec.search.esearch.SuggestSource;
 import org.eclipse.fennec.search.osgi.SearchConstants;
+import org.eclipse.fennec.search.suggest.SuggestSearch;
 import org.eclipse.fennec.search.unit.IndexUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -89,6 +92,13 @@ class MappingDeliveryWiringTest {
 		IndexUnitMapping mapping = ESearchFactory.eINSTANCE.createIndexUnitMapping();
 		mapping.setName("wired");
 		mapping.setEPackage(tiny);
+		DocumentMapping itemMapping = ESearchFactory.eINSTANCE.createDocumentMapping();
+		itemMapping.setEClass(item);
+		SuggestSource labels = ESearchFactory.eINSTANCE.createSuggestSource();
+		labels.setName("labels");
+		labels.setFeature(label);
+		itemMapping.getSuggestions().add(labels);
+		mapping.getDocuments().add(itemMapping);
 
 		Path directory = Files.createTempDirectory("esearch-wiring");
 		Path file = directory.resolve("wired.esearch");
@@ -143,6 +153,15 @@ class MappingDeliveryWiringTest {
 			EObject back = in.getContents().get(0);
 			assertThat(back.eGet(back.eClass().getEStructuralFeature("label")))
 					.isEqualTo("through the registry");
+
+			// The suggest service of the same unit, published because the mapping declares
+			// a source — one lookup proves the whole chain.
+			SuggestSearch suggest = await(context, SuggestSearch.class,
+					"(" + SearchConstants.UNIT_ALIAS + "=wired)");
+			assertThat(suggest).as("the suggest service is published per unit").isNotNull();
+			assertThat(suggest.suggest("labels", "through", 5))
+					.extracting(SuggestSearch.Suggestion::text)
+					.containsExactly("through the registry");
 		} finally {
 			registryConfiguration.delete();
 			unitConfiguration.delete();

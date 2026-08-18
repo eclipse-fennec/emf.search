@@ -1,0 +1,23 @@
+Bundle-Name: Eclipse Fennec Search Suggest
+Bundle-Description: Suggest/completion over index units: suggestion sources declared in the \
+	esearch mapping model, analyzing and fuzzy suggesters built from the unit's own documents \
+	and refreshed with its lifecycle. An own API next to the persistence contract — suggest is \
+	not query vocabulary (docs/search-access.md paragraph 6).
+
+-workingset: search
+
+-buildpath: \
+	org.eclipse.fennec.search;version=snapshot,\
+	org.eclipse.fennec.search.model;version=snapshot,\
+	org.eclipse.emf.common;version=latest,\
+	org.eclipse.emf.ecore;version=latest,\
+	org.eclipse.fennec.persistence;version=latest,\
+	org.apache.lucene.core;version=latest,\
+	org.apache.lucene.facet;version=latest,\
+	org.apache.lucene.join;version=latest,\
+	org.apache.lucene.suggest;version=latest,\
+	org.osgi.annotation.bundle;version=latest,\
+	org.osgi.annotation.versioning;version=latest
+
+-testpath: \
+	assertj-core

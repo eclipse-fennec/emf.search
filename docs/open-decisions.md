@@ -64,6 +64,22 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
 9. **DESC = best-first for a score sort** — Lucene's natural relevance order is what
    descending means for a score-valued key; ASC inverts. Pinned ordinally only.
 
+## Autonomous calls in suggest (S8/#12, 2026-08-18)
+
+10. **Snapshot suggesters, caller-owned rebuild cadence.** *Question:* how fresh is a
+    suggester against NRT? *Options:* rebuild per write (the old stack's commit-per-entry
+    amplification), rebuild on unit refresh/commit hooks (needs #20's callback surface),
+    or explicit `rebuild()` with lazy first build. *Decision:* explicit + lazy — the FSTs
+    are snapshots by nature, and a swap is atomic so in-flight lookups never see a
+    half-built one. *Revisit when* #20 lands: a commit callback is the natural automatic
+    cadence.
+11. **COMPLETION and contexts refuse by name** — index-time suggest fields change the
+    document shape (mapper work, own follow-up), and the metamodel ties filter contexts
+    to exactly that kind. ANALYZING/FUZZY/FREE_TEXT build from documents as they are.
+12. **Weights come from data** (the declared attribute's doc values per document) — the
+    old stack hardcoded weight 4 into a parameter named numberResults; nothing of that
+    API is carried over.
+
 ## Tracked gaps (issues exist, nothing to decide)
 
 - The read side still ignores `FieldUse`/`subFields` — #39.
