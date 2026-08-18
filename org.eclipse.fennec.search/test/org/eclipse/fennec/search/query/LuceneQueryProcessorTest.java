@@ -72,7 +72,10 @@ class LuceneQueryProcessorTest {
 				QueryFeature.LIMIT, QueryFeature.SKIP, QueryFeature.COUNT, QueryFeature.TYPE_CHECK,
 				QueryFeature.TYPE_FILTER, QueryFeature.PROJECTION, QueryFeature.PARAMETERS,
 				// the block join (S11, #9): quantifiers over NESTED containment
-				QueryFeature.EXISTS, QueryFeature.FOR_ALL);
+				QueryFeature.EXISTS, QueryFeature.FOR_ALL,
+				// relevance (S6, #10); SORT_EXPRESSION narrowed to the score key
+				// (emf.persistence-jpa#165)
+				QueryFeature.SCORE, QueryFeature.SORT_EXPRESSION);
 	}
 
 	@Test
@@ -83,9 +86,9 @@ class LuceneQueryProcessorTest {
 				QueryFeature.FIELD_TO_FIELD, QueryFeature.ARITHMETIC, QueryFeature.STRING_FUNCTIONS,
 				QueryFeature.STRING_FUNCTIONS_EXTENDED, QueryFeature.NUMERIC_FUNCTIONS,
 				QueryFeature.TEMPORAL_FUNCTIONS, QueryFeature.EXPAND, QueryFeature.DISTINCT,
-				QueryFeature.PIPELINE, QueryFeature.PIPELINE_COMPUTE, QueryFeature.SORT_EXPRESSION,
+				QueryFeature.PIPELINE, QueryFeature.PIPELINE_COMPUTE,
 				// not yet: each of these has a task
-				QueryFeature.SCORE, QueryFeature.GROUP_BY,
+				QueryFeature.GROUP_BY,
 				QueryFeature.AGG_COUNT, QueryFeature.GEO_WITHIN, QueryFeature.GEO_DISTANCE);
 	}
 
@@ -217,11 +220,21 @@ class LuceneQueryProcessorTest {
 	}
 
 	@Test
-	void sortingByAComputedExpressionIsRefused() {
+	void aScoreSortKeyBecomesTheRelevanceSort() throws Exception {
+		// Since S6 (#10); the ordinal behaviour lives in ScoreSortTest.
 		Query query = QueryBuilder.from(product).orderByDesc(score().toExpression()).build();
+		assertThat(translate(query).sort().getSort()[0].getType())
+				.isEqualTo(org.apache.lucene.search.SortField.Type.SCORE);
+	}
+
+	@Test
+	void sortingByAnyOtherExpressionIsRefusedNamingScore() {
+		Query query = QueryBuilder.from(product)
+				.orderByDesc(path(feature("Product", "price")).plus(1).toExpression())
+				.build();
 		assertThatThrownBy(() -> translate(query))
 				.isInstanceOf(QueryException.class)
-				.hasMessageContaining("SORT_EXPRESSION");
+				.hasMessageContaining("score()");
 	}
 
 	// --- refusals ----------------------------------------------------------------------------
