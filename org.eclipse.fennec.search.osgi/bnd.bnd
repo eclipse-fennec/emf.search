@@ -8,7 +8,14 @@ Bundle-Description: The thin OSGi layer over the search core: a Configuration Ad
 
 -buildpath: \
 	org.eclipse.fennec.search;version=snapshot,\
+	org.eclipse.fennec.search.model;version=snapshot,\
+	org.eclipse.fennec.emf.osgi.api;version=latest,\
+	org.eclipse.fennec.emf.osgi.eobject.registry;version=latest,\
+	org.eclipse.fennec.emf.osgi.metadata;version=latest,\
+	org.eclipse.fennec.persistence;version=latest,\
 	org.apache.lucene.core;version=latest,\
+	org.eclipse.emf.common;version=latest,\
+	org.eclipse.emf.ecore;version=latest,\
 	org.osgi.framework;version=latest,\
 	org.osgi.service.component.annotations;version=latest,\
 	org.osgi.service.metatype.annotations;version=latest,\

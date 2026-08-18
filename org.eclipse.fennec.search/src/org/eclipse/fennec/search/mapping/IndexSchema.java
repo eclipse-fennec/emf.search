@@ -98,6 +98,17 @@ public final class IndexSchema {
 				throw new MappingException("A document mapping in unit '" + mapping.getName()
 						+ "' declares no EClass");
 			}
+			if (document.getEClass().getEPackage() != mapping.getEPackage()) {
+				// A resolution-time configuration error (#32), not a per-document surprise:
+				// a unit indexes one package universe, and a class from elsewhere means the
+				// mapping and the unit disagree about which model this index is for.
+				throw new MappingException("Unit '" + mapping.getName() + "' declares the package '"
+						+ mapping.getEPackage().getNsURI() + "' but maps "
+						+ document.getEClass().getName() + " from '"
+						+ (document.getEClass().getEPackage() == null ? "no package"
+								: document.getEClass().getEPackage().getNsURI())
+						+ "'.");
+			}
 			DocumentMapping previous = declared.put(document.getEClass(), document);
 			if (previous != null) {
 				throw new MappingException("Unit '" + mapping.getName() + "' maps "
