@@ -42,6 +42,7 @@ import org.apache.lucene.search.TopDocs;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
+import org.eclipse.emf.ecore.EClassifier;
 import org.eclipse.emf.ecore.EDataType;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EPackage;
@@ -51,7 +52,10 @@ import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.fennec.model.query.Selection;
 import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
+import org.eclipse.fennec.persistence.api.ConverterService;
+import org.eclipse.fennec.persistence.api.TypeConverter;
 import org.eclipse.fennec.persistence.capabilities.StoreCapabilitiesBuilder;
+import org.eclipse.fennec.persistence.converter.DefaultConverterService;
 import org.eclipse.fennec.persistence.diagnostic.PersistenceDiagnostic;
 import org.eclipse.fennec.persistence.query.QueryException;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
@@ -107,6 +111,27 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 			LuceneQueryProcessor.declaredCapabilities(),
 			CommandCapabilitiesBuilder.create().build(),
 			StoreCapabilitiesBuilder.create().build());
+
+	/**
+	 * Plain-Java default, following the credo that everything works without OSGi; the
+	 * OSGi layer (#32) injects the stack's shared service instead.
+	 * <p>
+	 * The override bridges a contract mismatch reported upstream: {@code ExpressionValues}
+	 * treats a null converter lookup as "pass the value through", but the default service
+	 * throws where no converter claims the type — which is the normal case for plain
+	 * EDouble/EInt comparisons. Until upstream reconciles the two, absence maps to null
+	 * here, so declared converters apply and everything else stays identity.
+	 */
+	private static final ConverterService CONVERTER = new DefaultConverterService() {
+		@Override
+		public TypeConverter getConverter(EClassifier eDataType) {
+			try {
+				return super.getConverter(eDataType);
+			} catch (IllegalStateException noConverterClaimsTheType) {
+				return null;
+			}
+		}
+	};
 
 	private final IndexUnit unit;
 	private final DocumentMapper mapper;
@@ -181,21 +206,31 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 			return;
 		}
 		DocumentReader reader = DocumentReader.of(mapper.schema(), mapper.serializers(), packages());
-		List<EObject> loaded = unit.search(searcher -> {
-			Query scope = scopeQuery();
-			int total = searcher.count(scope);
-			List<EObject> objects = new ArrayList<>(total);
-			if (total == 0) {
+		List<EObject> loaded;
+		try {
+			loaded = unit.search(searcher -> {
+				Query scope = scopeQuery();
+				int total = searcher.count(scope);
+				List<EObject> objects = new ArrayList<>(total);
+				if (total == 0) {
+					return objects;
+				}
+				TopDocs top = searcher.search(scope, total);
+				StoredFields stored = searcher.storedFields();
+				for (ScoreDoc hit : top.scoreDocs) {
+					Document root = stored.document(hit.doc);
+					objects.add(reader.read(root, childrenOf(searcher, stored, root)));
+				}
 				return objects;
-			}
-			TopDocs top = searcher.search(scope, total);
-			StoredFields stored = searcher.storedFields();
-			for (ScoreDoc hit : top.scoreDocs) {
-				Document root = stored.document(hit.doc);
-				objects.add(reader.read(root, childrenOf(searcher, stored, root)));
-			}
-			return objects;
-		});
+			});
+		} catch (MappingException e) {
+			// Index and mapping disagree — reconstruction refused (§4.3). The resource
+			// contract wants that as a diagnostic plus a checked failure, not a raw
+			// RuntimeException out of load.
+			getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
+					"Failed to load resource: " + e.getMessage(), getURI(), e));
+			throw new IOException("Cannot load '" + getURI() + "': " + e.getMessage(), e);
+		}
 		// Objects already attached — say, by a save on this same resource — are kept, and an
 		// incoming reconstruction of the same id is skipped, so identity survives for anyone
 		// already holding a reference. Mirrors the JPA and Mongo backends.
@@ -368,7 +403,7 @@ public class SearchResource extends ResourceImpl implements PersistenceResource,
 						+ "' addresses no type either.");
 			}
 			LuceneQueryPlan plan = (LuceneQueryPlan) processor.translate(query,
-					QueryContexts.of(root, null, parameters, options));
+					QueryContexts.of(root, CONVERTER, parameters, options));
 			return execute(plan, root);
 		} catch (QueryException | MappingException e) {
 			getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
