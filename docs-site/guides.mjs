@@ -17,6 +17,7 @@ export const GUIDES = [
   { file: 'index-units.md', slug: 'index-units', title: 'Index units' },
   { file: 'materialization.md', slug: 'materialization', title: 'Loading & materialization' },
   { file: 'facets.md', slug: 'facets', title: 'Facets' },
+  { file: 'geo.md', slug: 'geo', title: 'Geographic queries' },
   { file: 'mapping-delivery.md', slug: 'mapping-delivery', title: 'Mapping delivery' },
   { file: 'suggest.md', slug: 'suggest', title: 'Suggest' },
   { file: 'highlighting.md', slug: 'highlighting', title: 'Highlighting' },

@@ -15,9 +15,11 @@ package org.eclipse.fennec.search.mapping;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeSet;
 
 import org.apache.lucene.search.Query;
@@ -31,6 +33,7 @@ import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.FieldMapping;
+import org.eclipse.fennec.search.esearch.GeoPointFieldMapping;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
 import org.eclipse.fennec.search.esearch.Materialization;
@@ -85,6 +88,32 @@ public final class IndexSchema {
 		/** Whether a term-level query may read this field directly. */
 		public boolean isTermReadable() {
 			return kind == FieldKind.KEYWORD;
+		}
+	}
+
+	/**
+	 * One resolved geographic point field (S9, #13).
+	 * <p>
+	 * A geo field is not a {@link Field}: it carries a position rather than a value of one
+	 * attribute, and the query vocabulary reaches it through a {@code GeoSubject} binding
+	 * rather than through a feature path. The three authoring shapes of §5.5 all end here,
+	 * and after indexing they are indistinguishable — the same {@code LatLonPoint}.
+	 *
+	 * @param name the Lucene field name
+	 * @param latitude the latitude attribute of the split shape, else null
+	 * @param longitude the longitude attribute of the split shape, else null
+	 * @param pointReference the reference holding the packed point object, else null
+	 * @param coordinates the many-valued {@code [lon, lat]} attribute of a packed shape,
+	 *        on the referenced class when {@code pointReference} is set and on the mapped
+	 *        class itself when it is not; null for the split shape
+	 * @param docValues whether the field also has doc values, so a distance sort can read it
+	 */
+	public record GeoField(String name, EAttribute latitude, EAttribute longitude,
+			EReference pointReference, EAttribute coordinates, boolean docValues) {
+
+		/** Whether the position is authored as two separate attributes. */
+		public boolean isSplit() {
+			return latitude != null;
 		}
 	}
 
@@ -231,6 +260,109 @@ public final class IndexSchema {
 		return attribute.getName();
 	}
 
+	/**
+	 * The geographic point fields declared on a class (S9, #13), in declaration order.
+	 * <p>
+	 * Query-side matching of a {@code GeoSubject} against these is the translator's job —
+	 * the schema only answers what was declared, and refuses a declaration that names no
+	 * usable shape.
+	 */
+	public List<GeoField> geoFields(EClass owner) {
+		DocumentMapping documentMapping = documentMapping(owner);
+		if (documentMapping == null) {
+			return List.of();
+		}
+		List<GeoField> fields = new ArrayList<>();
+		for (FieldMapping field : documentMapping.getFields()) {
+			if (field instanceof GeoPointFieldMapping geo) {
+				fields.add(geoField(owner, geo));
+			}
+		}
+		return List.copyOf(fields);
+	}
+
+	/**
+	 * The attributes a geo declaration consumes as a packed position on the object itself.
+	 * <p>
+	 * Such an attribute is a position, not a value: indexing {@code [lon, lat]} a second
+	 * time as a pair of plain numbers would put two field types under one name — which
+	 * Lucene refuses outright — and would answer questions ("corner = 11.586") that mean
+	 * nothing. A split pair is the opposite case: {@code lat} and {@code lon} are ordinary
+	 * scalars that a query may compare on their own, so they stay ordinary fields.
+	 */
+	public Set<EAttribute> geoConsumedAttributes(EClass owner) {
+		DocumentMapping documentMapping = documentMapping(owner);
+		if (documentMapping == null) {
+			return Set.of();
+		}
+		Set<EAttribute> consumed = new HashSet<>();
+		for (FieldMapping field : documentMapping.getFields()) {
+			if (field instanceof GeoPointFieldMapping geo && geo.getPointReference() == null) {
+				if (geo.getCoordinates() != null) {
+					consumed.add(geo.getCoordinates());
+				} else if (geo.getFeature() != null && geo.getLatitude() == null) {
+					consumed.add(geo.getFeature());
+				}
+			}
+		}
+		return Set.copyOf(consumed);
+	}
+
+	/**
+	 * Resolves one geo declaration, refusing anything that is not exactly one of the three
+	 * shapes. The name defaults to what the query side will name: the reference for a packed
+	 * point, the attribute for a self-carried one. The split pair has no such natural name,
+	 * so it must be named explicitly.
+	 */
+	private GeoField geoField(EClass owner, GeoPointFieldMapping geo) {
+		boolean split = geo.getLatitude() != null || geo.getLongitude() != null;
+		boolean packed = geo.getPointReference() != null;
+		boolean selfPacked = !packed && geo.getCoordinates() != null;
+		boolean combined = geo.getFeature() != null;
+		int shapes = (split ? 1 : 0) + (packed ? 1 : 0) + (selfPacked ? 1 : 0) + (combined ? 1 : 0);
+		if (shapes != 1) {
+			throw new MappingException("The geo field on " + owner.getName() + " declares "
+					+ (shapes == 0 ? "no coordinate shape" : "more than one coordinate shape")
+					+ ". Use exactly one: latitude+longitude, pointReference+coordinates, or a single "
+					+ "many-valued [lon, lat] attribute.");
+		}
+		if (split) {
+			if (geo.getLatitude() == null || geo.getLongitude() == null) {
+				throw new MappingException("The split geo field on " + owner.getName() + " declares only "
+						+ (geo.getLatitude() == null ? "longitude" : "latitude")
+						+ ". A position needs both.");
+			}
+			String name = geo.getName();
+			if (name == null || name.isBlank()) {
+				throw new MappingException("The geo field over '" + geo.getLatitude().getName() + "'/'"
+						+ geo.getLongitude().getName() + "' on " + owner.getName() + " has no name. A split "
+						+ "pair has no natural field name, so name it explicitly.");
+			}
+			return new GeoField(name, geo.getLatitude(), geo.getLongitude(), null, null, geo.isDocValues());
+		}
+		if (packed) {
+			EAttribute coordinates = geo.getCoordinates();
+			if (coordinates == null) {
+				throw new MappingException("The packed geo field over '" + geo.getPointReference().getName()
+						+ "' on " + owner.getName() + " names no coordinates attribute.");
+			}
+			String name = geo.getName() == null || geo.getName().isBlank()
+					? geo.getPointReference().getName()
+					: geo.getName();
+			return new GeoField(name, null, null, geo.getPointReference(), coordinates, geo.isDocValues());
+		}
+		EAttribute coordinates = selfPacked ? geo.getCoordinates() : geo.getFeature();
+		if (!coordinates.isMany()) {
+			throw new MappingException("The geo field over '" + coordinates.getName() + "' on "
+					+ owner.getName() + " reads one attribute, so that attribute must be many-valued and "
+					+ "carry [lon, lat]. For two separate attributes declare latitude and longitude.");
+		}
+		String name = geo.getName() == null || geo.getName().isBlank()
+				? coordinates.getName()
+				: geo.getName();
+		return new GeoField(name, null, null, null, coordinates, geo.isDocValues());
+	}
+
 	/** The declared field mapping of an attribute, or null if it follows convention. */
 	public FieldMapping fieldMapping(EClass owner, EAttribute attribute) {
 		DocumentMapping documentMapping = documentMapping(owner);
@@ -296,6 +428,11 @@ public final class IndexSchema {
 	}
 
 	private Field fieldOf(EClass owner, EAttribute attribute, String prefix) {
+		if (geoConsumedAttributes(owner).contains(attribute)) {
+			throw new MappingException("Attribute '" + attribute.getName() + "' carries a geographic "
+					+ "position, which is indexed as a point rather than as a comparable value. Read it "
+					+ "with a geo predicate (geoWithin / geoDistance), not as a field.");
+		}
 		FieldMapping declaredField = fieldMapping(owner, attribute);
 		String name = prefix + fieldName(attribute, declaredField);
 		if (declaredField == null) {
@@ -322,6 +459,11 @@ public final class IndexSchema {
 					? numericKindOf(attribute)
 					: numeric.getKind();
 			return new Field(name, FieldKind.NUMERIC, kind, attribute, declaredField.isDocValues());
+		}
+		if (declaredField instanceof GeoPointFieldMapping) {
+			throw new MappingException("Attribute '" + attribute.getName() + "' carries a geographic "
+					+ "position, which is indexed as a point rather than as a comparable value. Read it "
+					+ "with a geo predicate (geoWithin / geoDistance), not as a field.");
 		}
 		throw new MappingException("Field mapping " + declaredField.eClass().getName() + " on '" + name
 				+ "' is not implemented, so no query can read it. See docs/search-access.md §7 for which "

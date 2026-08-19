@@ -782,6 +782,26 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 	 * @generated
 	 */
 	@Override
+	public EReference getGeoPointFieldMapping_PointReference() {
+		return (EReference)geoPointFieldMappingEClass.getEStructuralFeatures().get(2);
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EReference getGeoPointFieldMapping_Coordinates() {
+		return (EReference)geoPointFieldMappingEClass.getEStructuralFeatures().get(3);
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
 	public EClass getRangeFieldMapping() {
 		return rangeFieldMappingEClass;
 	}
@@ -1555,6 +1575,8 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		geoPointFieldMappingEClass = createEClass(GEO_POINT_FIELD_MAPPING);
 		createEReference(geoPointFieldMappingEClass, GEO_POINT_FIELD_MAPPING__LATITUDE);
 		createEReference(geoPointFieldMappingEClass, GEO_POINT_FIELD_MAPPING__LONGITUDE);
+		createEReference(geoPointFieldMappingEClass, GEO_POINT_FIELD_MAPPING__POINT_REFERENCE);
+		createEReference(geoPointFieldMappingEClass, GEO_POINT_FIELD_MAPPING__COORDINATES);
 
 		rangeFieldMappingEClass = createEClass(RANGE_FIELD_MAPPING);
 		createEReference(rangeFieldMappingEClass, RANGE_FIELD_MAPPING__LOWER_BOUND);
@@ -1729,6 +1751,8 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		initEClass(geoPointFieldMappingEClass, GeoPointFieldMapping.class, "GeoPointFieldMapping", !IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
 		initEReference(getGeoPointFieldMapping_Latitude(), ecorePackage.getEAttribute(), null, "latitude", null, 0, 1, GeoPointFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 		initEReference(getGeoPointFieldMapping_Longitude(), ecorePackage.getEAttribute(), null, "longitude", null, 0, 1, GeoPointFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+		initEReference(getGeoPointFieldMapping_PointReference(), ecorePackage.getEReference(), null, "pointReference", null, 0, 1, GeoPointFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+		initEReference(getGeoPointFieldMapping_Coordinates(), ecorePackage.getEAttribute(), null, "coordinates", null, 0, 1, GeoPointFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 
 		initEClass(rangeFieldMappingEClass, RangeFieldMapping.class, "RangeFieldMapping", !IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
 		initEReference(getRangeFieldMapping_LowerBound(), ecorePackage.getEAttribute(), null, "lowerBound", null, 1, 1, RangeFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);

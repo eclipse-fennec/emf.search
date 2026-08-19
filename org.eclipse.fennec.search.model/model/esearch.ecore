@@ -241,7 +241,7 @@
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="GeoPointFieldMapping" eSuperTypes="#//FieldMapping">
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-      <details key="documentation" value="A geographic point, indexed for distance, bounding-box and polygon queries and (with doc values) for distance sorting.&#xA;&#xA;Two authoring shapes, exactly one of which must be used: either latitude and longitude as separate attributes, or the inherited feature pointing at a single attribute whose value carries both. Declaring neither or both is refused."/>
+      <details key="documentation" value="A geographic point, indexed for distance, bounding-box and polygon queries and (with doc values) for distance sorting.&#xA;&#xA;Three authoring shapes, exactly one of which must be used: latitude and longitude as separate attributes; the inherited feature pointing at a single attribute whose value carries both; or the packed shape — pointReference naming the reference that holds a GeoJSON-style point object and coordinates naming that object&apos;s many-valued numeric attribute in [lon, lat] order. Declaring none or more than one is refused.&#xA;&#xA;The three shapes exist because the query IR names both bindings (emf.persistence-jpa#101, decision G1): a split feature pair is what most Ecore models carry, a packed point is what a GeoJSON producer and a Mongo 2dsphere index carry. Which one a model used stops mattering after indexing — all three write the same LatLonPoint field, so box, polygon and distance queries never see the difference."/>
     </eAnnotations>
     <eStructuralFeatures xsi:type="ecore:EReference" name="latitude" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
@@ -251,6 +251,16 @@
     <eStructuralFeatures xsi:type="ecore:EReference" name="longitude" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
         <details key="documentation" value="Longitude attribute, in degrees."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="pointReference" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EReference">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The reference holding the packed point object — the segment a query&apos;s packed subject path names (GeoSubject.pathPoint). Set together with coordinates, and only for the packed shape."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="coordinates" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The many-valued numeric attribute on the referenced point class, in GeoJSON order [lon, lat]. A value of any other arity is treated like a missing coordinate — UNKNOWN, not an error, per the 3VL discipline of the geo vocabulary (§5.5)."/>
       </eAnnotations>
     </eStructuralFeatures>
   </eClassifiers>

@@ -51,7 +51,7 @@ import org.osgi.annotation.versioning.ProviderType;
  * @generated
  */
 @ProviderType
-@EPackage(uri = ESearchPackage.eNS_URI, fingerprint = "fp1:f73cf186a0f790263fe4096f79ac6d0c038d9634f9571118b3e3df4bd6ffb5e1", genModel = "/model/esearch.genmodel", genModelSourceLocations = {"model/esearch.genmodel","org.eclipse.fennec.search.model/model/esearch.genmodel"}, ecore = "/model/esearch.ecore", ecoreSourceLocations = "/model/esearch.ecore")
+@EPackage(uri = ESearchPackage.eNS_URI, fingerprint = "fp1:b35480a3faab34d6712aa6842dd2fe44abe42156568265f864df5be35318b39b", genModel = "/model/esearch.genmodel", genModelSourceLocations = {"model/esearch.genmodel","org.eclipse.fennec.search.model/model/esearch.genmodel"}, ecore = "/model/esearch.ecore", ecoreSourceLocations = "/model/esearch.ecore")
 public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	/**
 	 * The package name.
@@ -931,13 +931,31 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	int GEO_POINT_FIELD_MAPPING__LONGITUDE = FIELD_MAPPING_FEATURE_COUNT + 1;
 
 	/**
+	 * The feature id for the '<em><b>Point Reference</b></em>' reference.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int GEO_POINT_FIELD_MAPPING__POINT_REFERENCE = FIELD_MAPPING_FEATURE_COUNT + 2;
+
+	/**
+	 * The feature id for the '<em><b>Coordinates</b></em>' reference.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int GEO_POINT_FIELD_MAPPING__COORDINATES = FIELD_MAPPING_FEATURE_COUNT + 3;
+
+	/**
 	 * The number of structural features of the '<em>Geo Point Field Mapping</em>' class.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
 	 * @generated
 	 * @ordered
 	 */
-	int GEO_POINT_FIELD_MAPPING_FEATURE_COUNT = FIELD_MAPPING_FEATURE_COUNT + 2;
+	int GEO_POINT_FIELD_MAPPING_FEATURE_COUNT = FIELD_MAPPING_FEATURE_COUNT + 4;
 
 	/**
 	 * The number of operations of the '<em>Geo Point Field Mapping</em>' class.
@@ -2546,6 +2564,28 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	EReference getGeoPointFieldMapping_Longitude();
 
 	/**
+	 * Returns the meta object for the reference '{@link org.eclipse.fennec.search.esearch.GeoPointFieldMapping#getPointReference <em>Point Reference</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for the reference '<em>Point Reference</em>'.
+	 * @see org.eclipse.fennec.search.esearch.GeoPointFieldMapping#getPointReference()
+	 * @see #getGeoPointFieldMapping()
+	 * @generated
+	 */
+	EReference getGeoPointFieldMapping_PointReference();
+
+	/**
+	 * Returns the meta object for the reference '{@link org.eclipse.fennec.search.esearch.GeoPointFieldMapping#getCoordinates <em>Coordinates</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for the reference '<em>Coordinates</em>'.
+	 * @see org.eclipse.fennec.search.esearch.GeoPointFieldMapping#getCoordinates()
+	 * @see #getGeoPointFieldMapping()
+	 * @generated
+	 */
+	EReference getGeoPointFieldMapping_Coordinates();
+
+	/**
 	 * Returns the meta object for class '{@link org.eclipse.fennec.search.esearch.RangeFieldMapping <em>Range Field Mapping</em>}'.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
@@ -3673,6 +3713,22 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 		 * @generated
 		 */
 		EReference GEO_POINT_FIELD_MAPPING__LONGITUDE = eINSTANCE.getGeoPointFieldMapping_Longitude();
+
+		/**
+		 * The meta object literal for the '<em><b>Point Reference</b></em>' reference feature.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @generated
+		 */
+		EReference GEO_POINT_FIELD_MAPPING__POINT_REFERENCE = eINSTANCE.getGeoPointFieldMapping_PointReference();
+
+		/**
+		 * The meta object literal for the '<em><b>Coordinates</b></em>' reference feature.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @generated
+		 */
+		EReference GEO_POINT_FIELD_MAPPING__COORDINATES = eINSTANCE.getGeoPointFieldMapping_Coordinates();
 
 		/**
 		 * The meta object literal for the '{@link org.eclipse.fennec.search.esearch.impl.RangeFieldMappingImpl <em>Range Field Mapping</em>}' class.

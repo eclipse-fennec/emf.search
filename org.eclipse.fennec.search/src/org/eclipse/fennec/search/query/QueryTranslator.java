@@ -29,6 +29,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -61,7 +63,11 @@ import org.eclipse.fennec.model.expression.Comparison;
 import org.eclipse.fennec.model.expression.ComparisonOperator;
 import org.eclipse.fennec.model.expression.Exists;
 import org.eclipse.fennec.model.expression.Expression;
+import org.eclipse.fennec.model.expression.GeoBox;
 import org.eclipse.fennec.model.expression.GeoDistance;
+import org.eclipse.fennec.model.expression.GeoPointLiteral;
+import org.eclipse.fennec.model.expression.GeoPolygon;
+import org.eclipse.fennec.model.expression.GeoShape;
 import org.eclipse.fennec.model.expression.GeoWithin;
 import org.eclipse.fennec.model.expression.In;
 import org.eclipse.fennec.model.expression.IsNull;
@@ -190,9 +196,13 @@ final class QueryTranslator {
 					+ "no reference semantics (emf.persistence-jpa#100), so comparing against them would "
 					+ "put numbers under contract that are not one. Order by score instead.");
 		}
-		if (expression instanceof GeoWithin || expression instanceof GeoDistance) {
-			throw new QueryException("Geo predicates are task S9 (issue #13) — the vocabulary exists "
-					+ "upstream, the Lucene translation does not yet.");
+		if (expression instanceof GeoWithin within) {
+			return geoWithin(within, negated);
+		}
+		if (expression instanceof GeoDistance) {
+			throw new QueryException("A distance is a value, not a predicate (emf.persistence-jpa#101, "
+					+ "decision G3): compare it against a threshold — geoDistance(...) <= 500 — or use it "
+					+ "as a sort key for nearest-first.");
 		}
 		if (expression instanceof Arithmetic || expression instanceof StringFunction
 				|| expression instanceof NumericFunction || expression instanceof TemporalFunction
@@ -235,6 +245,9 @@ final class QueryTranslator {
 			throw new QueryException("score() is a sort key, not a predicate: absolute score values carry "
 					+ "no reference semantics (emf.persistence-jpa#100), so comparing against them would "
 					+ "put numbers under contract that are not one. Order by score instead.");
+		}
+		if (left instanceof GeoDistance || right instanceof GeoDistance) {
+			return geoDistance(comparison, negated);
 		}
 		if (left instanceof PropertyPath && right instanceof PropertyPath) {
 			throw new QueryException("Comparing two fields of the same document (FIELD_TO_FIELD) is not "
@@ -589,6 +602,159 @@ final class QueryTranslator {
 		return tokens;
 	}
 
+	// --- geo ----------------------------------------------------------------------------
+
+	/**
+	 * Containment in a box or polygon (§5.5, S9/#13). Both come out of {@code lucene-core}
+	 * as point queries over the one {@code LatLonPoint} the mapper wrote, which is why the
+	 * authoring shape of the subject no longer matters here — and why the wrap-around box
+	 * needs no special case: {@code newBoxQuery} documents the crossed dateline as the
+	 * meaning of {@code minLongitude > maxLongitude}, exactly what G2 declares legal.
+	 */
+	private Query geoWithin(GeoWithin within, boolean negated) throws QueryException {
+		IndexSchema.GeoField field = GeoSubjects.resolve(schema, context.rootEClass(),
+				within.getSubject(), "geoWithin");
+		GeoShape shape = within.getShape();
+		Query positive;
+		if (shape instanceof GeoBox box) {
+			GeoPointLiteral southWest = corner(box.getSouthWest(), "southWest");
+			GeoPointLiteral northEast = corner(box.getNorthEast(), "northEast");
+			positive = box(field, southWest, northEast);
+		} else if (shape instanceof GeoPolygon polygon) {
+			positive = polygon(field, polygon);
+		} else {
+			throw new QueryException("No Lucene translation for the shape "
+					+ (shape == null ? "null" : shape.eClass().getName()));
+		}
+		return negated ? geoGuarded(field, positive) : positive;
+	}
+
+	private Query box(IndexSchema.GeoField field, GeoPointLiteral southWest, GeoPointLiteral northEast)
+			throws QueryException {
+		try {
+			return LatLonPoint.newBoxQuery(field.name(), southWest.getLat(), northEast.getLat(),
+					southWest.getLon(), northEast.getLon());
+		} catch (IllegalArgumentException e) {
+			throw new QueryException("The box for geo field '" + field.name() + "' is not a box Lucene can "
+					+ "match: " + e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * The IR's polygon is implicitly closed; Lucene's {@link Polygon} wants the ring spelled
+	 * out, so the first vertex is repeated. Holes are not part of the vocabulary.
+	 */
+	private Query polygon(IndexSchema.GeoField field, GeoPolygon polygon) throws QueryException {
+		List<GeoPointLiteral> points = polygon.getPoints();
+		if (points.size() < 3) {
+			throw new QueryException("A polygon needs at least three points; this one has " + points.size()
+					+ ".");
+		}
+		double[] latitudes = new double[points.size() + 1];
+		double[] longitudes = new double[points.size() + 1];
+		for (int i = 0; i < points.size(); i++) {
+			GeoPointLiteral point = corner(points.get(i), "point " + i);
+			latitudes[i] = point.getLat();
+			longitudes[i] = point.getLon();
+		}
+		latitudes[points.size()] = latitudes[0];
+		longitudes[points.size()] = longitudes[0];
+		try {
+			return LatLonPoint.newPolygonQuery(field.name(), new Polygon(latitudes, longitudes));
+		} catch (IllegalArgumentException e) {
+			throw new QueryException("The polygon for geo field '" + field.name() + "' is not one Lucene "
+					+ "can match: " + e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * A distance compared against a threshold (§5.5). Only the bounded side is a query:
+	 * {@code <=} is Lucene's own distance query, and {@code >} is its negation with the
+	 * existence guard every other negation here carries — a document without a position is
+	 * UNKNOWN, not "far away".
+	 * <p>
+	 * {@code <} is served as {@code <=}. The two differ only for a point sitting exactly on
+	 * the radius, and the vocabulary itself declares distances only to within the G5 band
+	 * (1e-3 relative above a metre) — below which Lucene's own encoding already rounds. What
+	 * is refused instead is {@code =} and {@code !=}: those are measure-zero on a continuum,
+	 * where no tolerance argument saves the answer.
+	 */
+	private Query geoDistance(Comparison comparison, boolean negated) throws QueryException {
+		Expression left = comparison.getLeft();
+		Expression right = comparison.getRight();
+		ComparisonOperator operator = comparison.getOperator();
+		GeoDistance distance;
+		Expression threshold;
+		if (left instanceof GeoDistance leftDistance) {
+			distance = leftDistance;
+			threshold = right;
+		} else {
+			// `500 >= geoDistance(...)` is `geoDistance(...) <= 500`.
+			distance = (GeoDistance) right;
+			threshold = left;
+			operator = mirror(operator);
+		}
+		if (threshold instanceof GeoDistance) {
+			throw new QueryException("Comparing two distances is not something the index can answer — "
+					+ "neither side is a stored value.");
+		}
+		if (negated) {
+			operator = invert(operator);
+		}
+		IndexSchema.GeoField field = GeoSubjects.resolve(schema, context.rootEClass(),
+				distance.getSubject(), "geoDistance");
+		GeoPointLiteral point = corner(distance.getPoint(), "point");
+		Object value = value(threshold, null);
+		if (!(value instanceof Number radius)) {
+			throw new QueryException("The distance threshold for geo field '" + field.name()
+					+ "' is not a number but " + (value == null ? "null" : value.getClass().getSimpleName())
+					+ ". Distances are compared in metres.");
+		}
+		Query within;
+		try {
+			within = LatLonPoint.newDistanceQuery(field.name(), point.getLat(), point.getLon(),
+					radius.doubleValue());
+		} catch (IllegalArgumentException e) {
+			throw new QueryException("The distance query for geo field '" + field.name()
+					+ "' is not one Lucene can match: " + e.getMessage(), e);
+		}
+		return switch (operator) {
+			case LE, LT -> within;
+			case GE, GT -> geoGuarded(field, within);
+			case EQ, NE -> throw new QueryException("A distance is a continuous measure, so '" + operator
+					+ "' against " + radius + " m asks which documents sit exactly on a circle — a "
+					+ "measure-zero comparison no backend can answer honestly (the same refusal the "
+					+ "mongo backend makes). Compare with <= or >= instead.");
+		};
+	}
+
+	/** Negation over a geo predicate: UNKNOWN for a document that has no position (§5.5 rule 2). */
+	private Query geoGuarded(IndexSchema.GeoField field, Query positive) {
+		return new BooleanQuery.Builder()
+				.add(geoExistsQuery(field), BooleanClause.Occur.MUST)
+				.add(positive, BooleanClause.Occur.MUST_NOT)
+				.build();
+	}
+
+	/**
+	 * Documents that have a position at all. With doc values that is the cheap probe; a
+	 * point-only geo field has nothing {@link FieldExistsQuery} can read, so the probe is
+	 * the whole earth — every position is inside it, and only a document with one matches.
+	 */
+	private Query geoExistsQuery(IndexSchema.GeoField field) {
+		if (field.docValues()) {
+			return new FieldExistsQuery(field.name());
+		}
+		return LatLonPoint.newBoxQuery(field.name(), -90, 90, -180, 180);
+	}
+
+	private static GeoPointLiteral corner(GeoPointLiteral point, String what) throws QueryException {
+		if (point == null) {
+			throw new QueryException("A geo shape is missing its " + what + ".");
+		}
+		return point;
+	}
+
 	// --- quantifiers ----------------------------------------------------------------------
 
 	/**
@@ -730,10 +896,30 @@ final class QueryTranslator {
 	 * read.
 	 */
 	private Query existsQuery(IndexSchema.Field field) {
-		if (field.kind() == FieldKind.NUMERIC || field.docValues()) {
+		if (field.docValues()) {
 			return new FieldExistsQuery(field.name());
 		}
+		if (field.kind() == FieldKind.NUMERIC) {
+			// A point field without doc values indexes no structure FieldExistsQuery can
+			// read — it wants doc values, norms or vectors, and a BKD tree is none of them.
+			// An unbounded range over the same points matches exactly the documents that
+			// have one.
+			return allPointsQuery(field);
+		}
 		return new TermRangeQuery(field.name(), null, null, true, true);
+	}
+
+	/** Every document carrying a value for a point field: the unbounded range over it. */
+	private Query allPointsQuery(IndexSchema.Field field) {
+		return switch (field.numericKind()) {
+			case INT -> IntPoint.newRangeQuery(field.name(), Integer.MIN_VALUE, Integer.MAX_VALUE);
+			case LONG, DATE -> LongPoint.newRangeQuery(field.name(), Long.MIN_VALUE, Long.MAX_VALUE);
+			case FLOAT -> FloatPoint.newRangeQuery(field.name(), Float.NEGATIVE_INFINITY,
+					Float.POSITIVE_INFINITY);
+			case DOUBLE -> DoublePoint.newRangeQuery(field.name(), Double.NEGATIVE_INFINITY,
+					Double.POSITIVE_INFINITY);
+			default -> new FieldExistsQuery(field.name());
+		};
 	}
 
 	/** Documents that have no value for the field — what {@code IsNull} asks for. */

@@ -77,7 +77,10 @@ class LuceneQueryProcessorTest {
 				// since emf.persistence-jpa#165
 				QueryFeature.SCORE,
 				// the group-by subset over facet fields (S7, #11)
-				QueryFeature.GROUP_BY, QueryFeature.AGG_COUNT);
+				QueryFeature.GROUP_BY, QueryFeature.AGG_COUNT,
+				// geo (S9, #13): box, polygon, distance and the nearest-first sort, over
+				// both coordinate bindings — the mapper resolves them into one point field
+				QueryFeature.GEO_WITHIN, QueryFeature.GEO_DISTANCE);
 	}
 
 	@Test
@@ -88,9 +91,7 @@ class LuceneQueryProcessorTest {
 				QueryFeature.FIELD_TO_FIELD, QueryFeature.ARITHMETIC, QueryFeature.STRING_FUNCTIONS,
 				QueryFeature.STRING_FUNCTIONS_EXTENDED, QueryFeature.NUMERIC_FUNCTIONS,
 				QueryFeature.TEMPORAL_FUNCTIONS, QueryFeature.EXPAND, QueryFeature.DISTINCT,
-				QueryFeature.PIPELINE, QueryFeature.PIPELINE_COMPUTE, QueryFeature.SORT_EXPRESSION,
-				// not yet: each of these has a task
-				QueryFeature.GEO_WITHIN, QueryFeature.GEO_DISTANCE);
+				QueryFeature.PIPELINE, QueryFeature.PIPELINE_COMPUTE, QueryFeature.SORT_EXPRESSION);
 	}
 
 	@Test

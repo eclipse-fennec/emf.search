@@ -39,6 +39,7 @@ import org.eclipse.fennec.persistence.query.support.QueryContexts;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
+import org.eclipse.fennec.search.esearch.NumericFieldMapping;
 import org.eclipse.fennec.search.mapping.DocumentMapper;
 import org.eclipse.fennec.search.mapping.IndexSchema;
 import org.eclipse.fennec.search.mapping.MappedDocument;
@@ -225,6 +226,46 @@ class ThreeValuedNegationTest {
 	void betweenAndItsNegationBothSkipTheValuelessDocument() throws Exception {
 		assertThat(ids(path(stock()).between(1, 5))).containsExactly("low");
 		assertThat(ids(not(path(stock()).between(1, 5)))).containsExactly("high");
+	}
+
+	// --- the existence probe itself ---------------------------------------------------------
+
+	@Test
+	void aNegationOverAPointFieldWithoutDocValuesStillAnswers() throws Exception {
+		// The guard has to probe "has a value" on a field whose only structure is a BKD
+		// tree: FieldExistsQuery reads doc values, norms or vectors and would throw on it,
+		// so the probe is an unbounded range over the same points. Convention numerics
+		// always carry doc values, which is why only a declared field reaches this path.
+		IndexUnitMapping declared = mapping();
+		NumericFieldMapping stock = ESEARCH.createNumericFieldMapping();
+		stock.setFeature(stock());
+		stock.setDocValues(false);
+		declared.getDocuments().get(0).getFields().add(stock);
+		IndexSchema pointOnly = IndexSchema.of(declared);
+
+		try (IndexUnit own = IndexUnit.open(IndexUnitConfig.inMemory("catalog")
+				.refresh(RefreshTrigger.manual()).build())) {
+			DocumentMapper mapper = DocumentMapper.of(pointOnly);
+			for (EObject object : List.of(product("high", 10, "REFURBISHED", "sale"),
+					product("low", 2, "USED", "clearance"), product("no-stock", null, null, null))) {
+				own.addDocument(mapper.map(object).root());
+			}
+			own.refresh();
+
+			Query query = QueryBuilder.from(product).where(not(path(stock()).gt(5))).build();
+			LuceneQueryPlan plan = (LuceneQueryPlan) LuceneQueryProcessor.of(pointOnly, null)
+					.translate(query, QueryContexts.of(product, null));
+			List<String> ids = own.search(searcher -> {
+				TopDocs top = searcher.search(plan.query(), 100);
+				List<String> found = new ArrayList<>();
+				for (ScoreDoc hit : top.scoreDocs) {
+					found.add(searcher.storedFields().document(hit.doc).get(SearchFields.ID));
+				}
+				return found;
+			});
+
+			assertThat(ids).containsExactly("low");
+		}
 	}
 
 	// --- helpers -------------------------------------------------------------------------------

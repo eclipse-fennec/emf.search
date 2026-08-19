@@ -26,6 +26,42 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   upstream rule. *Revisit trigger (upstream's):* a real pre-validation router would make
   the `EStructuralFeature` overload a purely additive extension.
 
+## Autonomous calls in geo (S9/#13, 2026-08-19)
+
+Both §5.5 open points are settled in `search-access.md`; these are the calls the blueprint
+did not prescribe. All are pinned by `GeoSearchTest` and by the five TCK geo cases, which
+run now that `GEO_WITHIN`/`GEO_DISTANCE` are declared.
+
+1. **`<` on a distance is served as `<=`**, while `=`/`!=` stay refused. The strict and
+   non-strict forms differ only for a point exactly on the radius — below the G5 band the
+   vocabulary itself declares, and below Lucene's own encoding resolution. Refusing `<`
+   while serving `<=` would be pedantry; refusing `=` is not, because measure-zero has no
+   tolerance argument to stand on. *Revisit if* someone shows a case where the boundary is
+   observable.
+2. **Farthest-first is refused, not emulated.** `newDistanceSort` has no reversed form, and
+   the alternative — sorting a computed column — is the per-document arithmetic this
+   backend refuses everywhere else. The refusal names the way out (`geoDistance(...) >= r`).
+3. **An impossible position fails the write; a missing one does not.** Out-of-range degrees
+   are bad data and are refused loudly (Lucene draws the same line); a packed point whose
+   `coordinates` does not hold exactly two numbers is UNKNOWN, which is what §5.5 rule 2
+   says about a missing coordinate.
+4. **A coordinates attribute is not also indexed as a value.** Discovered the hard way: two
+   field types under one name is a write-time failure in Lucene. The split pair keeps its
+   ordinary numeric fields — those are meaningful scalars on their own.
+5. **Rider fix, not geo-specific**: the existence probe behind every negation used
+   `FieldExistsQuery` for numeric fields, which reads doc values, norms or vectors — never
+   a BKD tree. A *declared* numeric field with `docValues="false"` therefore made any
+   negated comparison throw at search time (convention numerics always carry doc values,
+   which is why nothing had hit it). The probe is now an unbounded point range for those,
+   and the world box for a geo field without doc values. Pinned by a case in
+   `ThreeValuedNegationTest`.
+6. **EMaps in the TCK binding** (upstream #185, ungated core cases that arrived with the
+   2026-08-19 TCK snapshot): an EMap is a containment reference to entry objects, so it maps
+   as a NESTED block like any other, and the block reconstruction rebuilds it. The only
+   backend-specific part is naming: two entry classes keying on a string and on an int would
+   otherwise collide on the field names `key`/`value`, so the binding names them per entry
+   class. No product-code change was needed.
+
 ## Autonomous calls in fuzzy matching (emf.persistence-jpa#167, 2026-08-19)
 
 The upstream request landed: `StringMatchKind.FUZZY` with `maxEdits`/`prefixLength` and

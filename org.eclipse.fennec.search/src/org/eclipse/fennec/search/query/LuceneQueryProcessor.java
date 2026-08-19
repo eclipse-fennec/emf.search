@@ -21,6 +21,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
@@ -37,6 +38,7 @@ import org.eclipse.fennec.model.expression.Score;
 import org.eclipse.fennec.model.query.Aggregate;
 import org.eclipse.fennec.model.query.AggregateMethod;
 import org.eclipse.fennec.model.query.GroupByStage;
+import org.eclipse.fennec.model.expression.GeoDistance;
 import org.eclipse.fennec.model.query.OrderBy;
 import org.eclipse.fennec.model.query.Query;
 import org.eclipse.fennec.model.query.Selection;
@@ -113,6 +115,10 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 					// withScores envelope flag. Since emf.persistence-jpa#165 a bare score
 					// key classifies as SCORE alone, so nothing else rides along.
 					QueryFeature.SCORE,
+					// Geo (S9, #13): box, polygon and distance over LatLonPoint, distance sort
+					// over LatLonDocValuesField. Declared for both coordinate bindings — the
+					// mapper resolves split and packed into the same field (§5.5).
+					QueryFeature.GEO_WITHIN, QueryFeature.GEO_DISTANCE,
 					// The honest group-by subset (S7, #11): one group key that is a declared
 					// facet dimension, one COUNT — anything beyond refuses by name. A
 					// single GroupByStage flags no PIPELINE, so this does not overstate.
@@ -354,6 +360,9 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 				return new SortField(null, SortField.Type.SCORE,
 						orderBy.getDirection() == SortDirection.ASC);
 			}
+			if (orderBy.getKey() instanceof GeoDistance distance) {
+				return distanceSort(root, orderBy, distance);
+			}
 			throw new QueryException("The one sort expression this backend serves is score() — relevance "
 					+ "is computed during collection anyway. Anything else would have to be evaluated "
 					+ "per document, which a doc-values sort cannot do: index the value as its own "
@@ -377,6 +386,36 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 			case NUMERIC -> numericSort(field, reverse);
 			case TEXT -> throw new QueryException("unreachable: analyzed text is refused above");
 		};
+	}
+
+	/**
+	 * Nearest-first ordering over a declared position (§5.5, S9/#13) — the sort that makes
+	 * the k-NN pattern *sort + limit* exact rather than approximate, because
+	 * {@code newDistanceSort} reads the real doc-values position of every candidate.
+	 * <p>
+	 * Only nearest-first: Lucene's distance sort has no reversed form, and faking one by
+	 * sorting a computed column would need the very per-document arithmetic this backend
+	 * refuses. Documents without a position sort last, which is what UNKNOWN means for an
+	 * ordering.
+	 */
+	private SortField distanceSort(EClass root, OrderBy orderBy, GeoDistance distance)
+			throws QueryException {
+		IndexSchema.GeoField field = GeoSubjects.resolve(schema, root, distance.getSubject(),
+				"a distance sort");
+		if (!field.docValues()) {
+			throw new QueryException("Geo field '" + field.name() + "' has no doc values, so a distance "
+					+ "sort cannot read the positions it has to compare. Declare docValues=true for it.");
+		}
+		if (orderBy.getDirection() == SortDirection.DESC) {
+			throw new QueryException("A distance sort orders nearest first; farthest first is not a form "
+					+ "Lucene's distance sort has. Bound the far side with a predicate instead "
+					+ "(geoDistance(...) >= r), or sort on an indexed value.");
+		}
+		if (distance.getPoint() == null) {
+			throw new QueryException("A distance sort needs the point to measure from.");
+		}
+		return LatLonDocValuesField.newDistanceSort(field.name(), distance.getPoint().getLat(),
+				distance.getPoint().getLon());
 	}
 
 	private SortField numericSort(IndexSchema.Field field, boolean reverse) throws QueryException {
