@@ -15,6 +15,7 @@ package org.eclipse.fennec.search.tck;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.util.List;
 
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
@@ -36,6 +37,7 @@ import org.eclipse.fennec.persistence.tck.AbstractPersistenceTCK;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
+import org.eclipse.fennec.search.esearch.GeoPointFieldMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
 import org.eclipse.fennec.search.esearch.ReferenceStrategy;
@@ -128,6 +130,12 @@ public class LucenePersistenceTckTest extends AbstractPersistenceTCK {
 		name.setDocValues(true);
 		personMapping.getFields().add(name);
 		nested(personMapping, person, "addresses");
+		// EMaps (upstream #185) are containment references to entry objects, so they are
+		// blocks like any other containment. Their key/value fields need names of their
+		// own: one index holds one field type per name, and the two entry classes key on
+		// a string and on an int.
+		nested(personMapping, person, "attributes");
+		nested(personMapping, person, "counts");
 		idOnly(personMapping, person, "bestFriend");
 		idOnly(personMapping, person, "friends");
 		idOnly(personMapping, person, "employer");
@@ -143,6 +151,28 @@ public class LucenePersistenceTckTest extends AbstractPersistenceTCK {
 		companyMapping.getFields().add(companyName);
 		idOnly(companyMapping, company, "employees");
 
+		// Geo (S9, #13): the differential corpus queries Place through both coordinate
+		// bindings, so both are declared — split over lat/lon and packed over the GeoJSON
+		// point behind `location`. They resolve into two fields, which after indexing are
+		// the same kind of thing; doc values so a distance sort can read them.
+		EClass place = (EClass) tckPackage.getEClassifier("Place");
+		DocumentMapping placeMapping = document(mapping, place);
+		GeoPointFieldMapping pair = ESearchFactory.eINSTANCE.createGeoPointFieldMapping();
+		pair.setName("position");
+		pair.setLatitude((EAttribute) place.getEStructuralFeature("lat"));
+		pair.setLongitude((EAttribute) place.getEStructuralFeature("lon"));
+		pair.setDocValues(true);
+		placeMapping.getFields().add(pair);
+		EClass geoPoint = (EClass) tckPackage.getEClassifier("GeoPoint");
+		GeoPointFieldMapping packed = ESearchFactory.eINSTANCE.createGeoPointFieldMapping();
+		packed.setPointReference((EReference) place.getEStructuralFeature("location"));
+		packed.setCoordinates((EAttribute) geoPoint.getEStructuralFeature("coordinates"));
+		packed.setDocValues(true);
+		placeMapping.getFields().add(packed);
+
+		entry(mapping, (EClass) tckPackage.getEClassifier("StringToStringMapEntry"), "stringMap");
+		entry(mapping, (EClass) tckPackage.getEClassifier("IntToStringMapEntry"), "intMap");
+
 		EClass address = (EClass) tckPackage.getEClassifier("Address");
 		DocumentMapping addressMapping = document(mapping, address);
 		// The quantifier cases anchor on street (startsWith), which needs terms with
@@ -153,6 +183,17 @@ public class LucenePersistenceTckTest extends AbstractPersistenceTCK {
 		addressMapping.getFields().add(street);
 
 		return mapping;
+	}
+
+	/** One map-entry class, with key and value under names nobody else writes. */
+	private void entry(IndexUnitMapping mapping, EClass entryClass, String prefix) {
+		DocumentMapping document = document(mapping, entryClass);
+		for (String feature : List.of("key", "value")) {
+			KeywordFieldMapping field = ESearchFactory.eINSTANCE.createKeywordFieldMapping();
+			field.setFeature((EAttribute) entryClass.getEStructuralFeature(feature));
+			field.setName(prefix + "." + feature);
+			document.getFields().add(field);
+		}
 	}
 
 	private DocumentMapping document(IndexUnitMapping mapping, EClass eClass) {

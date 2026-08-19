@@ -124,6 +124,8 @@
     <genClasses ecoreClass="esearch.ecore#//GeoPointFieldMapping">
       <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//GeoPointFieldMapping/latitude"/>
       <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//GeoPointFieldMapping/longitude"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//GeoPointFieldMapping/pointReference"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//GeoPointFieldMapping/coordinates"/>
     </genClasses>
     <genClasses ecoreClass="esearch.ecore#//RangeFieldMapping">
       <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//RangeFieldMapping/lowerBound"/>

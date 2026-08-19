@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
@@ -26,6 +27,8 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -47,6 +50,7 @@ import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.fennec.persistence.helper.CompositeIds;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.FieldMapping;
+import org.eclipse.fennec.search.esearch.GeoPointFieldMapping;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
 import org.eclipse.fennec.search.esearch.Materialization;
@@ -139,6 +143,7 @@ public final class DocumentMapper {
 		Document root = new Document();
 		writeSystemFields(root, id, id, typeNameOf(documentMapping, eClass), true);
 		writeAttributes(root, object, documentMapping, "");
+		writeGeoFields(root, object, eClass);
 		writeReferences(root, children, object, documentMapping, id, 1);
 		writeMaterialization(root, object, eClass);
 
@@ -252,6 +257,11 @@ public final class DocumentMapper {
 		Map<EAttribute, FieldMapping> byFeature = new HashMap<>();
 		if (documentMapping != null) {
 			for (FieldMapping field : documentMapping.getFields()) {
+				if (field instanceof GeoPointFieldMapping) {
+					// A composite mapping: its sources are its own declarations, not one
+					// attribute, so it is written by writeGeoFields rather than from here.
+					continue;
+				}
 				if (field.getFeature() == null) {
 					throw new MappingException("A field mapping of " + documentMapping.getEClass().getName()
 							+ " declares no feature. Computed values without a feature are not implemented "
@@ -262,7 +272,14 @@ public final class DocumentMapper {
 		}
 
 		boolean autoMap = documentMapping == null || documentMapping.isAutoMap();
+		Set<EAttribute> geoConsumed = schema.geoConsumedAttributes(object.eClass());
 		for (EAttribute attribute : object.eClass().getEAllAttributes()) {
+			if (geoConsumed.contains(attribute)) {
+				// The attribute is the position, written by writeGeoFields as a point. One
+				// name carries one field type in an index, and a coordinate pair is not a
+				// value anyone compares.
+				continue;
+			}
 			FieldMapping field = byFeature.get(attribute);
 			if (field == null) {
 				if (!autoMap || attribute.isDerived() || attribute.isTransient()) {
@@ -357,7 +374,6 @@ public final class DocumentMapper {
 	private void refuseUnimplemented(FieldMapping field, EAttribute attribute) {
 		String kind = field.eClass().getName();
 		String issue = switch (kind) {
-			case "GeoPointFieldMapping" -> "geo mapping is S9";
 			case "RangeFieldMapping" -> "interval fields are S15 (#17)";
 			case "RankSignalFieldMapping" -> "rank signals are S14 (#16)";
 			case "VectorFieldMapping" -> "vector fields are reserved for wave 2 and deliberately not implemented";
@@ -368,6 +384,79 @@ public final class DocumentMapper {
 					+ (attribute == null ? "?" : attribute.getName()) + "' is not implemented: " + issue
 					+ ". Declaring it now would index something other than what it says.");
 		}
+	}
+
+	/**
+	 * The geographic point fields of §5.5 (S9, #13) — the one place where the three
+	 * authoring shapes converge: whichever way the model spells a position, it lands as one
+	 * {@code LatLonPoint} (and a {@code LatLonDocValuesField} where the mapping asked for
+	 * doc values, which is what a distance sort reads).
+	 * <p>
+	 * A position that is not fully there is not written at all: the geo vocabulary makes a
+	 * missing coordinate UNKNOWN (§5.5 rule 2), and an absent field is exactly how every
+	 * other predicate here already spells UNKNOWN. A position that is <em>there but
+	 * impossible</em> is the opposite case — bad data, refused loudly at write time rather
+	 * than silently dropped, the same line Lucene itself draws.
+	 */
+	private void writeGeoFields(Document document, EObject object, EClass eClass) {
+		for (IndexSchema.GeoField field : schema.geoFields(eClass)) {
+			double[] position = positionOf(object, field, eClass);
+			if (position == null) {
+				continue;
+			}
+			document.add(new LatLonPoint(field.name(), position[0], position[1]));
+			if (field.docValues()) {
+				document.add(new LatLonDocValuesField(field.name(), position[0], position[1]));
+			}
+		}
+	}
+
+	/** The {@code [lat, lon]} of one geo field on one object, or null when it has none. */
+	private double[] positionOf(EObject object, IndexSchema.GeoField field, EClass eClass) {
+		Double latitude;
+		Double longitude;
+		if (field.isSplit()) {
+			latitude = coordinate(object, field.latitude());
+			longitude = coordinate(object, field.longitude());
+		} else {
+			EObject holder = object;
+			if (field.pointReference() != null) {
+				Object target = object.eGet(field.pointReference());
+				if (!(target instanceof EObject point)) {
+					// Many-valued or unset: no single position to index.
+					return null;
+				}
+				holder = point;
+			}
+			List<Object> values = valuesOf(holder, field.coordinates());
+			if (values.size() != 2) {
+				// GeoJSON order [lon, lat]; any other arity is a missing coordinate, not an
+				// error — the packed analogue of a null (§5.5).
+				return null;
+			}
+			longitude = number(values.get(0));
+			latitude = number(values.get(1));
+		}
+		if (latitude == null || longitude == null) {
+			return null;
+		}
+		if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+			throw new MappingException("Geo field '" + field.name() + "' on " + eClass.getName()
+					+ " got the impossible position " + latitude + "/" + longitude
+					+ ". Latitude is -90..90 and longitude -180..180 degrees.");
+		}
+		return new double[] { latitude, longitude };
+	}
+
+	private Double coordinate(EObject object, EAttribute attribute) {
+		if (isAbsent(object, attribute)) {
+			return null;
+		}
+		return number(object.eGet(attribute));
+	}
+
+	private static Double number(Object value) {
+		return value instanceof Number number ? number.doubleValue() : null;
 	}
 
 	private void writeReferences(Document root, List<Document> children, EObject object,

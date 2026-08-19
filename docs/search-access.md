@@ -544,18 +544,25 @@ Mongo needed care:
   `EQ`/`NE` is refused for the same reason Mongo refuses it — a measure-zero comparison on a
   continuum.
 
-Two things S9 (#13) has to settle rather than assume:
+Both open points of S9 (#13) are settled since 2026-08-19 — recorded here rather than
+left as a warning:
 
-1. **Polygon semantics.** The reference engine ray-casts planar in lat/lon space; Lucene's
-   `Polygon`/`newPolygonQuery` has its own edge treatment. The differential corpus of G-P2 is
-   the instrument — run it against Lucene and record where the two disagree, instead of
-   asserting equivalence.
-2. **The packed binding needs a model addition.** G-P2's canonical packed value is a nested
-   GeoJSON-style *EObject* with a many-valued numeric `coordinates` feature in `[lon, lat]`
-   order, reached by a path. `GeoPointFieldMapping` inherits `feature` as an `EAttribute`, so
-   today it can express "one attribute carrying both" but not "a nested point object" —
-   additive metamodel work (a packed source path, or declaring the field on the child's
-   `coordinates` attribute) that belongs in #13 and needs a codegen round.
+1. **Polygon semantics — no disagreement found.** The reference engine ray-casts planar in
+   lat/lon space and Lucene's `newPolygonQuery` has its own edge treatment, so the G-P2
+   differential corpus was run rather than assumed: `GeoSearchTest` asserts the polygon
+   cases against the memory oracle over the shared Thuringian corpus, on both bindings, and
+   the two agree. The differential stays in the test as the instrument that would catch a
+   future divergence; no tolerance argument was needed.
+2. **The packed binding got its model addition** (2026-08-19, additive, codegen round done):
+   `GeoPointFieldMapping` grew `pointReference` (the reference holding the point object) and
+   `coordinates` (its many-valued `[lon, lat]` attribute). `coordinates` alone, without a
+   reference, is the third shape — one attribute on the object itself. Since a coordinates
+   attribute is a position rather than a value, it is no longer indexed as a plain number
+   too: one name carries one field type, and `corner = 11.586` answers nothing.
+
+Where the split/packed distinction costs mongo a refusal (no index form for ray casting
+over two scalars), it costs this backend nothing: the polygon over a split binding is
+answered, because the binding was resolved at index time.
 
 ## 6. Suggest — own API, shared machinery
 
