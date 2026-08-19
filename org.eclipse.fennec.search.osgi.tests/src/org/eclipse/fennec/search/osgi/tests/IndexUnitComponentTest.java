@@ -71,6 +71,23 @@ class IndexUnitComponentTest {
 		return null;
 	}
 
+	/**
+	 * The component unregisters the service <em>before</em> closing the unit, so a consumer
+	 * still holding it is never handed one that closes underneath. That ordering makes the
+	 * withdrawal no proof of the close: deactivation is asynchronous, and the close lands
+	 * some moments after the service is gone. So this waits for it rather than sampling it.
+	 */
+	private static boolean awaitClosed(IndexUnit unit) throws Exception {
+		long deadline = System.currentTimeMillis() + TIMEOUT;
+		while (System.currentTimeMillis() < deadline) {
+			if (unit.isClosed()) {
+				return true;
+			}
+			Thread.sleep(20);
+		}
+		return false;
+	}
+
 	private static boolean awaitGone(BundleContext context, String alias) throws Exception {
 		String filter = "(&(objectClass=" + IndexUnit.class.getName() + ")("
 				+ SearchConstants.UNIT_ALIAS + "=" + alias + "))";
@@ -160,7 +177,7 @@ class IndexUnitComponentTest {
 		configuration.delete();
 
 		assertThat(awaitGone(context, "transient-unit")).as("the service is withdrawn").isTrue();
-		assertThat(unit.isClosed()).as("and the unit itself is closed, not just hidden").isTrue();
+		assertThat(awaitClosed(unit)).as("and the unit itself is closed, not just hidden").isTrue();
 	}
 
 	@Test
