@@ -29,7 +29,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -43,6 +45,7 @@ import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.eclipse.emf.ecore.EAttribute;
@@ -113,6 +116,14 @@ final class QueryTranslator {
 	 * producer keeps the cache shared too.
 	 */
 	private static final BitSetProducer PARENT_FILTER = new QueryBitSetProducer(rootFilter());
+
+	/**
+	 * FUZZY is the one string-match kind with no regular-expression form: it is translated
+	 * into an automaton before either regexp path is reached, so both switches over
+	 * {@code StringMatchKind} name it only to stay exhaustive.
+	 */
+	private static final String FUZZY_HAS_NO_REGEXP =
+			"FUZZY is matched by an edit-distance automaton, not by a regular expression";
 
 	private final IndexSchema schema;
 	private final QueryContext context;
@@ -467,15 +478,19 @@ final class QueryTranslator {
 		StringMatchKind kind = match.getKind() == null ? StringMatchKind.CONTAINS : match.getKind();
 		Query positive = field.kind() == FieldKind.TEXT
 				? analyzedMatch(field, kind, pattern, match.isCaseInsensitive())
-				: keywordMatch(field, kind, pattern, match.isCaseInsensitive());
+				: keywordMatch(field, match, kind, pattern);
 		return negated ? guarded(field, positive) : positive;
 	}
 
-	private Query keywordMatch(IndexSchema.Field field, StringMatchKind kind, String pattern,
-			boolean caseInsensitive) throws QueryException {
+	private Query keywordMatch(IndexSchema.Field field, StringMatch match, StringMatchKind kind,
+			String pattern) throws QueryException {
 		if (field.kind() == FieldKind.NUMERIC) {
 			throw new QueryException("Field '" + field.name() + "' is numeric, so the string match "
 					+ kind + " has nothing to match against.");
+		}
+		boolean caseInsensitive = match.isCaseInsensitive();
+		if (kind == StringMatchKind.FUZZY) {
+			return fuzzyMatch(field, match, pattern);
 		}
 		Term term = new Term(field.name(), regexOf(kind, pattern));
 		if (caseInsensitive) {
@@ -488,7 +503,48 @@ final class QueryTranslator {
 			case CONTAINS -> new WildcardQuery(new Term(field.name(), "*" + escapeWildcard(pattern) + "*"));
 			case ENDS_WITH -> new WildcardQuery(new Term(field.name(), "*" + escapeWildcard(pattern)));
 			case LIKE -> new RegexpQuery(new Term(field.name(), likeToRegex(pattern)));
+			case FUZZY -> throw new IllegalStateException(FUZZY_HAS_NO_REGEXP);
 		};
+	}
+
+	/**
+	 * Edit distance over the whole keyword term (emf.persistence-jpa#167). Lucene's
+	 * {@link FuzzyQuery} counts optimal-string-alignment Damerau-Levenshtein with adjacent
+	 * transpositions as one edit and the {@code prefixLength} leading characters required
+	 * exactly — the same distance the IR's in-memory oracle computes, so a keyword
+	 * projection agrees with it term for term.
+	 * <p>
+	 * Two deliberate departures from Lucene's defaults: the rewrite is the constant-score
+	 * one every other multi-term form here uses, because the default top-terms rewrite
+	 * silently drops everything past the 50 closest terms and a predicate that quietly
+	 * answers less than it was asked is worse than a slow one; and the budget stays at the
+	 * IR's 1..2 rather than Lucene's 0..2, since {@code maxEdits = 0} is an exact match
+	 * spelled the long way and the validator refuses it upstream anyway.
+	 */
+	private Query fuzzyMatch(IndexSchema.Field field, StringMatch match, String pattern)
+			throws QueryException {
+		if (match.isCaseInsensitive()) {
+			// The other kinds fold case in a regexp automaton; a fuzzy automaton has no such
+			// flag, and folding the pattern alone would not fold the indexed terms.
+			throw new QueryException("Field '" + field.name() + "': a case-insensitive FUZZY match is "
+					+ "not expressible — the edit-distance automaton runs over the indexed terms "
+					+ "verbatim. Declare a lowercasing keyword field for '"
+					+ field.attribute().getName() + "', or drop caseInsensitive.");
+		}
+		int maxEdits = match.getMaxEdits();
+		if (maxEdits < 1 || maxEdits > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
+			throw new QueryException("Field '" + field.name() + "': a FUZZY edit budget of " + maxEdits
+					+ " is out of range — Lucene matches up to "
+					+ LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE + " edits, so maxEdits is 1 or 2.");
+		}
+		int prefixLength = match.getPrefixLength();
+		if (prefixLength < 0) {
+			throw new QueryException("Field '" + field.name() + "': a FUZZY prefixLength of "
+					+ prefixLength + " is negative.");
+		}
+		return new FuzzyQuery(new Term(field.name(), pattern), maxEdits, prefixLength,
+				FuzzyQuery.defaultMaxExpansions, FuzzyQuery.defaultTranspositions,
+				MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
 	}
 
 	/**
@@ -799,6 +855,7 @@ final class QueryTranslator {
 			case STARTS_WITH -> quoted + ".*";
 			case ENDS_WITH -> ".*" + quoted;
 			case LIKE -> likeToRegex(pattern);
+			case FUZZY -> throw new IllegalStateException(FUZZY_HAS_NO_REGEXP);
 		};
 	}
 

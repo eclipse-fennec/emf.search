@@ -387,6 +387,7 @@ and ships with a user-documentation page (`docs/`, `docs-site/guides.mjs`) in #1
 | WHERE_EQ / IN | `TermQuery` / `TermInSetQuery` (keyword fields), point queries (numerics) |
 | WHERE_COMPARISON / WHERE_RANGE | point range queries; DocValues where unindexed |
 | WHERE_STRING_MATCH (+CASE_INSENSITIVE) | contains/startsWith/endsWith → wildcard/prefix/regexp on keyword fields; analyzed match on text fields; LIKE → `RegexpQuery` via the shared like→regex translation |
+| STRING_MATCH_FUZZY (emf.persistence-jpa#167) | `FuzzyQuery` over a keyword field — whole-value Damerau-Levenshtein with `maxEdits` (1..2) and `prefixLength`, constant-score rewrite so no neighbour is dropped; refused over analyzed text (a keyword projection is the way out) and for `caseInsensitive` (a fuzzy automaton has no case-folding flag) |
 | IS_NULL | `FieldExistsQuery` (negated for isNull) |
 | LOGICAL_AND/OR/NOT | `BooleanQuery`; **NOT via negation push-down, not bare MUST_NOT** (§5.1) |
 | SORT / LIMIT / SKIP | `Sort` over DocValues; `searchAfter`/`TopDocs` paging |
