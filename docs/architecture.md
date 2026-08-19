@@ -105,16 +105,26 @@ mechanism of its own — it uses the two that
 
 The `QueryProcessor` for `backend=lucene` translates the canonical IR: equality and set
 membership, comparisons and ranges, string matching (contains / startsWith / endsWith /
-LIKE, case-insensitive variants), null checks, boolean junctions, sorting, paging, counting,
-type filters, relevance scoring, facet counts and geo predicates.
+LIKE / fuzzy, case-insensitive variants), null checks, boolean junctions, sorting, paging,
+counting, type filters, relevance scoring, facet counts and geo predicates.
 
-Two things are worth knowing as a consumer:
+Three things are worth knowing as a consumer:
 
 **Negation is three-valued.** Lucene's `MUST_NOT` matches documents where the field is
 simply absent, which is not what "not equal to 5" means over nullable data. The translation
 pushes negation down (De Morgan plus operator inversion) and guards negated predicates with
 a field-existence check, so a null never satisfies a comparison — negated or not. The same
 rule the SQL and MongoDB backends follow; the shared TCK pins it.
+
+**Fuzzy matching wants a keyword field.** `StringMatchKind.FUZZY` is edit distance over the
+whole value, so it is answered by a `FuzzyQuery` on a keyword projection, where the indexed
+term *is* the value — with the same Damerau-Levenshtein budget (`maxEdits` 1 or 2, adjacent
+transpositions counted as one edit) and exact-prefix rule the in-memory reference uses, so
+the two agree hit for hit. Over analyzed text the kind is refused with the way out, because
+term-level fuzziness over tokens answers a different question than the IR asked; a
+`caseInsensitive` fuzzy match is refused for the same reason a folded automaton cannot fold
+the terms it walks. Neighbours are never truncated to the closest few: the rewrite is
+constant-score, not Lucene's default top-terms one.
 
 **Refusals are part of the contract.** Query-time joins, field-to-field comparisons,
 arithmetic pushdown and reference traversal over non-embedded references are declared

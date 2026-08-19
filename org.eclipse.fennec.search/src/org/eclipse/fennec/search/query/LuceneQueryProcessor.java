@@ -98,6 +98,10 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 			.support(QueryFeature.WHERE_EQ, QueryFeature.WHERE_NE, QueryFeature.WHERE_COMPARISON,
 					QueryFeature.WHERE_RANGE, QueryFeature.IS_NULL, QueryFeature.IN,
 					QueryFeature.WHERE_STRING_MATCH, QueryFeature.STRING_MATCH_CASE_INSENSITIVE,
+					// Edit distance (emf.persistence-jpa#167) over a keyword projection, which
+					// is where Lucene's automaton and the IR's whole-value oracle agree; over
+					// an analyzed field it refuses by name like the anchored kinds do.
+					QueryFeature.STRING_MATCH_FUZZY,
 					QueryFeature.LOGICAL_AND, QueryFeature.LOGICAL_OR, QueryFeature.LOGICAL_NOT,
 					QueryFeature.SORT, QueryFeature.LIMIT, QueryFeature.SKIP, QueryFeature.COUNT,
 					QueryFeature.TYPE_CHECK, QueryFeature.TYPE_FILTER, QueryFeature.PROJECTION,

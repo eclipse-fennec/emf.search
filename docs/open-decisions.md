@@ -26,10 +26,29 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   upstream rule. *Revisit trigger (upstream's):* a real pre-validation router would make
   the `EStructuralFeature` overload a purely additive extension.
 
-- **Fuzzy string matching** — requested upstream as emf.persistence-jpa**#167** (new
-  `StringMatchKind.FUZZY` with `maxEdits`/`prefixLength`, one new `QueryFeature`).
-  *When it lands:* translate to `FuzzyQuery` on keyword projections, refuse analyzed
-  sources like the anchored kinds, declare the feature.
+## Autonomous calls in fuzzy matching (emf.persistence-jpa#167, 2026-08-19)
+
+The upstream request landed: `StringMatchKind.FUZZY` with `maxEdits`/`prefixLength` and
+`QueryFeature.STRING_MATCH_FUZZY`. It arrived as a *compile* error here — both switches over
+`StringMatchKind` were exhaustive over four constants — which is the enum-exhaustiveness
+guard doing its job. Implemented as planned (`FuzzyQuery` on keyword projections, analyzed
+sources refused like the anchored kinds, feature declared); the TCK's
+`queryFuzzyMatchingAgreesWithTheMemoryOracle` now runs and passes. Three calls beyond the
+plan:
+
+1. **Case-insensitive fuzziness is refused**, not approximated. The other kinds fold case
+   with the regexp automaton's `CASE_INSENSITIVE` flag; a fuzzy automaton has no such flag,
+   and folding the pattern alone would not fold the indexed terms. The refusal names the
+   way out (a lowercasing keyword field). *Alternative if wanted:* fold at index time and
+   let the mapping declare it — additive, no IR change.
+2. **Constant-score rewrite instead of Lucene's default top-terms one.** The default keeps
+   the 50 closest terms and silently drops the rest, which for a predicate means answering
+   less than was asked; every other multi-term form here rewrites to constant score too.
+   The price is that fuzzy hits do not score by edit distance — acceptable while relevance
+   comes from declared rank signals rather than from the predicate.
+3. **The budget stays the IR's 1..2**, though Lucene accepts 0. `maxEdits = 0` is an exact
+   match spelled the long way, and the upstream validator refuses it before translation; a
+   deserialized query that carries it anyway is refused here rather than quietly widened.
 
 ## Taken, not yet reviewed
 
