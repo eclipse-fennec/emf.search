@@ -13,7 +13,11 @@
 package org.eclipse.fennec.search.unit;
 
 import java.io.IOException;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -24,7 +28,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ControlledRealTimeReopenThread;
 import org.apache.lucene.search.IndexSearcher;
@@ -325,6 +331,86 @@ public final class IndexUnit implements AutoCloseable {
 			searcherManager.maybeRefreshBlocking();
 		}
 		return sequenceNumber;
+	}
+
+	/**
+	 * Commits, carrying a checkpoint into the same commit point (S18, #20).
+	 * <p>
+	 * Atomic in the way that matters for resuming: the documents of this commit and the
+	 * position they were derived from become durable together, so a reader of the commit
+	 * can never see the one without the other.
+	 *
+	 * @param checkpoint what the feed needs to resume — a stream offset, a change-log
+	 *        position, a source timestamp; keys and values are the caller's vocabulary
+	 * @return the commit sequence number
+	 */
+	public long commit(Map<String, String> checkpoint) throws IOException {
+		checkpoint(checkpoint);
+		return commit();
+	}
+
+	/**
+	 * Stages the checkpoint that the <em>next</em> commit will carry.
+	 * <p>
+	 * Nothing becomes durable here — that is {@link #commit()}, and the two are separate so
+	 * that a feed can record its position as it goes and let the unit's own commit policy
+	 * (interval, document count, close) decide when to write it. Staging replaces: the last
+	 * value set before a commit is the one that lands.
+	 */
+	public void checkpoint(Map<String, String> checkpoint) throws IOException {
+		checkWritable();
+		Objects.requireNonNull(checkpoint, "checkpoint");
+		List<Map.Entry<String, String>> entries = new ArrayList<>(checkpoint.size());
+		for (Map.Entry<String, String> entry : checkpoint.entrySet()) {
+			if (entry.getKey() == null || entry.getValue() == null) {
+				throw new IllegalArgumentException("A checkpoint of unit '" + config.name()
+						+ "' carries a null " + (entry.getKey() == null ? "key" : "value")
+						+ "; Lucene commit data is string to string.");
+			}
+			entries.add(new AbstractMap.SimpleImmutableEntry<>(entry.getKey(), entry.getValue()));
+		}
+		// Lucene applies live commit data at the next commit and counts setting it as a
+		// change, so a checkpoint alone is committable — which is what lets a feed record
+		// "I read up to here and it produced nothing".
+		writer.setLiveCommitData(entries);
+	}
+
+	/**
+	 * The checkpoint of the newest commit in the directory — what a restart resumes from.
+	 * <p>
+	 * Read from the directory rather than from the writer on purpose: this is the question
+	 * "what did the index actually apply", and after a crash the answer is whatever reached
+	 * disk, not whatever was staged. It is therefore also answerable on a
+	 * {@link AccessMode#READ_ONLY} unit, which is how an operator inspects a suspect index.
+	 *
+	 * @return the committed checkpoint, empty when the index carries none (including a
+	 *         directory that has no commit yet)
+	 */
+	public Map<String, String> checkpoint() throws IOException {
+		checkOpen();
+		try {
+			Map<String, String> data = SegmentInfos.readLatestCommit(directory).getUserData();
+			return data == null ? Map.of() : Map.copyOf(data);
+		} catch (IndexNotFoundException e) {
+			// A directory nothing has committed to yet has no checkpoint, which is an
+			// answer ("resume from the beginning"), not a failure.
+			return Map.of();
+		}
+	}
+
+	/**
+	 * The checkpoint staged for the next commit, which may differ from {@link #checkpoint()}
+	 * while writes are pending.
+	 */
+	public Map<String, String> pendingCheckpoint() {
+		checkOpen();
+		Iterable<Map.Entry<String, String>> live = writer.getLiveCommitData();
+		if (live == null) {
+			return Map.of();
+		}
+		Map<String, String> staged = new LinkedHashMap<>();
+		live.forEach(entry -> staged.put(entry.getKey(), entry.getValue()));
+		return Map.copyOf(staged);
 	}
 
 	/** The number of writes since the last commit. */

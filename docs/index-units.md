@@ -104,6 +104,41 @@ unit rather than mutating the registry underneath it. Swapping an analyzer under
 writer would change how documents are analyzed halfway through an index — which is a corrupt
 index, not a configuration change.
 
+## Checkpoints — where the index came from
+
+A commit can carry a checkpoint: a small string map that travels *inside* the same commit
+point as the documents it belongs to.
+
+```java
+unit.addDocument(document);
+unit.commit(Map.of("stream.offset", "4711"));   // content and position, one commit
+
+unit.checkpoint(Map.of("stream.offset", "4712")); // stage; the unit's commit policy decides when
+unit.pendingCheckpoint();                          // what the next commit will carry
+unit.checkpoint();                                 // what the newest commit on disk carries
+```
+
+The point is not storage — anywhere can store an offset — but that it **cannot drift**. A
+commit is all-or-nothing, so after a crash the surviving checkpoint describes exactly the
+surviving documents: a feed resumes from it without replaying what is already indexed and
+without skipping what is not. An offset kept beside the index gives you two facts that can
+disagree, and no way to tell which one is right.
+
+Details worth knowing:
+
+- **Staging is not publishing.** `checkpoint(map)` only sets what the next commit will
+  carry; until then `checkpoint()` still answers with the older, durable position. The last
+  value staged before a commit is the one that lands.
+- **A checkpoint alone is committable** — "I read up to here and it produced nothing to
+  index" is recordable, so an empty stretch of the stream is not replayed after a restart.
+- **Reading is a read.** `checkpoint()` comes from the directory, not from the writer, so it
+  answers on a `READ_ONLY` unit too — which is how you inspect a suspect index. Writing one
+  needs a writable unit.
+- **No commit yet, no checkpoint**: an empty map, meaning "resume from the beginning",
+  rather than an error.
+- The keys are yours. `stream.offset` is what the examples use; nothing in the unit
+  interprets them.
+
 ## Measured behaviour
 
 The choices above have a cost, so there is a suite that measures it rather than a paragraph
