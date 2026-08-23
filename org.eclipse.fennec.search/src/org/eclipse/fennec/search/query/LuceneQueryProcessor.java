@@ -57,6 +57,7 @@ import org.eclipse.fennec.persistence.query.api.QueryProcessor;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
 import org.eclipse.fennec.persistence.query.support.QueryValidator;
 import org.eclipse.fennec.search.esearch.FieldMapping;
+import org.eclipse.fennec.search.esearch.FieldUse;
 import org.eclipse.fennec.search.mapping.FacetFields;
 import org.eclipse.fennec.search.mapping.IndexSchema;
 import org.eclipse.fennec.search.mapping.MappingException;
@@ -449,7 +450,9 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 					+ "per document, which a doc-values sort cannot do: index the value as its own "
 					+ "field and sort on that.");
 		}
-		IndexSchema.Field field = resolve(root, orderBy.getPath());
+		// A sort reads doc values, which is what the SORT projection is for (#39): an
+		// analyzed text field cannot sort, its keyword sub-field can.
+		IndexSchema.Field field = resolve(root, orderBy.getPath(), FieldUse.SORT);
 		boolean reverse = orderBy.getDirection() == SortDirection.DESC;
 		// The kind comes first: for analyzed text, "declare doc values" would be the wrong
 		// advice — no doc values on a tokenized field would give the order of its tokens.
@@ -531,8 +534,13 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 	}
 
 	private IndexSchema.Field resolve(EClass root, PropertyPath path) throws QueryException {
+		return resolve(root, path, null);
+	}
+
+	private IndexSchema.Field resolve(EClass root, PropertyPath path, FieldUse use)
+			throws QueryException {
 		try {
-			return schema.resolve(root, path.getSegments());
+			return schema.resolve(root, path.getSegments(), use);
 		} catch (MappingException e) {
 			throw new QueryException(e.getMessage(), e);
 		}

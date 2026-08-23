@@ -234,6 +234,17 @@ look like, not where they live.
 - **Rank signals** (`RankSignalFieldMapping`): `FeatureField` with a saturating function
   (saturation/log/sigmoid + pivot) for static popularity/recency signals that shape the
   score without leaking arithmetic into the query IR (§5.3).
+- **Sub-fields are addressable, and `FieldUse` decides which projection answers** (#39,
+  done 2026-08-23). The writer has always produced `title` plus `title.keyword`; the reader
+  now resolves `(feature, use)` to one of them — an equality and an `IN` ask for `EXACT`, a
+  comparison and a `BETWEEN` for `RANGE`, a sort for `SORT`, a string match for `EXACT` and
+  falls back to the analyzed field when no keyword projection exists. `use` is declared where
+  a modeller must say it (two keyword projections with different normalizers) and derived
+  from the field kind where they need not: text serves MATCH/HIGHLIGHT/SIMILARITY, keyword
+  EXACT/SORT/FACET, numeric RANGE/SORT. Two projections of one attribute claiming the same
+  use are refused at mapping time rather than resolved by declaration order, and a mapping
+  with one projection per attribute resolves to it for every use — nothing about the ordinary
+  case changed.
 - **Interval attributes** (`RangeFieldMapping`): a pair of numeric/temporal features
   declared as one `LongRange`/`DoubleRange` field, so validity intervals get real
   `INTERSECTS`/`WITHIN`/`CONTAINS` semantics instead of two hand-written comparisons.

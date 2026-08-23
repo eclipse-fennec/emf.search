@@ -91,6 +91,7 @@ import org.eclipse.fennec.persistence.query.support.QueryContexts;
 import org.eclipse.fennec.search.esearch.NumericKind;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
 import org.eclipse.fennec.search.esearch.ReferenceStrategy;
+import org.eclipse.fennec.search.esearch.FieldUse;
 import org.eclipse.fennec.search.mapping.IndexSchema;
 import org.eclipse.fennec.search.mapping.IndexSchema.FieldKind;
 import org.eclipse.fennec.search.mapping.MappingException;
@@ -272,7 +273,8 @@ final class QueryTranslator {
 		if (negated) {
 			operator = invert(operator);
 		}
-		IndexSchema.Field field = path(subject);
+		IndexSchema.Field field = path(subject, operator == ComparisonOperator.EQ
+				|| operator == ComparisonOperator.NE ? FieldUse.EXACT : FieldUse.RANGE);
 		Object typed = value(value, field.attribute());
 		return comparisonQuery(field, operator, typed);
 	}
@@ -394,7 +396,7 @@ final class QueryTranslator {
 	// --- between / in ---------------------------------------------------------------------
 
 	private Query between(Between between, boolean negated) throws QueryException {
-		IndexSchema.Field field = path(between.getSource());
+		IndexSchema.Field field = path(between.getSource(), FieldUse.RANGE);
 		Object lower = value(between.getLower(), field.attribute());
 		Object upper = value(between.getUpper(), field.attribute());
 		ComparisonOperator lowerOp = between.isLowerIncluded() ? ComparisonOperator.GE : ComparisonOperator.GT;
@@ -415,7 +417,7 @@ final class QueryTranslator {
 	}
 
 	private Query in(In in, boolean negated) throws QueryException {
-		IndexSchema.Field field = path(in.getSource());
+		IndexSchema.Field field = path(in.getSource(), FieldUse.EXACT);
 		if (in.getValues().isEmpty()) {
 			// `x IN ()` is false for every document; negated it is true for those that have a
 			// value and UNKNOWN — so still not a match — for those that do not.
@@ -481,7 +483,9 @@ final class QueryTranslator {
 	// --- string matching ------------------------------------------------------------------
 
 	private Query stringMatch(StringMatch match, boolean negated) throws QueryException {
-		IndexSchema.Field field = path(match.getSource());
+		// A string match runs on whole terms wherever a keyword projection exists — that is
+		// what EXACT means here — and falls back to the analyzed field when it does not.
+		IndexSchema.Field field = path(match.getSource(), FieldUse.EXACT);
 		Object patternValue = value(match.getPattern(), field.attribute());
 		if (patternValue == null) {
 			// A null pattern is UNKNOWN, and NOT UNKNOWN stays UNKNOWN: no document matches.
@@ -930,8 +934,19 @@ final class QueryTranslator {
 				.build();
 	}
 
-	/** Resolves a path to a field, turning a mapping problem into a query refusal. */
+	/** Resolves a path to its primary projection. */
 	IndexSchema.Field path(Expression expression) throws QueryException {
+		return path(expression, null);
+	}
+
+	/**
+	 * Resolves a path to the projection that serves {@code use} (#39): an equality asks for an
+	 * exact field, a comparison for a range one, and an attribute that declares a sub-field
+	 * beside its primary projection is answered from whichever of the two says it can. Where
+	 * no projection claims the use — the ordinary mapping with one field per attribute — the
+	 * primary answers, exactly as before.
+	 */
+	IndexSchema.Field path(Expression expression, FieldUse use) throws QueryException {
 		if (!(expression instanceof PropertyPath propertyPath)) {
 			throw new QueryException("Expected a feature path but found " + name(expression));
 		}
@@ -950,7 +965,7 @@ final class QueryTranslator {
 					+ "boundary.");
 		}
 		try {
-			return schema.resolve(context.rootEClass(), propertyPath.getSegments());
+			return schema.resolve(context.rootEClass(), propertyPath.getSegments(), use);
 		} catch (MappingException e) {
 			throw new QueryException(e.getMessage(), e);
 		}
