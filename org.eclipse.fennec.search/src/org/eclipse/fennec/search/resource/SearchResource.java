@@ -49,7 +49,6 @@ import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.impl.EPackageRegistryImpl;
 import org.eclipse.emf.ecore.resource.impl.ResourceImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
-import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistryWriter;
 import org.eclipse.fennec.model.query.Selection;
 import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
@@ -64,6 +63,7 @@ import org.eclipse.fennec.persistence.query.api.QueryResult;
 import org.eclipse.fennec.persistence.query.api.QueryResultRow;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
 import org.eclipse.fennec.persistence.query.api.QueryableResource;
+import org.eclipse.fennec.persistence.query.support.NamedOperations;
 import org.eclipse.fennec.persistence.query.support.PersistedQueries;
 import org.eclipse.fennec.persistence.query.support.QueryContexts;
 import org.eclipse.fennec.persistence.query.support.QueryResultRows;
@@ -123,7 +123,7 @@ public class SearchResource extends ResourceImpl
 	private final IndexUnit unit;
 	private final DocumentMapper mapper;
 	private final LuceneQueryProcessor processor;
-	private final EObjectRegistryWriter queryCatalog;
+	private final NamedOperations catalog;
 	private final ConverterService converter;
 	private final SearchUris address;
 	private final Map<ActionType, Map<Object, Object>> defaultOptions = new EnumMap<>(ActionType.class);
@@ -133,22 +133,23 @@ public class SearchResource extends ResourceImpl
 	}
 
 	/**
-	 * @param queryCatalog where named queries live — an emf.osgi EObject registry, because
-	 *        the index itself does not persist queries (emf.persistence-jpa#163); null
-	 *        means named queries execute but are not persisted
+	 * @param catalog where named operations live — the stack-wide contract since
+	 *        emf.persistence-jpa#203, because the index itself does not persist queries;
+	 *        null means named queries execute but are not persisted, and lookup by name
+	 *        refuses
 	 * @param converter converts parameter and literal values into the persistence
 	 *        representation; null means the stack's plain default (#164 made it concrete,
 	 *        exported and nullable-contracted) — the OSGi layer (#32) injects the shared
 	 *        service instead.
 	 */
 	public SearchResource(URI uri, IndexUnit unit, DocumentMapper mapper,
-			EObjectRegistryWriter queryCatalog, ConverterService converter) {
+			NamedOperations catalog, ConverterService converter) {
 		super(uri);
 		this.unit = Objects.requireNonNull(unit, "unit");
 		this.mapper = Objects.requireNonNull(mapper, "mapper");
 		this.processor = LuceneQueryProcessor.of(mapper.schema(),
 				unit.config().analyzers().defaultAnalyzer());
-		this.queryCatalog = queryCatalog;
+		this.catalog = catalog;
 		this.converter = converter == null ? DEFAULT_CONVERTERS : converter;
 		this.address = SearchUris.parse(uri);
 	}
@@ -701,40 +702,45 @@ public class SearchResource extends ResourceImpl
 	// --- the persisted-query catalog ------------------------------------------------------
 
 	/**
-	 * Named queries live in an EObject registry, not in the index: a query is IR metadata,
-	 * and the registry is where the Fennec stack keeps named model instances — the shared
-	 * mechanism is requested upstream (emf.persistence-jpa#163). The catalog stores a copy,
-	 * so the caller's query instance stays the caller's.
+	 * Named queries live in the stack's named-operation catalog, not in the index: a query
+	 * is IR metadata, and an index that stored it would be the third home for the same
+	 * thing — which is the convention-per-backend emf.persistence-jpa#203 replaced with
+	 * {@link NamedOperations}. Where the catalog itself keeps them is its business; the
+	 * default implementation is the {@code emf.osgi} EObject registry this backend used
+	 * directly before. A copy is deposited, so the caller's query instance stays the
+	 * caller's whatever the catalog does with it.
 	 * <p>
 	 * Without a catalog attached the query still runs, and the un-kept promise is stated:
 	 * a warning names the query that was not persisted.
 	 */
-	private void saveNamedQuery(String name, org.eclipse.fennec.model.query.Query query) {
-		if (queryCatalog == null) {
+	private void saveNamedQuery(String name, org.eclipse.fennec.model.query.Query query)
+			throws IOException {
+		if (catalog == null) {
 			getWarnings().add(PersistenceDiagnostic.warning(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
-					"Query '" + name + "' is named but not persisted: no query catalog is attached to "
-							+ "this resource. Attach an EObjectRegistry to the factory to keep named "
-							+ "queries.",
+					"Query '" + name + "' is named but not persisted: no named-operation catalog is "
+							+ "attached to this resource. Bind a NamedOperations service, or hand the "
+							+ "factory a catalog, to keep named queries.",
 					getURI()));
 			return;
 		}
-		queryCatalog.put(LuceneQueryProcessor.DIAGNOSTIC_SOURCE, name, EcoreUtil.copy(query), Map.of());
+		catalog.store(name, EcoreUtil.copy(query));
 	}
 
 	private org.eclipse.fennec.model.query.Query loadNamedQuery(String name) throws IOException {
-		if (queryCatalog == null) {
-			throw new IOException("No query catalog is attached to this resource, so the name '" + name
-					+ "' cannot resolve. Attach an EObjectRegistry to the factory.");
+		if (catalog == null) {
+			throw new IOException("No named-operation catalog is attached to this resource, so the name '"
+					+ name + "' cannot resolve. Bind a NamedOperations service, or hand the factory a "
+					+ "catalog.");
 		}
-		EObject stored = queryCatalog.getRegistry().get(name).orElseThrow(
-				() -> new IOException("No persisted query named '" + name + "' in catalog '"
-						+ queryCatalog.getRegistry().getName() + "'"));
+		EObject stored = catalog.lookup(name).orElseThrow(
+				() -> new IOException("No persisted query named '" + name + "' in the attached catalog"));
 		if (!(stored instanceof org.eclipse.fennec.model.query.Query query)) {
 			throw new IOException("Catalog entry '" + name + "' is a " + stored.eClass().getName()
 					+ ", not a Query — the catalog is shared, and this name belongs to something else.");
 		}
-		// A copy again: execution must not mutate the catalog's instance.
-		return EcoreUtil.copy(query);
+		// forExecution copies and clears saveQuery (#163): a query that came out of a catalog
+		// is not asking to be put back, and execution must not touch the entry everyone reads.
+		return PersistedQueries.forExecution(query);
 	}
 
 	// --- lifecycle ----------------------------------------------------------------------

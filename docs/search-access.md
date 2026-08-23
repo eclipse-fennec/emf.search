@@ -589,6 +589,28 @@ Where the split/packed distinction costs mongo a refusal (no index form for ray 
 over two scalars), it costs this backend nothing: the polygon over a split binding is
 answered, because the binding was resolved at index time.
 
+### 5.6 Named operations live in the stack's catalog, not in the index
+
+`query(name, parameters, options)` and `saveQuery` resolve through
+`NamedOperations` (emf.persistence-jpa#203) — the stack-wide catalog contract that replaced
+the convention every backend had invented for itself (mongo a `fennec.queries` collection,
+JPA a `FENNEC_QUERIES` table, and this backend an `EObjectRegistry` it read directly). A
+query is IR metadata: an index that stored it would be a fourth home for the same thing,
+and a document convention inside the index would make the catalog invisible to every other
+backend.
+
+Two properties come from the contract rather than from here. A query taken *out* of a
+catalog is executed through `PersistedQueries.forExecution`, which copies it and clears
+`saveQuery` (#163) — it is already deposited, so re-depositing it on every execution is a
+write nobody asked for, and against a read-only catalog it would be a failure. And what
+gets deposited is a copy, so the caller's query instance stays the caller's.
+
+In OSGi the resource factory binds an optional `NamedOperations` service; a deployment that
+configured the older query registry (`emf.eobject.registry.name=search-queries`) keeps
+working, wrapped in `RegistryNamedOperations` — the contract's own default implementation
+over exactly that registry. Without either, a named query still runs and the resource warns
+that it was not kept; lookup by name refuses.
+
 ## 6. Suggest — own API, shared machinery
 
 Suggest/completion (Lucene `suggest` module: analyzing/fuzzy suggesters, weighted

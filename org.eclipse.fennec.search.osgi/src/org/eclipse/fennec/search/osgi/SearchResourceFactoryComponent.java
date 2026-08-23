@@ -29,6 +29,8 @@ import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistry;
 import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistryWriter;
 import org.eclipse.fennec.emf.osgi.metadata.MetadataService;
 import org.eclipse.fennec.persistence.api.ConverterService;
+import org.eclipse.fennec.persistence.query.support.NamedOperations;
+import org.eclipse.fennec.persistence.query.support.RegistryNamedOperations;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.mapping.AspectMappingSource;
 import org.eclipse.fennec.search.mapping.DocumentMapper;
@@ -63,8 +65,11 @@ import org.osgi.service.component.annotations.ReferencePolicyOption;
  * lands.
  * <p>
  * The whiteboards the core left open arrive here: {@link ObjectSerializer} services join
- * the defaults, an optional {@link ConverterService} and the named-query catalog registry
- * ride into every created resource.
+ * the defaults, and an optional {@link ConverterService} plus the named-operation catalog
+ * ride into every created resource. The catalog is the stack-wide
+ * {@link NamedOperations} contract (emf.persistence-jpa#203); a query registry configured
+ * under the older name still works and is wrapped in that contract's default
+ * implementation.
  *
  * @author Data In Motion Consulting
  */
@@ -86,7 +91,8 @@ public class SearchResourceFactoryComponent implements Resource.Factory {
 	private volatile AspectMappingSource aspectSource;
 	private volatile ObjectSerializers serializers = ObjectSerializers.withDefaults();
 	private volatile ConverterService converter;
-	private volatile EObjectRegistryWriter queryCatalog;
+	private volatile NamedOperations namedOperations;
+	private volatile NamedOperations registryCatalog;
 
 	private final MappingSource.MappingListener invalidation = unit -> {
 		if (mappers.remove(unit) != null) {
@@ -197,15 +203,35 @@ public class SearchResourceFactoryComponent implements Resource.Factory {
 		this.converter = null;
 	}
 
+	/**
+	 * The stack-wide named-operation catalog (emf.persistence-jpa#203), and the road every
+	 * backend now shares — a deployment that binds one gets it here, whatever keeps the
+	 * entries. Optional and greedy, like the converter.
+	 */
+	@Reference(cardinality = ReferenceCardinality.OPTIONAL, policy = ReferencePolicy.DYNAMIC,
+			policyOption = ReferencePolicyOption.GREEDY)
+	void setNamedOperations(NamedOperations operations) {
+		this.namedOperations = operations;
+	}
+
+	void unsetNamedOperations(NamedOperations operations) {
+		this.namedOperations = null;
+	}
+
+	/**
+	 * The fallback for deployments that configured the query registry before the shared
+	 * contract existed: the same registry, read through the contract's own default
+	 * implementation instead of directly. A bound {@code NamedOperations} service wins.
+	 */
 	@Reference(name = "queryCatalog", cardinality = ReferenceCardinality.OPTIONAL,
 			policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY,
 			target = "(emf.eobject.registry.name=" + SearchConstants.QUERY_CATALOG_NAME + ")")
 	void setQueryCatalog(EObjectRegistryWriter catalog) {
-		this.queryCatalog = catalog;
+		this.registryCatalog = new RegistryNamedOperations(catalog);
 	}
 
 	void unsetQueryCatalog(EObjectRegistryWriter catalog) {
-		this.queryCatalog = null;
+		this.registryCatalog = null;
 	}
 
 	// --- the factory ------------------------------------------------------------------------------
@@ -220,7 +246,9 @@ public class SearchResourceFactoryComponent implements Resource.Factory {
 					+ SearchConstants.UNIT_ALIAS + "=" + address.unit() + ".");
 		}
 		DocumentMapper mapper = mappers.computeIfAbsent(address.unit(), this::resolveMapper);
-		return new SearchResource(uri, unit, mapper, queryCatalog, converter);
+		NamedOperations catalog = namedOperations;
+		return new SearchResource(uri, unit, mapper,
+				catalog != null ? catalog : registryCatalog, converter);
 	}
 
 	/** Resolution time (#32): the composed source answers, or the refusal names both roads. */

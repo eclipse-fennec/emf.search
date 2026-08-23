@@ -29,10 +29,11 @@ import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistries;
-import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistryWriter;
 import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
 import org.eclipse.fennec.persistence.capabilities.StoreCapabilitiesBuilder;
+import org.eclipse.fennec.persistence.query.support.NamedOperations;
+import org.eclipse.fennec.persistence.query.support.RegistryNamedOperations;
 import org.eclipse.fennec.persistence.tck.AbstractPersistenceTCK;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
@@ -69,7 +70,7 @@ public class LucenePersistenceTckTest extends AbstractPersistenceTCK {
 	private EPackage tckPackage;
 	private IndexUnit unit;
 	private DocumentMapper mapper;
-	private EObjectRegistryWriter queryCatalog;
+	private NamedOperations queryCatalog;
 
 	@Override
 	protected void setUpBackend(EPackage tckPackage) throws Exception {
@@ -79,7 +80,9 @@ public class LucenePersistenceTckTest extends AbstractPersistenceTCK {
 				.commit(new CommitPolicy(1, Duration.ZERO, true))
 				.build());
 		this.mapper = DocumentMapper.of(IndexSchema.of(mapping(tckPackage)));
-		this.queryCatalog = EObjectRegistries.createRegistry("tck-queries");
+		// The stack-wide catalog contract (emf.persistence-jpa#203) over its default
+		// implementation — the registry this backend used to read directly.
+		this.queryCatalog = new RegistryNamedOperations(EObjectRegistries.createRegistry("tck-queries"));
 	}
 
 	@Override
