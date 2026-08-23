@@ -39,6 +39,7 @@ import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.FieldMapping;
+import org.eclipse.fennec.search.esearch.FieldUse;
 import org.eclipse.fennec.search.esearch.GeoPointFieldMapping;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
@@ -191,6 +192,7 @@ public final class IndexSchema {
 				for (FieldMapping sub : field.getSubFields()) {
 					ValueSources.refuseComputedSubField(sub, displayName(field) + "." + sub.getName());
 				}
+				refuseAmbiguousUses(document.getEClass(), field);
 			}
 		}
 	}
@@ -207,6 +209,47 @@ public final class IndexSchema {
 	/** The mapping this schema was derived from. */
 	public IndexUnitMapping mapping() {
 		return mapping;
+	}
+
+	/**
+	 * Two projections of one attribute may not claim the same use (#39, §4). The translator
+	 * picks a projection by what it serves, so a use claimed twice would be resolved by
+	 * declaration order — which is the kind of answer that works until someone reorders a
+	 * mapping file. Declaring {@code use} explicitly is how a second keyword projection, say a
+	 * different normalizer, says which predicate it is for.
+	 */
+	private void refuseAmbiguousUses(EClass owner, FieldMapping field) {
+		if (field.getSubFields().isEmpty() || field.getFeature() == null) {
+			return;
+		}
+		Map<FieldUse, String> claimed = new LinkedHashMap<>();
+		for (Field projection : projections(owner, field.getFeature())) {
+			FieldMapping mapping = projection.name().contains(".")
+					? subFieldMapping(field, projection.name())
+					: field;
+			for (FieldUse use : mapping != null && !mapping.getUse().isEmpty()
+					? mapping.getUse()
+					: derivedUses(projection.kind())) {
+				String previous = claimed.putIfAbsent(use, projection.name());
+				if (previous != null) {
+					throw new MappingException("The projections '" + previous + "' and '"
+							+ projection.name() + "' of " + owner.getName() + "."
+							+ field.getFeature().getName() + " both serve " + use + ", so a query "
+							+ "asking for it would be answered by whichever comes first in the "
+							+ "mapping. Declare `use` on them to say which is for what.");
+				}
+			}
+		}
+	}
+
+	private FieldMapping subFieldMapping(FieldMapping parent, String projectionName) {
+		String relative = projectionName.substring(projectionName.lastIndexOf('.') + 1);
+		for (FieldMapping sub : parent.getSubFields()) {
+			if (relative.equals(sub.getName())) {
+				return sub;
+			}
+		}
+		return null;
 	}
 
 	/** A field's name for a message, where a composite mapping may have no attribute at all. */
@@ -565,6 +608,19 @@ public final class IndexSchema {
 	 * @throws MappingException if the path does not resolve to a readable field
 	 */
 	public Field resolve(EClass root, List<EStructuralFeature> segments) {
+		return resolve(root, segments, null);
+	}
+
+	/**
+	 * The projection of this path that serves {@code use} (#39). An attribute may have several
+	 * — an analyzed text field for relevance matching plus a keyword sub-field for equality,
+	 * sorting and faceting is the common pair — and which one answers a predicate is exactly
+	 * what {@code FieldUse} says. A {@code null} use, or a use no projection claims, resolves
+	 * to the primary projection, which is what an attribute with one field has always meant.
+	 *
+	 * @param use what the caller needs the field for, or null for the primary projection
+	 */
+	public Field resolve(EClass root, List<EStructuralFeature> segments, FieldUse use) {
 		Objects.requireNonNull(root, "root");
 		if (segments == null || segments.isEmpty()) {
 			throw new MappingException("An empty feature path resolves to no field");
@@ -595,12 +651,113 @@ public final class IndexSchema {
 			prefix.append(embedPrefix(referenceMapping, reference)).append('.');
 			owner = reference.getEReferenceType();
 		}
-		return fieldOf(owner, attribute, prefix.toString());
+		return projection(owner, attribute, prefix.toString(), use);
 	}
 
 	/** Resolves a single local attribute of a class. */
 	public Field resolve(EClass owner, EAttribute attribute) {
 		return fieldOf(owner, attribute, "");
+	}
+
+	/** As {@link #resolve(EClass, EAttribute)}, for the projection serving {@code use} (#39). */
+	public Field resolve(EClass owner, EAttribute attribute, FieldUse use) {
+		return projection(owner, attribute, "", use);
+	}
+
+	/**
+	 * The primary projection and every sub-field of an attribute, as addressable fields —
+	 * what the writer produces, so what the reader may address (#39). The primary is first.
+	 */
+	public List<Field> projections(EClass owner, EAttribute attribute) {
+		Field primary = fieldOf(owner, attribute, "");
+		FieldMapping declared = fieldMapping(owner, attribute);
+		if (declared == null || declared.getSubFields().isEmpty()) {
+			return List.of(primary);
+		}
+		List<Field> all = new ArrayList<>();
+		all.add(primary);
+		for (FieldMapping sub : declared.getSubFields()) {
+			Field projection = subFieldOf(primary, attribute, sub);
+			if (projection != null) {
+				all.add(projection);
+			}
+		}
+		return all;
+	}
+
+	private Field projection(EClass owner, EAttribute attribute, String prefix, FieldUse use) {
+		Field primary = fieldOf(owner, attribute, prefix);
+		if (use == null) {
+			return primary;
+		}
+		FieldMapping declared = fieldMapping(owner, attribute);
+		if (declared == null || declared.getSubFields().isEmpty()) {
+			return primary;
+		}
+		if (serves(declared, primary, use)) {
+			return primary;
+		}
+		for (FieldMapping sub : declared.getSubFields()) {
+			Field field = subFieldOf(primary, attribute, sub);
+			if (field != null && serves(sub, field, use)) {
+				return prefix.isEmpty() ? field
+						: new Field(prefix + field.name(), field.kind(), field.numericKind(),
+								field.attribute(), field.docValues());
+			}
+		}
+		// Nobody claims it: the primary is what an attribute with one projection always meant,
+		// and refusing here would break every mapping that declares no sub-field at all.
+		return primary;
+	}
+
+	/**
+	 * A sub-field as an addressable field, under the compound name parent.child — or
+	 * {@code null} where the sub-field carries no readable value. A rank signal is the case
+	 * that matters (§5.3): it is a legitimate second projection of an attribute and a
+	 * quantized weight, so it is written and cannot be read as a value.
+	 */
+	private Field subFieldOf(Field primary, EAttribute attribute, FieldMapping sub) {
+		String name = primary.name() + "." + sub.getName();
+		if (sub instanceof TextFieldMapping) {
+			return new Field(name, FieldKind.TEXT, null, attribute, sub.isDocValues());
+		}
+		if (sub instanceof KeywordFieldMapping) {
+			return new Field(name, FieldKind.KEYWORD, null, attribute, sub.isDocValues());
+		}
+		if (sub instanceof NumericFieldMapping numeric) {
+			NumericKind kind = numeric.getKind() == null || numeric.getKind() == NumericKind.AUTO
+					? numericKindOf(attribute)
+					: numeric.getKind();
+			return new Field(name, FieldKind.NUMERIC, kind, attribute, sub.isDocValues());
+		}
+		return null;
+	}
+
+	/**
+	 * Whether a projection serves a use: what it declares, or — the normal case, since
+	 * {@code use} is empty on almost every mapping — what its kind implies. A text field
+	 * matches and highlights, a keyword field answers exact predicates, sorts and facets, a
+	 * numeric field answers ranges and sorts (docs/search-access.md §4).
+	 */
+	private static boolean serves(FieldMapping mapping, Field field, FieldUse use) {
+		if (mapping != null && !mapping.getUse().isEmpty()) {
+			return mapping.getUse().contains(use);
+		}
+		return derivedUses(field.kind()).contains(use);
+	}
+
+	/**
+	 * The uses a field kind implies when the mapping declares none. Ordered, so a refusal
+	 * naming a clash names the same use every time it is read.
+	 */
+	public static Set<FieldUse> derivedUses(FieldKind kind) {
+		return switch (kind) {
+			case TEXT -> new LinkedHashSet<>(List.of(FieldUse.MATCH, FieldUse.HIGHLIGHT,
+					FieldUse.SIMILARITY));
+			case KEYWORD -> new LinkedHashSet<>(List.of(FieldUse.EXACT, FieldUse.SORT,
+					FieldUse.FACET));
+			case NUMERIC -> new LinkedHashSet<>(List.of(FieldUse.RANGE, FieldUse.SORT));
+		};
 	}
 
 	private Field fieldOf(EClass owner, EAttribute attribute, String prefix) {
