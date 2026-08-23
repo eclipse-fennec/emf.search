@@ -237,6 +237,10 @@ look like, not where they live.
 - **Interval attributes** (`RangeFieldMapping`): a pair of numeric/temporal features
   declared as one `LongRange`/`DoubleRange` field, so validity intervals get real
   `INTERSECTS`/`WITHIN`/`CONTAINS` semantics instead of two hand-written comparisons.
+  **Declared in the metamodel, refused by the writer** until the query vocabulary exists —
+  raised upstream on 2026-08-23 as emf.persistence-jpa#215 (S15, #17). A range field nothing
+  can ask about is dead weight in the index, so the refusal names the way to ask today: model
+  the two bounds as ordinary numeric attributes and write two comparisons.
 - **Materialization** (per document): how a hit becomes an EObject again — a declared
   strategy, not a fixed mechanism. Without a declaration, hits are *partially*
   reconstructed from stored fields; `STORED_OBJECT` adds a serialized copy of the whole
@@ -420,7 +424,7 @@ Three properties of the resource path that the mapping model does not state, pin
 | GROUP_BY with representative rows | `lucene-grouping` (`GroupingSearch`) — the shape facets cannot answer: top-N documents *per* group rather than counts |
 | EXISTS / FOR_ALL over `NESTED` references | block join (§5.2) — `ToParentBlockJoinQuery` for EXISTS, negation-of-EXISTS for FOR_ALL; still refused over `EMBED` (no per-child correlation) and `ID_ONLY` |
 | GEO_WITHIN / GEO_DISTANCE (emf.persistence-jpa#101) | `LatLonPoint.newBoxQuery`/`newPolygonQuery`/`newDistanceQuery` from `core`; distance sort via `LatLonDocValuesField#newDistanceSort` (§5.5) |
-| Interval predicates over declared range fields | `LongRange`/`DoubleRange` queries (`INTERSECTS`/`WITHIN`/`CONTAINS`) |
+| Interval predicates over declared range fields | `LongRange`/`DoubleRange` queries (`INTERSECTS`/`WITHIN`/`CONTAINS`) — **not declared**: the vocabulary is raised as emf.persistence-jpa#215 and the fallback is two comparisons over the bounds (S15, #17) |
 | TYPE_CHECK / TYPE_FILTER | type discriminator field (the codec `_type` analogue, written by the mapper) |
 
 Refused (capability, not error): EXISTS/FOR_ALL over `EMBED`/`ID_ONLY` references,
@@ -731,7 +735,7 @@ what cannot be built here alone because it requires query vocabulary in
 | Grouping with representatives | `grouping` | **answered 2026-08-23: no** — the shape is not in the pipeline (reserved as `BottomTop`, raised as emf.persistence-jpa#214), so it ships as an own API like suggest, §6.3 | S19 |
 | `MoreLikeThis` | `queries` | no — own API (§6.2) | |
 | `FeatureField` rank signals | `queries` | no — declared in the mapping model | §5.3 |
-| Interval/range fields | `core` | **yes** — interval semantics are new vocabulary | fallback without IR: two scalar comparisons, correct but slower and less expressive |
+| Interval/range fields | `core` | **yes — raised 2026-08-23 as emf.persistence-jpa#215** (INTERSECTS/WITHIN/CONTAINS, boundary and unbounded semantics, one capability) | the fallback ships meanwhile: two scalar comparisons over the bound attributes, correct but neither indexed as one interval nor able to say CONTAINS. The writer refuses `RangeFieldMapping` and names it (S15, #17) |
 | Stored EObject via `emf.codec` | `core` | no | makes role 1 self-sufficient |
 | Index sorting + early termination | `core` | no | pairs with the existing `searchAfter` paging |
 | Live commit data (checkpointing) | `core` | no | the stream offset lives in the Lucene commit — the mechanism S10 needs to resume honestly |
@@ -824,9 +828,10 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
     service; anchor-must-be-indexed and unrecoverable-terms refusals; thresholds default 1.
 14. **S14 (#16) — rank signals**: `FeatureField` declaration and saturation/log queries (§5.3).
 15. **S15 (#17) — interval fields**: `LongRange`/`DoubleRange` mapping and
-    `INTERSECTS`/`WITHIN`/`CONTAINS` translation. **Blocked on a new IR issue** for
-    interval vocabulary in `emf.persistence-jpa` — to be raised now; the two-scalar
-    fallback ships meanwhile.
+    `INTERSECTS`/`WITHIN`/`CONTAINS` translation. **Blocked on the IR, and the issue is
+    raised**: emf.persistence-jpa#215 (2026-08-23). Nothing is indexed meanwhile — a range
+    field no query can reach is dead weight and would be rebuilt once the shape is settled —
+    so what ships is the two-scalar fallback, named by the writer's refusal.
 16. **S16 (#18) — self-sufficient hits**: the three-tier load path of §4.3 — partial
     reconstruction from stored fields as the default (convention flips to store-by-default,
     #37 fixed first), `STORED_OBJECT` through the `ObjectSerializer` API with EMF Binary as
@@ -868,11 +873,13 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
 `classification`. KNN left this list on 2026-08-18 — as an own API it needs no IR change
 and is cut as issue #40, sequenced after the wave-1 core.
 
-Issues still to raise in `emf.persistence-jpa` for wave 1: interval vocabulary (S15), and
-possibly per-hit metadata if §6.1 ever lands on option (b). The result shape for grouping
-representatives (S19) **was raised on 2026-08-23 as #214** and is not blocking — grouping
-ships as an own API meanwhile (§6.3). The two that *were* open — #101 for geo and #114 for
-command capabilities — are closed and consumed (§3).
+Issues still to raise in `emf.persistence-jpa` for wave 1: none — only per-hit metadata is
+left as a *possibility*, and only if §6.1 ever lands on option (b). Both that were open on
+2026-08-23 went up that day: the result shape for grouping representatives (S19) as **#214**,
+which is not blocking because grouping ships as an own API meanwhile (§6.3), and the interval
+vocabulary (S15) as **#215**, which is — nothing is indexed for it until the shape is known.
+The two older ones — #101 for geo and #114 for command capabilities — are closed and consumed
+(§3).
 
 ## 9. Non-goals
 
