@@ -64,6 +64,30 @@ Pinned by `SearchResourceTest` and the TCK binding.
    SORT_EXPRESSION refusal. The shared validator refuses it by name; the test pins that
    nobody declares it by accident.
 
+## Housekeeping (2026-08-23)
+
+Not decisions so much as answers that had been left implicit, all pinned now.
+
+1. **`testOSGi` may not pass by having run nothing (#35).** Two guards: a run must leave a
+   report containing at least one test (previous reports are deleted first, or the guard
+   accepts yesterday's), and `resolve.test` no longer claims to be up to date, because Gradle
+   cannot see that a changed *bundle* invalidates a resolution. The committed `-runbundles`
+   is checked against what the resolver produces — the note asking for a hand-refresh had
+   already gone stale once, so it is a gate now. Verified by reproducing the original symptom.
+2. **References across resources (#33): the index stores ids, not URIs.** Two behaviours were
+   wrong and are refusals now — a proxy whose fragment addresses a *position* (no EMF id on
+   the target's class) used to be written into the index as if it were an id, and an
+   unresolved child of a NESTED block used to be written as an empty document. And indexing
+   no longer resolves proxies at all: a write must not load the model it points at.
+3. **The read side sees sub-fields (#39).** `FieldUse` decides which projection answers —
+   declared where a modeller must say it, derived from the kind otherwise. Two projections
+   claiming one use are refused at mapping time. A mapping with one projection per attribute
+   behaves exactly as before, which is what made this safe to change late.
+4. **#34 and #36 are upstream reports**, raised as emf.persistence-jpa#216 (the TCK is not in
+   the `fennecPersistence` library — a `fennecPersistenceTest` library is the shape that
+   matches the existing `fennec`/`fennecTest` split) and #217 (two libraries sharing one bnd
+   plugin key, so the older index silently wins). Both stay worked around here.
+
 ## Computed fields (S20/#28, 2026-08-23)
 
 **Mark's ecore round**, chosen from three shapes: `sources : ValueSource[0..*]` *beside*
