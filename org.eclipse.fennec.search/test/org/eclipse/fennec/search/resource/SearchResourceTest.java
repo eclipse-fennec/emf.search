@@ -105,8 +105,40 @@ class SearchResourceTest {
 		return DocumentMapper.of(mapping);
 	}
 
+	/** The mapping the referential-integrity cases need: manufacturer as an ID_ONLY reference. */
+	private static DocumentMapper mapperWithManufacturer() {
+		IndexUnitMapping mapping = ESEARCH.createIndexUnitMapping();
+		mapping.setName("catalog");
+		mapping.setEPackage(catalog);
+		DocumentMapping product = ESEARCH.createDocumentMapping();
+		product.setEClass((EClass) catalog.getEClassifier("Product"));
+		ReferenceMapping manufacturer = ESEARCH.createReferenceMapping();
+		manufacturer.setEReference(
+				(EReference) product.getEClass().getEStructuralFeature("manufacturer"));
+		manufacturer.setStrategy(ReferenceStrategy.ID_ONLY);
+		product.getReferences().add(manufacturer);
+		mapping.getDocuments().add(product);
+		return DocumentMapper.of(mapping);
+	}
+
 	private static EObject product(String id, String name) {
 		EClass eClass = (EClass) catalog.getEClassifier("Product");
+		EObject object = EcoreUtil.create(eClass);
+		object.eSet(eClass.getEStructuralFeature("id"), id);
+		object.eSet(eClass.getEStructuralFeature("name"), name);
+		return object;
+	}
+
+	private static EObject bundle(String id, String name) {
+		EClass eClass = (EClass) catalog.getEClassifier("Bundle");
+		EObject object = EcoreUtil.create(eClass);
+		object.eSet(eClass.getEStructuralFeature("id"), id);
+		object.eSet(eClass.getEStructuralFeature("name"), name);
+		return object;
+	}
+
+	private static EObject manufacturer(String id, String name) {
+		EClass eClass = (EClass) catalog.getEClassifier("Manufacturer");
 		EObject object = EcoreUtil.create(eClass);
 		object.eSet(eClass.getEStructuralFeature("id"), id);
 		object.eSet(eClass.getEStructuralFeature("name"), name);
@@ -495,5 +527,80 @@ class SearchResourceTest {
 		assertThatThrownBy(() -> factory.createResource(URI.createURI("lucene://other/Product/p-1")))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("this factory serves 'catalog'");
+	}
+
+	// --- what a URI addresses -------------------------------------------------------------
+
+	@Test
+	void aUriNamingASupertypeReadsItsSubtypes() throws Exception {
+		PersistenceResource written = resource("lucene://catalog/Bundle/b-1");
+		written.getContents().add(bundle("b-1", "Starter set"));
+		written.save(Map.of());
+		unit.refresh();
+
+		// The type segment scopes by class, as a type predicate does — a Bundle is a
+		// Product, and reading Products that skipped it would be a lie about the model.
+		Resource read = resourceSet.createResource(URI.createURI("lucene://catalog/Product"));
+		read.load(Map.of());
+
+		assertThat(read.getContents()).hasSize(1);
+		assertThat(read.getContents().get(0).eClass().getName()).isEqualTo("Bundle");
+	}
+
+	@Test
+	void loadingATypeTheUnitDoesNotMapSaysSoInsteadOfAnsweringEmpty() throws Exception {
+		Resource resource = resourceSet.createResource(URI.createURI("lucene://catalog/Sprocket"));
+
+		resource.load(Map.of());
+
+		assertThat(resource.getContents()).isEmpty();
+		assertThat(resource.getErrors())
+				.as("an unknown type is a refusal, not an empty result (emf.persistence-jpa#197)")
+				.isNotEmpty();
+		assertThat(resource.getErrors().get(0).getMessage()).contains("Sprocket");
+	}
+
+	// --- referential integrity ------------------------------------------------------------
+
+	@Test
+	void deletingAnObjectSomethingStillReferencesIsRefused() throws Exception {
+		resourceSet.getResourceFactoryRegistry().getProtocolToFactoryMap()
+				.put(SearchUris.SCHEME, new SearchResourceFactory(unit, mapperWithManufacturer()));
+		EObject acme = manufacturer("m-1", "ACME");
+		Resource makers = resourceSet.createResource(URI.createURI("lucene://catalog/Manufacturer/m-1"));
+		makers.getContents().add(acme);
+		makers.save(Map.of());
+		EObject machine = product("p-1", "Espresso Machine");
+		machine.eSet(((EClass) catalog.getEClassifier("Product")).getEStructuralFeature("manufacturer"),
+				acme);
+		PersistenceResource products = resource("lucene://catalog/Product/p-1");
+		products.getContents().add(machine);
+		products.save(Map.of());
+		unit.refresh();
+
+		assertThatThrownBy(() -> makers.delete(Map.of()))
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("manufacturer");
+		assertThat(makers.getErrors()).as("the refusal says why").isNotEmpty();
+		unit.refresh();
+		assertThat(((PersistenceResource) resourceSet
+				.createResource(URI.createURI("lucene://catalog/Manufacturer/m-1"))).exist())
+						.as("a refused delete changes nothing").isTrue();
+	}
+
+	@Test
+	void deletingAnObjectNobodyReferencesStillWorks() throws Exception {
+		resourceSet.getResourceFactoryRegistry().getProtocolToFactoryMap()
+				.put(SearchUris.SCHEME, new SearchResourceFactory(unit, mapperWithManufacturer()));
+		Resource makers = resourceSet.createResource(URI.createURI("lucene://catalog/Manufacturer/m-2"));
+		makers.getContents().add(manufacturer("m-2", "Unloved"));
+		makers.save(Map.of());
+		unit.refresh();
+
+		makers.delete(Map.of());
+		unit.refresh();
+
+		assertThat(((PersistenceResource) resourceSet
+				.createResource(URI.createURI("lucene://catalog/Manufacturer/m-2"))).exist()).isFalse();
 	}
 }

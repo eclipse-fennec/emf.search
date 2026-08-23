@@ -113,6 +113,23 @@ public class LucenePersistenceTckTest extends AbstractPersistenceTCK {
 	}
 
 	/**
+	 * The trigger this backend can honestly produce (emf.persistence-jpa#197): a URI naming a
+	 * type no document mapping of the unit writes. An index has no schema to refuse a write
+	 * with — but it does know which types it maps, and answering an unknown one with silence
+	 * is exactly the empty-looking success this case exists to catch. The read leaves an error
+	 * diagnostic on the resource instead.
+	 */
+	@Override
+	protected Resource provokeLoadDiagnostic() throws Exception {
+		Resource resource = createBackendResourceSet().createResource(uriFor("NoSuchType"));
+		resource.load(null);
+		// This backend populates eagerly, unlike JPA and Mongo — the touch is here so the
+		// trigger stays correct if that ever changes.
+		resource.getContents();
+		return resource;
+	}
+
+	/**
 	 * The mapping the TCK model needs from this backend: {@code Person.name} as a keyword
 	 * (exact equality and case-insensitive matching run on terms, not tokens), containment
 	 * as a NESTED block (the quantifier cases), every non-containment reference ID_ONLY so
@@ -169,6 +186,10 @@ public class LucenePersistenceTckTest extends AbstractPersistenceTCK {
 		packed.setCoordinates((EAttribute) geoPoint.getEStructuralFeature("coordinates"));
 		packed.setDocValues(true);
 		placeMapping.getFields().add(packed);
+		// The point is a containment child in its own right (§8 single-valued containment):
+		// the packed geo field reads its coordinates as a position, the block writes the
+		// object, and neither is the other — a position is not a value anyone reads back.
+		nested(placeMapping, place, "location");
 
 		entry(mapping, (EClass) tckPackage.getEClassifier("StringToStringMapEntry"), "stringMap");
 		entry(mapping, (EClass) tckPackage.getEClassifier("IntToStringMapEntry"), "intMap");

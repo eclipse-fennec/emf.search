@@ -105,6 +105,21 @@ class LuceneQueryProcessorTest {
 	}
 
 	@Test
+	void validationRefusesAProjectedExpression() {
+		// PROJECTION_EXPRESSION (upstream #189) is the projection counterpart of
+		// SORT_EXPRESSION: a column computed per document, which an inverted index has no
+		// way to produce. Undeclared, so the shared validator refuses it by name — the
+		// literal projected here is deliberately free of arithmetic, so nothing else can
+		// account for the refusal.
+		Query query = QueryBuilder.from(product)
+				.selectAs("constant", Expressions.literal("x"))
+				.build();
+		Diagnostic diagnostic = processor().validate(query, product);
+		assertThat(diagnostic.getSeverity()).isEqualTo(Diagnostic.ERROR);
+		assertThat(flatten(diagnostic)).contains("PROJECTION_EXPRESSION");
+	}
+
+	@Test
 	void validationRefusesAPathTheMappingCannotRead() {
 		// manufacturer is not mapped at all, so its name never became a field here.
 		Query query = QueryBuilder.from(product)

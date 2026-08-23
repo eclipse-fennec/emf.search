@@ -197,8 +197,14 @@ public class SearchResource extends ResourceImpl
 	@Override
 	public void delete(Map<?, ?> options) throws IOException {
 		if (address.isObject()) {
+			refuseIfReferenced(mapper.schema().eClassOfOrNull(address.type()), address.id());
 			unit.deleteDocuments(new Term(SearchFields.ROOT, address.id()));
 		} else if (!getContents().isEmpty()) {
+			// Every object is checked before the first one is deleted: a refused delete
+			// changes nothing, and a half-applied one would be worse than either outcome.
+			for (EObject object : getContents()) {
+				refuseIfReferenced(object.eClass(), idOf(object));
+			}
 			for (EObject object : getContents()) {
 				unit.deleteDocuments(mapper.map(object).term());
 			}
@@ -208,6 +214,48 @@ public class SearchResource extends ResourceImpl
 					+ SearchUris.SCHEME + "://<unit>/<type>/<id>.");
 		}
 		getContents().clear();
+	}
+
+	/**
+	 * Refuses a delete that would leave a reference pointing at nothing (§8,
+	 * emf.persistence-jpa#195). An index has no foreign key, so it looks before it deletes:
+	 * every ID_ONLY reference field that could carry this id is probed, and the object's own
+	 * documents are left out so a self-reference does not block its owner. Containment
+	 * children are owned and go with the parent, an EMBED copy is a value, and neither can
+	 * dangle.
+	 * <p>
+	 * One read per delete is the price of the guarantee. It is paid where the guarantee is
+	 * asked for — no mapped ID_ONLY reference can point here, no probe.
+	 */
+	private void refuseIfReferenced(EClass type, String id) throws IOException {
+		if (type == null || id == null) {
+			return;
+		}
+		Set<String> fields = mapper.schema().incomingIdOnlyFields(type);
+		if (fields.isEmpty()) {
+			return;
+		}
+		BooleanQuery.Builder incoming = new BooleanQuery.Builder();
+		for (String field : fields) {
+			incoming.add(new TermQuery(new Term(field, id)), Occur.SHOULD);
+		}
+		incoming.setMinimumNumberShouldMatch(1);
+		// The object's own block, children included — a reference an object holds to itself
+		// disappears with it. The exclusion is by root id, which is the same identity the
+		// delete itself uses.
+		incoming.add(new TermQuery(new Term(SearchFields.ROOT, id)), Occur.MUST_NOT);
+		Query query = incoming.build();
+		long referencing = unit.<Integer>search(searcher -> searcher.count(query)).longValue();
+		if (referencing == 0) {
+			return;
+		}
+		String message = "Refusing to delete " + type.getName() + " '" + id + "': " + referencing
+				+ " document(s) still reference it through " + String.join(", ", fields)
+				+ ". A reference this index wrote must not end up pointing at nothing — clear the "
+				+ "referencing objects first, or delete them together with this one.";
+		getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE, message,
+				getURI()));
+		throw new IOException(message);
 	}
 
 	// --- reading ------------------------------------------------------------------------
@@ -293,6 +341,9 @@ public class SearchResource extends ResourceImpl
 
 	/** Reconstructs everything the URI addresses; the shared read of load and stream. */
 	private List<EObject> readScope() throws IOException {
+		if (!scopeIsMapped()) {
+			return List.of();
+		}
 		DocumentReader reader = DocumentReader.of(mapper.schema(), mapper.serializers(), packages());
 		try {
 			return unit.search(searcher -> {
@@ -320,6 +371,26 @@ public class SearchResource extends ResourceImpl
 		}
 	}
 
+
+	/**
+	 * Whether this unit maps the type the URI names at all. A type nobody indexes is not an
+	 * empty result: the read cannot answer for it, and a caller has to be able to tell the
+	 * two apart — so the refusal goes on the resource as an error diagnostic
+	 * (emf.persistence-jpa#197) and the read stays empty rather than throwing, because the
+	 * resource is still a perfectly good, and empty, view of what the URI addresses.
+	 */
+	private boolean scopeIsMapped() {
+		if (address.type() == null || mapper.schema().eClassOfOrNull(address.type()) != null) {
+			return true;
+		}
+		getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
+				"Unit '" + address.unit() + "' maps no type named '" + address.type() + "', so '"
+						+ getURI() + "' addresses nothing this index can read. The answer is empty "
+						+ "because the type is unknown here, not because the index holds no such "
+						+ "objects.",
+				getURI()));
+		return false;
+	}
 
 	/** One warning per loaded class whose reconstruction is incomplete, naming what is not there. */
 	private void warnAboutOmissions(List<EObject> loaded) {
@@ -422,7 +493,14 @@ public class SearchResource extends ResourceImpl
 		BooleanQuery.Builder builder = new BooleanQuery.Builder();
 		builder.add(new TermQuery(new Term(SearchFields.PARENT, SearchFields.PARENT_VALUE)), Occur.FILTER);
 		if (address.type() != null) {
-			builder.add(new TermQuery(new Term(mapper.typeField(), address.type())), Occur.FILTER);
+			// The type segment scopes by class, not by discriminator value: a URI naming a
+			// supertype — an abstract one included — reads the concrete subtypes too, the
+			// widening every type predicate already applies. A name this unit does not know
+			// stays a term nothing matches; saying so is the read path's job.
+			EClass type = mapper.schema().eClassOfOrNull(address.type());
+			builder.add(type == null
+					? new TermQuery(new Term(mapper.typeField(), address.type()))
+					: mapper.schema().typeFilter(type), Occur.FILTER);
 		}
 		if (address.id() != null) {
 			builder.add(new TermQuery(new Term(SearchFields.ROOT, address.id())), Occur.FILTER);
