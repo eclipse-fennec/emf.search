@@ -558,6 +558,28 @@ backend's favour, and the answer is what S21 declares:
   declaration = behaviour, so a declaration that overstates this backend fails our build
   rather than a consumer's.
 
+**Landed in S21/S22 (2026-08-23)**, with four things the sections above did not say:
+
+- **A refusal travels inside the exception, not only on the resource.** The refusing paths
+  throw an `IOException` whose cause is a `QueryException` carrying the `Diagnostic` — what
+  the TCK's command cross-product (upstream #175) reads to tell "this mapping is not served"
+  from "the backend broke while executing". The query path carries it the same way now.
+- **A delete removes blocks, not documents.** `deleteDocuments(Query)` would take the matched
+  roots and leave their `NESTED` children as orphans, so the matches are resolved to root ids
+  first and deleted by that term — and the referential-integrity refusal of §4.4 applies to a
+  selector delete too, over the whole matched set at once.
+- **Update reads through the materialized tier and re-maps.** Every match is patched and
+  mapped before the first document is written, so a template that fails halfway leaves the
+  index as it was. Reference entries resolve their target ids against this unit and bind the
+  proxy `ID_ONLY` hands back everywhere else; a missing target is dangling, not written.
+- **Two gaps the update path exposed and closed.** Writing an `ID_ONLY` reference now accepts
+  an unresolved proxy and takes the id from its URI — without that, read-patch-rewrite is
+  impossible, because a reconstructed object holds proxies. And a `STORED_OBJECT` document is
+  completed with its `ID_ONLY` fields on read: the serialized tree cannot carry a
+  cross-document reference (at write time the target is in another document, so there is no
+  href to write), while the fields beside it can. The TCK binding declares `STORED_OBJECT`
+  for exactly this reason and its command family now runs — 152 cases, 26 gate-skipped.
+
 ### 5.5 Geo — the one place where Lucene is the strongest backend
 
 With emf.persistence-jpa#101/#113 landed (§3), G-P3 here is a translation task rather than a

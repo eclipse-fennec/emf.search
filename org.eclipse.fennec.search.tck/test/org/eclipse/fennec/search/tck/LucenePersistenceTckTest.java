@@ -30,6 +30,7 @@ import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistries;
 import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
+import org.eclipse.fennec.persistence.capabilities.CommandFeature;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
 import org.eclipse.fennec.persistence.capabilities.StoreCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.query.support.NamedOperations;
@@ -40,6 +41,8 @@ import org.eclipse.fennec.search.esearch.ESearchFactory;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
 import org.eclipse.fennec.search.esearch.GeoPointFieldMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
+import org.eclipse.fennec.search.esearch.Materialization;
+import org.eclipse.fennec.search.esearch.MaterializationKind;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
 import org.eclipse.fennec.search.esearch.ReferenceStrategy;
 import org.eclipse.fennec.search.mapping.DocumentMapper;
@@ -108,10 +111,20 @@ public class LucenePersistenceTckTest extends AbstractPersistenceTCK {
 		return URI.createURI(SearchUris.SCHEME + "://tck/" + typeName);
 	}
 
+	/**
+	 * The write vocabulary is declared backend-wide (S21, #29): insert, delete-by-selector and
+	 * update-by-selector. The live resource narrows the last one to the classes whose mapping
+	 * declares {@code STORED_OBJECT} — which this binding's mapping does, so the narrowing
+	 * takes nothing away here and the conformance cases run for real. The transaction bracket
+	 * stays undeclared: Lucene has no rollback scoped to one caller (S22, #30).
+	 */
 	@Override
 	protected PersistenceCapabilities declaredCapabilities() {
 		return PersistenceCapabilities.of(LuceneQueryProcessor.declaredCapabilities(),
-				CommandCapabilitiesBuilder.create().build(),
+				CommandCapabilitiesBuilder.create()
+						.support(CommandFeature.INSERT, CommandFeature.DELETE_BY_SELECTOR,
+								CommandFeature.UPDATE_BY_SELECTOR)
+						.build(),
 				StoreCapabilitiesBuilder.create().build());
 	}
 
@@ -220,9 +233,21 @@ public class LucenePersistenceTckTest extends AbstractPersistenceTCK {
 		}
 	}
 
+	/**
+	 * Every document mapping of this binding declares {@code STORED_OBJECT} materialization
+	 * (S16, #18) — the complete object beside its indexed fields. Two reasons, both about
+	 * conformance rather than about taste: it is what makes {@code UPDATE_BY_SELECTOR} honest
+	 * here (Lucene has no partial update, so a rewrite needs the whole object — §5.4), and it
+	 * is the tier a store aiming at the persistence contract would choose, since the TCK reads
+	 * back objects rather than search hits. A mapping without it is still legitimate and still
+	 * covered — by the plain-JUnit tests, where the refusal is asserted.
+	 */
 	private DocumentMapping document(IndexUnitMapping mapping, EClass eClass) {
 		DocumentMapping document = ESearchFactory.eINSTANCE.createDocumentMapping();
 		document.setEClass(eClass);
+		Materialization complete = ESearchFactory.eINSTANCE.createMaterialization();
+		complete.setKind(MaterializationKind.STORED_OBJECT);
+		document.setMaterialization(complete);
 		mapping.getDocuments().add(document);
 		return document;
 	}
