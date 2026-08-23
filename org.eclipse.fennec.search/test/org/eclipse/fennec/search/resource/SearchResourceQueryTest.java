@@ -38,6 +38,7 @@ import org.eclipse.fennec.model.query.builder.QueryBuilder;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
 import org.eclipse.fennec.persistence.query.api.QueryableResource;
+import org.eclipse.fennec.persistence.query.support.RegistryNamedOperations;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;
@@ -82,7 +83,8 @@ class SearchResourceQueryTest {
 				.build());
 		queries = EObjectRegistries.createRegistry("queries");
 		resource = new SearchResource(URI.createURI("lucene://catalog/Product"), unit,
-				DocumentMapper.of(mapping()), queries, doubleFromStringConverter());
+				DocumentMapper.of(mapping()), new RegistryNamedOperations(queries),
+				doubleFromStringConverter());
 		save(product("p-1", "Espresso Machine", 499.0, review("r-1", "ada", 5)));
 		save(product("p-2", "Grinder", 129.0, review("r-2", "bob", 2)));
 		save(product("p-3", "Kettle", 39.0));
@@ -177,6 +179,41 @@ class SearchResourceQueryTest {
 		try (QueryResult byName = resource.query("expensive", null, null)) {
 			assertThat(byName.count()).isEqualTo(2);
 		}
+	}
+
+	@Test
+	void aQueryServedFromAReadOnlyCatalogRuns() throws Exception {
+		// emf.persistence-jpa#163: `named(…)` sets saveQuery, and the flag used to travel with
+		// the query out of the catalog — so running a stored one asked to store it again, which
+		// a read-only catalog can only refuse. `forExecution` clears it on the way out.
+		Query stored = QueryBuilder.from(product).named("expensive")
+				.where(path(price()).gt(100.0)).countOnly().build();
+		queries.put("test", "expensive", stored, Map.of());
+		SearchResource readOnly = new SearchResource(URI.createURI("lucene://catalog/Product"), unit,
+				DocumentMapper.of(mapping()), new RegistryNamedOperations(queries.getRegistry()), null);
+
+		try (QueryResult byName = readOnly.query("expensive", null, null)) {
+			assertThat(byName.count()).isEqualTo(2);
+		}
+	}
+
+	@Test
+	void executingByNameLeavesTheCatalogEntryAlone() throws Exception {
+		Query query = QueryBuilder.from(product).named("expensive")
+				.where(path(price()).gt(100.0)).countOnly().build();
+		try (QueryResult first = resource.query(query)) {
+			assertThat(first.count()).isEqualTo(2);
+		}
+		Query entry = (Query) queries.getRegistry().get("expensive").orElseThrow();
+
+		try (QueryResult byName = resource.query("expensive", null, null)) {
+			assertThat(byName.count()).isEqualTo(2);
+		}
+
+		assertThat(queries.getRegistry().get("expensive")).containsSame(entry);
+		assertThat(entry.isSaveQuery())
+				.as("the catalog keeps the query as it was deposited — execution runs on a copy")
+				.isTrue();
 	}
 
 	@Test

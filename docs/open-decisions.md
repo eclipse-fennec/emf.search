@@ -13,13 +13,6 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   `QueryResult.close()` (an `IndexUnit` acquire/release surface) and declaring the
   feature. Next sizeable unit-lifecycle task; until built, results stay materialized —
   behaviour must not change undeclared.
-- **Shared named-query catalog — the trigger has fired.** Our factory-attached
-  `EObjectRegistry` is the interim; emf.persistence-jpa**#163** asked for the stack-wide
-  contract, and it **landed upstream on 2026-08-22** (`NamedOperations` /
-  `RegistryNamedOperations`, issues #203/#204, plus #201/#202 on the command side). Pending
-  work here: swap `SearchResource`'s `_qname`/`_qxmi` document convention for the shared
-  contract and drop the convention. Not started — sequenced after the TCK re-sync of
-  2026-08-23.
 
 ## Decided upstream, zero change here
 
@@ -50,7 +43,13 @@ Pinned by `SearchResourceTest` and the TCK binding.
    bare id value, so two types sharing an id share a block identity — the same collision
    the delete itself has. *Revisit if* a unit-wide unique document key ever replaces the
    bare id.
-4. **`PROJECTION_EXPRESSION` (#189) stays undeclared** — the projection counterpart of the
+4. **The named-operation catalog is swapped, and the old registry reference survives as a
+   fallback** (#203/#163, done 2026-08-23 — the entry that used to sit under "open" is
+   settled). `SearchResource` and its factory take a `NamedOperations`; the OSGi component
+   prefers a bound service and otherwise wraps the registry it already referenced in
+   `RegistryNamedOperations`, so a deployment configured before the contract existed keeps
+   working without a second lookup road of our own. Documented in §5.6.
+5. **`PROJECTION_EXPRESSION` (#189) stays undeclared** — the projection counterpart of the
    SORT_EXPRESSION refusal. The shared validator refuses it by name; the test pins that
    nobody declares it by accident.
 

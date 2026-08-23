@@ -46,9 +46,11 @@ public final class SearchConstants {
 	public static final String MAPPING_REGISTRY_NAME = "search-mappings";
 
 	/**
-	 * Default name of the EObject registry persisting named queries
-	 * (emf.persistence-jpa#163). Override with the {@code queryCatalog.target} reference
-	 * target.
+	 * Default name of the EObject registry this backend falls back to when no
+	 * {@code NamedOperations} service is bound — the stack-wide catalog contract of
+	 * emf.persistence-jpa#203 comes first, and this registry is then wrapped in the
+	 * contract's default implementation rather than read directly. Override with the
+	 * {@code queryCatalog.target} reference target.
 	 */
 	public static final String QUERY_CATALOG_NAME = "search-queries";
 
