@@ -346,6 +346,25 @@ Four consequences, all owned by #28:
   the index; recording it beside the data (the unit's commit data, S18) is how a deployment
   notices that it needs a rebuild.
 
+### 4.2a References across resources (#33)
+
+Answered and pinned 2026-08-23, after the `emf.codec` sweep asked the same question of every
+mapping layer. **The index stores ids, not URIs**: an `ID_ONLY` reference writes the target's
+id wherever the target lives, and reads back as a proxy into this unit
+(`lucene://<unit>/<Type>/<id>`). What the objects' original resource layout was is not
+preserved — a cross-resource reference survives as far as the target is indexed in the same
+unit, and no further.
+
+**Indexing resolves nothing.** `targetsOf` reads with `resolve=false`, so writing a document
+never loads another resource — a write with I/O side effects on the caller's ResourceSet,
+one document per reference across a whole corpus, is not a property worth having for an id
+the proxy URI already carries. Two shapes are refused instead of written: a proxy whose
+fragment addresses a *position* rather than an id (the target's class has no EMF id
+attribute — the string would match nothing and resolve to nothing), and an unresolved child
+of a `NESTED` block (a block is written from the child's own values). `CrossResourceReferenceTest`
+holds both, with two real files and a separate `ResourceSet` — the shape the codec sweep found
+missing everywhere.
+
 ### 4.3 Materialization and the load path — three tiers (S16, #18)
 
 Fixed 2026-08-17, superseding the first cut of this section and of issue #18, which had
