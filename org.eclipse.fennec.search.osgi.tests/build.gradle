@@ -16,8 +16,12 @@ tasks.named("testOSGi") {
 }
 
 // The committed `-runbundles` is a convenience copy for launching this bndrun from bndtools,
-// and a copy that may lie is worth less than no copy (#35 — it went stale once already). The
-// check compares it with what the resolver just produced and says how to fix the difference.
+// and a copy that may lie is worth less than no copy (#35 — it went stale once already). What
+// has to match is the *set of bundles*: which ones the runtime needs is the thing that drifts
+// when a bundle gains an import, and it is the same everywhere. Versions deliberately are not
+// compared — a release build resolves the workspace's own bundles to a timestamped version
+// while the committed file says `snapshot`, and failing on that would gate releases on a
+// spelling.
 tasks.register("checkRunbundles") {
 	dependsOn resolveTask
 	def committed = layout.projectDirectory.file("test.bndrun")
@@ -26,21 +30,45 @@ tasks.register("checkRunbundles") {
 	inputs.file(resolved)
 	outputs.upToDateWhen { false }
 	doLast {
-		def bundlesOf = { file ->
-			def text = file.asFile.text
-			def match = (text =~ /(?sm)^-runbundles:\s*(.*?)(?=\n\s*\n|\n[^\s\\]|\z)/)
-			if (!match) {
-				throw new GradleException("No -runbundles block in ${file} — the comparison "
-						+ "would have compared nothing with nothing.")
+		// Read the block by bnd's own rule — a line ending in a backslash continues — rather
+		// than by a regex over the text. A blank line left behind by a hand edit is then
+		// whitespace, not the end of the list, which is what a stale copy usually looks like.
+		def namesOf = { file ->
+			def names = new TreeSet<String>()
+			boolean inside = false
+			file.asFile.eachLine { line ->
+				def entry = line.trim()
+				if (entry.startsWith("-runbundles:")) {
+					inside = true
+					entry = entry.substring("-runbundles:".length()).trim()
+				} else if (!inside) {
+					return
+				} else if (entry.startsWith("#")) {
+					return
+				}
+				boolean continues = entry.endsWith("\\")
+				entry = entry.replaceAll(/\\$/, '').trim().replaceAll(/,$/, '').trim()
+				if (entry) {
+					names << entry.split(/;/)[0].trim()
+					inside = continues
+				}
 			}
-			match[0][1].replaceAll(/[\\\s]+/, ' ').trim()
+			if (names.isEmpty()) {
+				throw new GradleException("No -runbundles found in ${file} — the comparison would "
+						+ "have compared nothing with nothing.")
+			}
+			names
 		}
-		def here = bundlesOf(committed)
-		def there = bundlesOf(resolved.get())
+		def here = namesOf(committed)
+		def there = namesOf(resolved.get())
 		if (here != there) {
-			throw new GradleException("The -runbundles in test.bndrun is not what the resolver "
-					+ "produces, so the committed list lies about what testOSGi runs. Copy the "
-					+ "-runbundles block from ${resolved.get().asFile} into "
+			def missing = there - here
+			def extra = here - there
+			throw new GradleException("The -runbundles in test.bndrun is not the set the resolver "
+					+ "produces, so the committed list lies about what testOSGi runs."
+					+ (missing ? " Missing: ${missing.join(', ')}." : "")
+					+ (extra ? " No longer needed: ${extra.join(', ')}." : "")
+					+ " Copy the -runbundles block from ${resolved.get().asFile} into "
 					+ "${committed.asFile} and commit it.")
 		}
 	}
