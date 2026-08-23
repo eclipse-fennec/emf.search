@@ -31,6 +31,30 @@ Partial objects are legitimate read results — list views, pick lists, search r
 They are never write sources: saving one back would erase everything the index did not
 carry, which is why update-by-selector stays gated on `STORED_OBJECT`.
 
+## References that leave the resource
+
+**This index stores ids, not URIs.** An `ID_ONLY` reference writes the target's id whether the
+target sits in the same resource, in another one, or is still an unresolved proxy — and it
+reads back as a proxy into *this unit*, because that is the only address space the index
+knows. A cross-resource reference therefore survives indexing exactly as far as the target is
+indexed in the same unit; the resource layout the objects came from is not preserved, and is
+not meant to be.
+
+**Indexing never loads anything.** Proxies are not resolved while writing: the id comes out of
+the proxy's own URI. A write that quietly loaded one document per reference would turn
+indexing a corpus into loading the model it points at.
+
+Two shapes cannot be written honestly and are refused rather than indexed as something that
+looks right:
+
+- **a proxy whose URI addresses a position** (`makers.xmi#//@manufacturers.0`) instead of an
+  id — what a target whose class has no EMF id attribute looks like from outside. Writing the
+  path would put a string in the index that no query matches and no read resolves;
+- **an unresolved child of a `NESTED` block.** Cross-resource containment is a real model
+  feature, and a block is written from the child's own values — which an unresolved child does
+  not have. Load the containing resource before indexing, or map the reference `ID_ONLY`,
+  which needs only the id.
+
 ## `STORED_OBJECT`: the self-sufficient index
 
 ```xml

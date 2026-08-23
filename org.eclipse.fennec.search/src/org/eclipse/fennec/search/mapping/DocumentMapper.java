@@ -663,19 +663,27 @@ public final class DocumentMapper {
 	 */
 	private static String proxyId(EObject target) {
 		URI uri = ((InternalEObject) target).eProxyURI();
-		if (uri != null && uri.hasFragment() && !uri.fragment().isBlank()) {
-			return uri.fragment();
+		if (uri == null || !uri.hasFragment() || uri.fragment().isBlank()) {
+			throw refuseProxy(target, uri, "carries no fragment");
 		}
-		return uri != null && uri.segmentCount() > 0 && !uri.lastSegment().isBlank()
-				? uri.lastSegment()
-				: refuseProxy(target, uri);
+		String fragment = uri.fragment();
+		if (fragment.startsWith("/") || fragment.contains("@")) {
+			// A path-based fragment (//@products.0) addresses a position in another document,
+			// not an object by id. Writing it would put a string in the index that no query
+			// can match and no read can resolve — the reference would look indexed and be
+			// gone. It happens whenever the target's class has no EMF id attribute.
+			throw refuseProxy(target, uri, "addresses a position ('" + fragment + "') rather than "
+					+ "an id, which happens when the target's class has no EMF id attribute");
+		}
+		return fragment;
 	}
 
-	private static String refuseProxy(EObject target, URI uri) {
-		throw new MappingException("The " + target.eClass().getName() + " reference target is an "
-				+ "unresolved proxy whose URI ('" + uri + "') carries no id, so there is nothing to "
-				+ "write for an ID_ONLY reference. Resolve the target, or give it a URI of the form "
-				+ "lucene://<unit>/<Type>/<id>.");
+	private static MappingException refuseProxy(EObject target, URI uri, String why) {
+		return new MappingException("The " + target.eClass().getName() + " reference target is an "
+				+ "unresolved proxy whose URI ('" + uri + "') " + why + ", so there is nothing an "
+				+ "ID_ONLY reference could write. Resolve the target before indexing, give its "
+				+ "class an id attribute, or map the reference EMBED if the value rather than the "
+				+ "identity is what you search on.");
 	}
 
 	private void writeEmbedded(Document root, ReferenceMapping reference, EReference eReference,
@@ -702,6 +710,17 @@ public final class DocumentMapper {
 					+ "makes sense where the parent owns the children.");
 		}
 		for (EObject target : targets) {
+			if (target.eIsProxy()) {
+				// A block is written from the child's own values, and an unresolved child has
+				// none: the document would be written empty, which reads back as an object
+				// that exists and says nothing. Cross-resource containment is a real model
+				// feature; indexing it means having the child.
+				throw new MappingException("The child of '" + eReference.getName() + "' is an "
+						+ "unresolved proxy (" + ((InternalEObject) target).eProxyURI() + "), and a "
+						+ "NESTED block is written from the child's own values. Load the containing "
+						+ "resource before indexing, or map the reference ID_ONLY, which needs only "
+						+ "the id.");
+			}
 			DocumentMapping targetMapping = reference.getTarget() != null
 					? reference.getTarget()
 					: resolve(target.eClass());
@@ -887,8 +906,15 @@ public final class DocumentMapper {
 	}
 
 	@SuppressWarnings("unchecked")
+	/**
+	 * The targets of a reference, <b>without resolving proxies</b> (#33). Indexing reads what
+	 * the object holds; it does not load other resources. Resolving here would give a write
+	 * an I/O side effect on the caller's ResourceSet — one arbitrary document per reference,
+	 * multiplied by the corpus — and an unresolved target is not a problem to work around:
+	 * its URI carries the id, which is all an ID_ONLY reference writes.
+	 */
 	private static List<EObject> targetsOf(EObject object, EReference reference) {
-		Object value = object.eGet(reference);
+		Object value = object.eGet(reference, false);
 		if (reference.isMany()) {
 			return new ArrayList<>((List<EObject>) value);
 		}
