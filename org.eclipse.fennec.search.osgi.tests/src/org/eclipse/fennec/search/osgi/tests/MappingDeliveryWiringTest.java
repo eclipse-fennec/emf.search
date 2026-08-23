@@ -47,6 +47,9 @@ import org.eclipse.fennec.search.highlight.HighlightRequest;
 import org.eclipse.fennec.search.highlight.HighlightSearch;
 import org.eclipse.fennec.search.osgi.SearchConstants;
 import org.eclipse.fennec.search.similarity.SimilarityRequest;
+import org.eclipse.fennec.search.group.GroupRequest;
+import org.eclipse.fennec.search.group.GroupResults;
+import org.eclipse.fennec.search.group.GroupSearch;
 import org.eclipse.fennec.search.similarity.SimilaritySearch;
 import org.eclipse.fennec.search.suggest.SuggestSearch;
 import org.eclipse.fennec.search.unit.IndexUnit;
@@ -204,6 +207,22 @@ class MappingDeliveryWiringTest {
 			assertThat(similarity.search(SimilarityRequest.to(object).field(label)))
 					.extracting(hit -> hit.object().eGet(hit.object().eClass().getEStructuralFeature("id")))
 					.containsExactly("i-2");
+
+			// The grouping service of the same unit — the groups prove the chain. The key is
+			// the id, the one keyword projection the conventions give this model: what the
+			// grouping actually does is a plain-JUnit question (GroupSearchTest), this is
+			// about the service being there and answering.
+			GroupSearch grouping = await(context, GroupSearch.class,
+					"(" + SearchConstants.UNIT_ALIAS + "=wired)");
+			assertThat(grouping).as("the grouping service is published per unit").isNotNull();
+			GroupResults groups = grouping.search(GroupRequest
+					.over(QueryBuilder.from(item)
+							.where(Expressions.path(label).contains("through"))
+							.build())
+					.by(id));
+			assertThat(groups.groups()).extracting(GroupResults.Group::key)
+					.containsExactlyInAnyOrder("i-1", "i-2");
+			assertThat(groups.totalGroups()).isEqualTo(2);
 		} finally {
 			registryConfiguration.delete();
 			unitConfiguration.delete();

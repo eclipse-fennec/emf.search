@@ -27,6 +27,7 @@
 	org.apache.felix.scr;version='[2.2.12,2.2.13)',\
 	org.apache.lucene.core;version='[10.5.0,10.5.1)',\
 	org.apache.lucene.facet;version='[10.5.0,10.5.1)',\
+	org.apache.lucene.grouping;version='[10.5.0,10.5.1)',\
 	org.apache.lucene.highlighter;version='[10.5.0,10.5.1)',\
 	org.apache.lucene.join;version='[10.5.0,10.5.1)',\
 	org.apache.lucene.memory;version='[10.5.0,10.5.1)',\

@@ -668,6 +668,29 @@ out), fields must be analyzed text with recoverable terms (term vectors or the s
 original; refusals name both roads), hits are same-type objects excluding the anchor,
 frequency thresholds default to 1 so any corpus size answers. See the similarity guide.
 
+### 6.3 Grouping with representatives (`GroupingSearch`)
+
+The fourth member of the family, and the one that joined it by elimination rather than by
+design (S19, #21, decided 2026-08-23). "Top-N documents per group" is a **result shape**,
+and the shared pipeline has no words for it: a `GroupByStage` yields one row of key and
+aggregates per group, never documents. The slot is reserved upstream as a later
+`BottomTop` stage and now has an issue of its own (emf.persistence-jpa#214) — which leaves
+exactly two honest roads, wait or build it beside the contract. It is built beside the
+contract, the way KNN was re-routed in #40: the canonical query is the base of every
+request, so predicates, quantifiers, parameters and refusals behave identically, and only
+the answer has a shape the IR does not know. When the stage lands upstream, the translator
+can serve it from this same machinery.
+
+`GroupSearch`/`GroupRequest`/`GroupResults`: group key, per-group total, representatives as
+reconstructed objects, groups ordered by their best hit. The key must be a keyword
+projection with doc values (grouping reads one exact term per document from the doc-values
+column) and single-valued (two values would mean two groups for one object); analyzed text,
+numerics and many-valued attributes are refused by name. **A document without the key is in
+no group** — it is filtered out of the match set rather than collected into a null group,
+which is also what keeps the group count honest. Lucene's `TermGroupSelector` reads
+`SORTED` doc values while every keyword field here is `SORTED_SET`, so the values are
+wrapped (`SortedSetSelector`) rather than the mapping bent. See the grouping guide.
+
 ## 7. Feature radar
 
 The Lucene surface beyond §5, split into the waves agreed on 2026-08-05. "Needs IR" marks
@@ -683,7 +706,7 @@ what cannot be built here alone because it requires query vocabulary in
 | Facets | `facet` | no — GROUP_BY/AGG_COUNT subset | taxonomy vs. SSDV decision in S7 |
 | Suggest | `suggest` | no — own API (§6) | |
 | Highlighting | `highlighter` | depends on the result-carrier decision (§6.1) | |
-| Grouping with representatives | `grouping` | likely — "top-N per group" is a result shape, not a predicate | clarify against the pipeline vocabulary before implementing |
+| Grouping with representatives | `grouping` | **answered 2026-08-23: no** — the shape is not in the pipeline (reserved as `BottomTop`, raised as emf.persistence-jpa#214), so it ships as an own API like suggest, §6.3 | S19 |
 | `MoreLikeThis` | `queries` | no — own API (§6.2) | |
 | `FeatureField` rank signals | `queries` | no — declared in the mapping model | §5.3 |
 | Interval/range fields | `core` | **yes** — interval semantics are new vocabulary | fallback without IR: two scalar comparisons, correct but slower and less expressive |
@@ -794,7 +817,9 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
 18. **S18 (#20) — checkpointing**: `IndexWriter#setLiveCommitData` carrying the applied change
     offset; recovery/resume semantics tested. Prerequisite for an honest S10.
 19. **S19 (#21) — grouping with representatives**: `GroupingSearch` for top-N per group.
-    Needs the result-shape question of §7 answered against the pipeline vocabulary first.
+    The result-shape question is answered (2026-08-23): the pipeline cannot express it, the
+    reserved `BottomTop` stage is raised upstream as emf.persistence-jpa#214, and the
+    feature ships as an own API (§6.3) instead of waiting or inventing vocabulary.
 20. **S21 (#29) — write commands**: `CommandResource` — insert, delete-by-selector, and
     update where materialization allows it (§5.4). **No longer blocked**: declared through
     `CommandCapabilitiesBuilder`, with `UPDATE_BY_SELECTOR` narrowed per EClass rather than
@@ -821,10 +846,11 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
 `classification`. KNN left this list on 2026-08-18 — as an own API it needs no IR change
 and is cut as issue #40, sequenced after the wave-1 core.
 
-Issues still to raise in `emf.persistence-jpa` for wave 1 (as of 2026-08-07 none of these
-exist there yet): interval vocabulary (S15), the result shape for grouping representatives
-(S19), possibly per-hit metadata if §6.1 lands on option (b). The two that *were* open —
-#101 for geo and #114 for command capabilities — are closed and consumed (§3).
+Issues still to raise in `emf.persistence-jpa` for wave 1: interval vocabulary (S15), and
+possibly per-hit metadata if §6.1 ever lands on option (b). The result shape for grouping
+representatives (S19) **was raised on 2026-08-23 as #214** and is not blocking — grouping
+ships as an own API meanwhile (§6.3). The two that *were* open — #101 for geo and #114 for
+command capabilities — are closed and consumed (§3).
 
 ## 9. Non-goals
 

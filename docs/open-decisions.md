@@ -53,6 +53,38 @@ Pinned by `SearchResourceTest` and the TCK binding.
    SORT_EXPRESSION refusal. The shared validator refuses it by name; the test pins that
    nobody declares it by accident.
 
+## Grouping with representatives (S19/#21, 2026-08-23)
+
+**Mark's call**, after the clarification the issue asked for: the pipeline cannot express
+"top-N documents per group" (a `GroupByStage` yields key plus aggregates, never documents),
+and the slot upstream reserved for it — `BottomTop` — is unbuilt. Of the three roads (own
+API plus an upstream issue / only the issue and park S19 / own API and never an issue) he
+chose the first: ship it beside the contract now, and keep the IR road open.
+`emf.persistence-jpa#214` carries the shape question, including the two things the backend
+knows a caller needs (documents per group, and the group's *total* so a truncated group says
+so) and the result-shape question the IR round actually turns on.
+
+The calls made building it, pinned by `GroupSearchTest`:
+
+1. **A document without the key is in no group.** Lucene collects those into a null group
+   and — worse — counts it, because the all-groups collector reads values rather than the
+   selector's verdict. So they are filtered out of the match set with a `FieldExistsQuery`
+   instead of explained away afterwards; the count is then honest by construction.
+2. **The key must be a keyword projection with doc values, and single-valued.** Analyzed
+   text has no single value per document, a numeric key would need ranges nobody declared,
+   and a many-valued attribute would put one object in several groups. All three are refused
+   by name; the facet API is the way out for the last one.
+3. **The doc-values shape is wrapped, not the mapping bent.** `TermGroupSelector` reads
+   `SORTED` and every keyword field here is `SORTED_SET` (what a many-valued attribute needs,
+   and what the keyword sort already reads). `KeywordGroupSelector` wraps the set through
+   `SortedSetSelector`; unambiguous because a many-valued key is refused anyway.
+4. **Groups ordered by their best hit, representatives by relevance** — "the best three of
+   every manufacturer" in the order the phrase means. Ordering by key or by group size is
+   what the upstream shape should decide, not a second knob invented here.
+5. **`GroupResults` is not a `QueryResult`.** A grouped answer is neither the objects nor the
+   rows the contract knows; dressing it as either would misreport it. That is also the
+   cleanest thing to retire the day the IR grows the stage.
+
 ## Autonomous calls in rank signals (S14/#16, 2026-08-23)
 
 The metamodel already carried `RankSignalFieldMapping` (function, pivot, exponent) from S2,
