@@ -14,13 +14,16 @@ package org.eclipse.fennec.search.query;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -57,6 +60,7 @@ import org.eclipse.fennec.search.esearch.FieldMapping;
 import org.eclipse.fennec.search.mapping.FacetFields;
 import org.eclipse.fennec.search.mapping.IndexSchema;
 import org.eclipse.fennec.search.mapping.MappingException;
+import org.eclipse.fennec.search.mapping.SearchFields;
 
 /**
  * The {@link QueryProcessor} for embedded Lucene: canonical query in, {@link
@@ -249,6 +253,8 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 		}
 
 		QueryShape shape = shapeOf(query);
+		org.apache.lucene.search.Query scoped = withRankSignals(builder.build(),
+				SearchOptions.rankSignals(context.options()), root, shape);
 		if (query.isWithScores() && shape != QueryShape.OBJECTS) {
 			throw new QueryException("withScores rides on hits, and a " + shape
 					+ " result has none — a count or a row carries no per-object relevance.");
@@ -271,8 +277,83 @@ public final class LuceneQueryProcessor implements QueryProcessor {
 			rowAliases.add(aggregation.keyAlias());
 			rowAliases.add(aggregation.countAlias());
 		}
-		return new LuceneQueryPlan(query, shape, builder.build(), sort, Math.max(0, query.getSkip()),
+		return new LuceneQueryPlan(query, shape, scoped, sort, Math.max(0, query.getSkip()),
 				query.getTop() > 0 ? query.getTop() : -1, rowFields, rowAliases, aggregation);
+	}
+
+	/**
+	 * Folds the selected rank signals into the query's score (§5.3, S14): the matching part
+	 * stays {@code MUST}, every signal joins as a {@code SHOULD} feature query that can only
+	 * add score, never change what matches. A document without the signal keeps the score
+	 * its text earned.
+	 * <p>
+	 * What the consumer supplies is a list of names. The function, its pivot and the weight
+	 * come from the mapping — see {@link SearchOptions#RANK_SIGNALS} for why that division
+	 * is the whole point.
+	 *
+	 * @throws QueryException if a name is not declared for this root type, if the result
+	 *         shape carries no score, or if a declared signal is not usable as it stands
+	 */
+	private org.apache.lucene.search.Query withRankSignals(org.apache.lucene.search.Query base,
+			List<String> selected, EClass root, QueryShape shape) throws QueryException {
+		if (selected.isEmpty()) {
+			return base;
+		}
+		if (shape == QueryShape.COUNT || shape == QueryShape.AGGREGATION) {
+			throw new QueryException("Rank signals shape a score, and a " + shape + " result carries "
+					+ "none — how many documents match does not depend on how they rank. Drop the '"
+					+ SearchOptions.RANK_SIGNALS + "' option, or ask for the hits.");
+		}
+		Map<String, IndexSchema.RankSignal> declared;
+		try {
+			declared = schema.rankSignals(root);
+		} catch (MappingException e) {
+			throw new QueryException(e.getMessage(), e);
+		}
+		BooleanQuery.Builder builder = new BooleanQuery.Builder();
+		builder.add(base, BooleanClause.Occur.MUST);
+		for (String name : selected) {
+			IndexSchema.RankSignal signal = declared.get(name);
+			if (signal == null) {
+				throw new QueryException("No rank signal '" + name + "' is declared for "
+						+ root.getName() + ". Declared here: "
+						+ (declared.isEmpty() ? "none" : declared.keySet())
+						+ ". A signal is a mapping declaration, not something a query can invent.");
+			}
+			builder.add(signalQuery(signal), BooleanClause.Occur.SHOULD);
+		}
+		return builder.build();
+	}
+
+	/** One declared signal as the Lucene feature query its function asks for. */
+	private org.apache.lucene.search.Query signalQuery(IndexSchema.RankSignal signal)
+			throws QueryException {
+		String field = SearchFields.FEATURES;
+		String name = signal.name();
+		float weight = signal.weight() > 0 ? signal.weight() : 1f;
+		return switch (signal.function()) {
+			case SATURATION -> signal.hasPivot()
+					? FeatureField.newSaturationQuery(field, name, weight, (float) signal.pivot())
+					// Without a declared pivot Lucene derives one from the index statistics,
+					// through a form that takes no weight — so the weight rides outside.
+					: boosted(FeatureField.newSaturationQuery(field, name), weight);
+			case LOG -> FeatureField.newLogQuery(field, name, weight,
+					(float) (signal.hasPivot() ? signal.pivot() : 1.0));
+			case SIGMOID -> {
+				if (!signal.hasPivot()) {
+					throw new QueryException("The rank signal '" + name + "' is SIGMOID but declares no "
+							+ "pivot, and a sigmoid has no meaning without the point it turns at. "
+							+ "Declare one, or use SATURATION, which derives a pivot from the index.");
+				}
+				yield FeatureField.newSigmoidQuery(field, name, weight, (float) signal.pivot(),
+						(float) signal.exponent());
+			}
+		};
+	}
+
+	private static org.apache.lucene.search.Query boosted(org.apache.lucene.search.Query query,
+			float weight) {
+		return weight == 1f ? query : new BoostQuery(query, weight);
 	}
 
 	/**

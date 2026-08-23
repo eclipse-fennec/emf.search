@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,8 @@ import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
 import org.eclipse.fennec.search.esearch.Materialization;
 import org.eclipse.fennec.search.esearch.NumericFieldMapping;
 import org.eclipse.fennec.search.esearch.NumericKind;
+import org.eclipse.fennec.search.esearch.RankFunction;
+import org.eclipse.fennec.search.esearch.RankSignalFieldMapping;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
 import org.eclipse.fennec.search.esearch.ReferenceStrategy;
 import org.eclipse.fennec.search.esearch.TextFieldMapping;
@@ -109,6 +112,21 @@ public final class IndexSchema {
 	 *        class itself when it is not; null for the split shape
 	 * @param docValues whether the field also has doc values, so a distance sort can read it
 	 */
+	/**
+	 * One declared rank signal (§5.3, S14): the feature name it is written under in
+	 * {@link SearchFields#FEATURES}, the saturating function with its parameters, and the
+	 * weight the mapping's {@code boost} sets. A pivot of zero means "not declared" — the
+	 * value must be positive, so there is no ambiguity to resolve with an unsettable flag.
+	 */
+	public record RankSignal(String name, RankFunction function, double pivot, double exponent,
+			float weight, EAttribute attribute) {
+
+		/** Whether a pivot was declared; SATURATION derives one from index statistics without. */
+		public boolean hasPivot() {
+			return pivot > 0;
+		}
+	}
+
 	public record GeoField(String name, EAttribute latitude, EAttribute longitude,
 			EReference pointReference, EAttribute coordinates, boolean docValues) {
 
@@ -374,6 +392,66 @@ public final class IndexSchema {
 	}
 
 	/** The declared field mapping of an attribute, or null if it follows convention. */
+	/**
+	 * Every rank signal a query rooted at this class can select (§5.3, S14) — declared on
+	 * the class itself, inherited with its document mapping, or declared by one of its
+	 * indexed subtypes, which is what a polymorphic query reads too. Keyed by feature name,
+	 * in declaration order.
+	 * <p>
+	 * A signal is either a primary projection of its attribute — the attribute is then a
+	 * feature weight and no longer a comparable field — or a sub-field beside an ordinary
+	 * one, which is how an attribute stays sortable while also feeding the score.
+	 *
+	 * @throws MappingException if two declarations share a feature name but disagree about
+	 *         what it means; one name is one signal, and picking a winner would silently
+	 *         score half the corpus differently
+	 */
+	public Map<String, RankSignal> rankSignals(EClass root) {
+		Map<String, RankSignal> signals = new LinkedHashMap<>();
+		for (DocumentMapping document : mapping.getDocuments()) {
+			EClass owner = document.getEClass();
+			if (owner == null || !(root.isSuperTypeOf(owner) || owner.isSuperTypeOf(root))) {
+				continue;
+			}
+			for (FieldMapping field : document.getFields()) {
+				EAttribute attribute = field.getFeature();
+				if (field instanceof RankSignalFieldMapping rank) {
+					addRankSignal(signals, rank, attribute, fieldName(attribute, rank), owner);
+				}
+				for (FieldMapping sub : field.getSubFields()) {
+					if (sub instanceof RankSignalFieldMapping rank) {
+						addRankSignal(signals, rank, attribute,
+								fieldName(attribute, field) + "." + sub.getName(), owner);
+					}
+				}
+			}
+		}
+		return signals;
+	}
+
+	private void addRankSignal(Map<String, RankSignal> into, RankSignalFieldMapping mapping,
+			EAttribute attribute, String name, EClass owner) {
+		if (attribute == null) {
+			throw new MappingException("The rank signal '" + name + "' on " + owner.getName()
+					+ " declares no attribute. A signal is one number per document, read from one "
+					+ "attribute.");
+		}
+		if (attribute.isMany()) {
+			throw new MappingException("The rank signal '" + name + "' on " + owner.getName()
+					+ " reads the many-valued attribute '" + attribute.getName() + "'. A signal is one "
+					+ "number per document — Lucene keeps one weight per feature name.");
+		}
+		RankSignal signal = new RankSignal(name, mapping.getFunction(), mapping.getPivot(),
+				mapping.getExponent(), mapping.getBoost(), attribute);
+		RankSignal previous = into.putIfAbsent(name, signal);
+		if (previous != null && !previous.equals(signal)) {
+			throw new MappingException("Two rank signals are declared under the name '" + name
+					+ "' with different parameters (" + previous + " and " + signal + "). One name is "
+					+ "one signal — a query selecting it must mean the same thing for every document "
+					+ "it can reach.");
+		}
+	}
+
 	public FieldMapping fieldMapping(EClass owner, EAttribute attribute) {
 		DocumentMapping documentMapping = documentMapping(owner);
 		if (documentMapping == null) {
@@ -474,6 +552,12 @@ public final class IndexSchema {
 			throw new MappingException("Attribute '" + attribute.getName() + "' carries a geographic "
 					+ "position, which is indexed as a point rather than as a comparable value. Read it "
 					+ "with a geo predicate (geoWithin / geoDistance), not as a field.");
+		}
+		if (declaredField instanceof RankSignalFieldMapping) {
+			throw new MappingException("Attribute '" + attribute.getName() + "' is declared as the rank "
+					+ "signal '" + name + "', which is indexed as a quantized feature weight rather than "
+					+ "as a value. Select it for a query's score instead of filtering or sorting on it; "
+					+ "declare a numeric projection beside it if the number itself must be comparable.");
 		}
 		throw new MappingException("Field mapping " + declaredField.eClass().getName() + " on '" + name
 				+ "' is not implemented, so no query can read it. See docs/search-access.md §7 for which "

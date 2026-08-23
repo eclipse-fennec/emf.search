@@ -65,6 +65,18 @@ public final class SearchFields {
 	 */
 	public static final String SOURCE = "_source";
 
+	/**
+	 * The one field every declared rank signal is written into (S14, #16), each under its
+	 * own feature name — Lucene's {@code FeatureField} is built for exactly that: many
+	 * signals, one field, one posting list per feature.
+	 * <p>
+	 * Shared across the whole unit on purpose. A feature field carries a quantized weight
+	 * instead of a value, so it is not a field anyone can compare against; keeping every
+	 * signal under one reserved name means no mapped attribute name can ever collide with
+	 * the one field type that would refuse to sit next to another.
+	 */
+	public static final String FEATURES = "_features";
+
 	private SearchFields() {
 	}
 	/** The root-document marker every read filters on, so block children never count. */

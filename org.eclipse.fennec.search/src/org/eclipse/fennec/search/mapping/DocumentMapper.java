@@ -23,6 +23,7 @@ import java.util.Set;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.FloatPoint;
@@ -56,6 +57,7 @@ import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
 import org.eclipse.fennec.search.esearch.Materialization;
 import org.eclipse.fennec.search.esearch.NumericFieldMapping;
 import org.eclipse.fennec.search.esearch.NumericKind;
+import org.eclipse.fennec.search.esearch.RankSignalFieldMapping;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
 import org.eclipse.fennec.search.esearch.ReferenceStrategy;
 import org.eclipse.fennec.search.esearch.TextFieldMapping;
@@ -323,6 +325,20 @@ public final class DocumentMapper {
 	private void writeDeclared(Document document, EObject object, EAttribute attribute, FieldMapping field,
 			String prefix, String name) {
 		refuseUnimplemented(field, attribute);
+		if (field instanceof RankSignalFieldMapping) {
+			if (!prefix.isEmpty()) {
+				throw new MappingException("The rank signal '" + name + "' is declared on an EMBED "
+						+ "target. A signal scores the document it belongs to, and an embedded copy is a "
+						+ "value in someone else's document — declare it on the document that carries "
+						+ "the score.");
+			}
+			if (attribute.isMany()) {
+				throw new MappingException("Attribute '" + attribute.getName() + "' is many-valued and "
+						+ "mapped as the rank signal '" + name + "'. A signal is one number per "
+						+ "document: Lucene keeps one weight per feature name, so there is nothing "
+						+ "honest to write here.");
+			}
+		}
 		if (!isAbsent(object, attribute)) {
 			for (Object value : valuesOf(object, attribute)) {
 				if (value == null) {
@@ -364,6 +380,8 @@ public final class DocumentMapper {
 		} else if (field instanceof NumericFieldMapping numeric) {
 			addNumeric(document, name, attribute, value, numeric.getKind(), field.isStored(),
 					field.isDocValues(), attribute.isMany());
+		} else if (field instanceof RankSignalFieldMapping) {
+			addRankSignal(document, name, attribute, value, field.isStored());
 		} else {
 			// The abstract FieldMapping is not instantiable, so this is a kind that exists
 			// in the metamodel but has no writer yet — refuseUnimplemented named it already.
@@ -375,7 +393,6 @@ public final class DocumentMapper {
 		String kind = field.eClass().getName();
 		String issue = switch (kind) {
 			case "RangeFieldMapping" -> "interval fields are S15 (#17)";
-			case "RankSignalFieldMapping" -> "rank signals are S14 (#16)";
 			case "VectorFieldMapping" -> "vector fields are reserved for wave 2 and deliberately not implemented";
 			default -> null;
 		};
@@ -568,6 +585,44 @@ public final class DocumentMapper {
 		document.add(new StringField(name, value, stored ? Field.Store.YES : Field.Store.NO));
 		if (docValues) {
 			document.add(new SortedSetDocValuesField(name, new BytesRef(value)));
+		}
+	}
+
+	/**
+	 * A rank signal (§5.3, S14): one {@code FeatureField} under the unit's shared
+	 * {@link SearchFields#FEATURES} field, named after the declaration, carrying the value
+	 * as a quantized weight.
+	 * <p>
+	 * Two rules the value has to live with, both Lucene's. A feature weight must be finite
+	 * and strictly positive — a zero or negative signal is <em>no</em> signal, so the
+	 * document simply carries none and scores on text alone, which is the same answer as
+	 * for a document whose attribute was never set. And one document holds at most one
+	 * weight per feature name, which is why a many-valued attribute is refused rather than
+	 * silently reduced to its last value.
+	 * <p>
+	 * The original number is still stored when the mapping says {@code stored} (the
+	 * default), because a quantized weight cannot be read back as a value and §4.3
+	 * reconstructs objects from stored fields.
+	 */
+	private void addRankSignal(Document document, String name, EAttribute attribute, Object value,
+			boolean stored) {
+		NumericKind kind = deriveNumericKind(attribute);
+		Number number = toNumber(attribute, value, kind);
+		float weight = number.floatValue();
+		if (Float.isFinite(weight) && weight > 0) {
+			document.add(new FeatureField(SearchFields.FEATURES, name, weight));
+		}
+		if (stored) {
+			storeNumber(document, name, kind, number);
+		}
+	}
+
+	private void storeNumber(Document document, String name, NumericKind kind, Number number) {
+		switch (kind) {
+			case INT -> document.add(new StoredField(name, number.intValue()));
+			case FLOAT -> document.add(new StoredField(name, number.floatValue()));
+			case DOUBLE -> document.add(new StoredField(name, number.doubleValue()));
+			default -> document.add(new StoredField(name, number.longValue()));
 		}
 	}
 

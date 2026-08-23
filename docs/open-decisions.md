@@ -53,6 +53,37 @@ Pinned by `SearchResourceTest` and the TCK binding.
    SORT_EXPRESSION refusal. The shared validator refuses it by name; the test pins that
    nobody declares it by accident.
 
+## Autonomous calls in rank signals (S14/#16, 2026-08-23)
+
+The metamodel already carried `RankSignalFieldMapping` (function, pivot, exponent) from S2,
+so what needed deciding was everything around it. Pinned by `RankSignalTest`.
+
+1. **Selection rides on `QueryContext.options()`** (`SearchOptions.RANK_SIGNALS`), not on an
+   own API and not on new IR vocabulary. An own API of the suggest kind would duplicate the
+   query and materialization path to change one thing about the score; IR vocabulary would
+   break the §3 ground rule for something that is per-engine by nature. The options map is
+   the contract's own extension point and it is documented as such upstream.
+2. **One reserved field for every signal** (`_features`), feature-named per declaration —
+   Lucene's own shape for this, and it keeps a feature field (which no other type may sit
+   next to under one name) out of the mapped-name universe.
+3. **A signal-only attribute is not a comparable field**, refused with the way out — the geo
+   rule again. The way out is a rank signal declared as a *sub-field* of an ordinary
+   projection, which the sub-field machinery already supported; the compound name
+   (`views.signal`) is what a query then selects.
+4. **A non-positive or non-finite value is no signal**, not an error: the document carries
+   none and scores on text alone, the same answer as for an attribute that was never set.
+   Lucene refuses such a weight, and a data-driven signal that made a write fail would be a
+   trap — a new item with zero views is ordinary data, not a mapping mistake.
+5. **Refused rather than ignored**: a selected signal on a COUNT/AGGREGATION shape (no score
+   to shape — the `withScores` precedent), a SIGMOID without a pivot (no point to turn at;
+   SATURATION derives one from index statistics), a many-valued attribute (one weight per
+   feature name per document), and two declarations sharing a name but disagreeing.
+   *Not* refused, only documented: a query with a field sort reads no score, so a signal
+   selected there does nothing.
+6. **The declared `boost` is the signal's weight.** `FieldMapping.boost` already said
+   "a curated relevance decision belongs in the mapping, not in the query", so a per-query
+   weight would have contradicted the field it sits next to.
+
 ## Autonomous calls in geo (S9/#13, 2026-08-19)
 
 Both §5.5 open points are settled in `search-access.md`; these are the calls the blueprint
