@@ -33,7 +33,7 @@ import org.osgi.annotation.versioning.ProviderType;
  * The following features are supported:
  * </p>
  * <ul>
- *   <li>{@link org.eclipse.fennec.search.esearch.VectorFieldMapping#getSources <em>Sources</em>}</li>
+ *   <li>{@link org.eclipse.fennec.search.esearch.VectorFieldMapping#getEmbeddingSources <em>Embedding Sources</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.VectorFieldMapping#getProvider <em>Provider</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.VectorFieldMapping#getDimensions <em>Dimensions</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.VectorFieldMapping#getSimilarity <em>Similarity</em>}</li>
@@ -47,19 +47,19 @@ import org.osgi.annotation.versioning.ProviderType;
 @ProviderType
 public interface VectorFieldMapping extends FieldMapping {
 	/**
-	 * Returns the value of the '<em><b>Sources</b></em>' reference list.
+	 * Returns the value of the '<em><b>Embedding Sources</b></em>' reference list.
 	 * The list contents are of type {@link org.eclipse.emf.ecore.EAttribute}.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
 	 * <!-- begin-model-doc -->
-	 * Attributes whose values are concatenated into the text handed to the embedding provider.
+	 * Attributes whose values are concatenated into the text handed to the embedding provider. Renamed from sources when FieldMapping gained the extraction ladder (S20): every field mapping now has sources of its own, and a vector field's inputs are a different thing — free to rename while the slot is reserved and nothing writes it.
 	 * <!-- end-model-doc -->
-	 * @return the value of the '<em>Sources</em>' reference list.
-	 * @see org.eclipse.fennec.search.esearch.ESearchPackage#getVectorFieldMapping_Sources()
+	 * @return the value of the '<em>Embedding Sources</em>' reference list.
+	 * @see org.eclipse.fennec.search.esearch.ESearchPackage#getVectorFieldMapping_EmbeddingSources()
 	 * @model
 	 * @generated
 	 */
-	EList<EAttribute> getSources();
+	EList<EAttribute> getEmbeddingSources();
 
 	/**
 	 * Returns the value of the '<em><b>Provider</b></em>' attribute.

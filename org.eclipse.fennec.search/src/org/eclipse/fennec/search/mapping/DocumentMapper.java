@@ -145,7 +145,7 @@ public final class DocumentMapper {
 		List<Document> children = new ArrayList<>();
 		Document root = new Document();
 		writeSystemFields(root, id, id, typeNameOf(documentMapping, eClass), true);
-		writeAttributes(root, object, documentMapping, "");
+		writeAttributes(root, object, documentMapping, "", object);
 		writeGeoFields(root, object, eClass);
 		writeReferences(root, children, object, documentMapping, id, 1);
 		writeMaterialization(root, object, eClass);
@@ -256,8 +256,9 @@ public final class DocumentMapper {
 	}
 
 	private void writeAttributes(Document document, EObject object, DocumentMapping documentMapping,
-			String prefix) {
+			String prefix, EObject root) {
 		Map<EAttribute, FieldMapping> byFeature = new HashMap<>();
+		List<FieldMapping> computed = new ArrayList<>();
 		if (documentMapping != null) {
 			for (FieldMapping field : documentMapping.getFields()) {
 				if (field instanceof GeoPointFieldMapping) {
@@ -269,10 +270,16 @@ public final class DocumentMapper {
 				// the one that names why — reaching the "declares no feature" answer below
 				// would send a modeller after the wrong issue.
 				refuseUnimplemented(field, field.getFeature());
+				if (ValueSources.isComputed(field)) {
+					// Its value comes from the extraction ladder (S20), not from an attribute
+					// of this object — written after the mapped ones, from its own sources.
+					computed.add(field);
+					continue;
+				}
 				if (field.getFeature() == null) {
 					throw new MappingException("A field mapping of " + documentMapping.getEClass().getName()
-							+ " declares no feature. Computed values without a feature are not implemented "
-							+ "yet (see issue #28).");
+							+ " declares neither a feature nor sources, so nothing says where its value "
+							+ "would come from (see docs/search-access.md §4.2).");
 				}
 				byFeature.put(field.getFeature(), field);
 			}
@@ -297,6 +304,129 @@ public final class DocumentMapper {
 			}
 			writeDeclared(document, object, attribute, field, prefix, prefix + schema.fieldName(attribute, field));
 		}
+		for (FieldMapping field : computed) {
+			writeComputed(document, object, root, documentMapping.getEClass(), field, prefix);
+		}
+	}
+
+	/**
+	 * A field whose value comes from the extraction ladder (S20, §4.2) rather than from one
+	 * attribute of this object: a path, an expression, or several sources at once.
+	 * <p>
+	 * Only the three field kinds that carry a plain value take sources — text, keyword and
+	 * numeric. A geographic point, a rank signal and the reserved kinds declare their own
+	 * inputs, and a computed one of those would be two declarations of the same thing.
+	 */
+	private void writeComputed(Document document, EObject object, EObject root, EClass owner,
+			FieldMapping field, String prefix) {
+		String name = prefix + field.getName();
+		List<Object> values = ValueSources.values(owner, field, name, object);
+		if (values.isEmpty()) {
+			return;
+		}
+		if (field.getSeparator() != null) {
+			// Declared to be one value: several sources feeding one searchable string.
+			List<String> parts = new ArrayList<>(values.size());
+			values.forEach(value -> parts.add(String.valueOf(value)));
+			values = List.of(String.join(field.getSeparator(), parts));
+		}
+		for (Object value : values) {
+			writeComputedValue(document, name, field, value);
+		}
+	}
+
+	private void writeComputedValue(Document document, String name, FieldMapping field, Object value) {
+		if (field instanceof TextFieldMapping text) {
+			addText(document, name, String.valueOf(value), field.isStored(), text.isTermVectors());
+			return;
+		}
+		if (field instanceof KeywordFieldMapping) {
+			addKeyword(document, name, String.valueOf(value), field.isStored(), field.isDocValues());
+			return;
+		}
+		if (field instanceof NumericFieldMapping numeric) {
+			addComputedNumeric(document, name, numeric, value);
+			return;
+		}
+		throw new MappingException("Field '" + name + "' is a " + field.eClass().getName()
+				+ " with declared sources. A computed value lands in a text, keyword or numeric "
+				+ "field; the other kinds declare their own inputs, and saying it twice is how the "
+				+ "two come to disagree.");
+	}
+
+	/**
+	 * A computed number has no attribute to take its encoding from, so the declaration decides
+	 * and {@code AUTO} follows the value's own Java type. A value that is not a number is
+	 * refused by name: coercing "17 pieces" into a point would index something the mapping
+	 * does not say.
+	 */
+	private void addComputedNumeric(Document document, String name, NumericFieldMapping field,
+			Object value) {
+		Number number = value instanceof Date date ? Long.valueOf(date.getTime())
+				: value instanceof Number plain ? plain
+						: null;
+		if (number == null) {
+			throw new MappingException("The sources of the numeric field '" + name + "' produced a "
+					+ value.getClass().getSimpleName() + " ('" + value + "'). A numeric field holds "
+					+ "numbers — map it as text or keyword, or make the expression compute one.");
+		}
+		NumericKind kind = field.getKind() == null || field.getKind() == NumericKind.AUTO
+				? computedKind(value)
+				: field.getKind();
+		switch (kind) {
+			case INT -> {
+				document.add(new IntPoint(name, number.intValue()));
+				if (field.isDocValues()) {
+					addNumericDocValues(document, name, number.intValue(), false);
+				}
+				if (field.isStored()) {
+					document.add(new StoredField(name, number.intValue()));
+				}
+			}
+			case FLOAT -> {
+				document.add(new FloatPoint(name, number.floatValue()));
+				if (field.isDocValues()) {
+					addNumericDocValues(document, name, Float.floatToRawIntBits(number.floatValue()), false);
+				}
+				if (field.isStored()) {
+					document.add(new StoredField(name, number.floatValue()));
+				}
+			}
+			case DOUBLE -> {
+				document.add(new DoublePoint(name, number.doubleValue()));
+				if (field.isDocValues()) {
+					addNumericDocValues(document, name, Double.doubleToRawLongBits(number.doubleValue()), false);
+				}
+				if (field.isStored()) {
+					document.add(new StoredField(name, number.doubleValue()));
+				}
+			}
+			default -> {
+				document.add(new LongPoint(name, number.longValue()));
+				if (field.isDocValues()) {
+					addNumericDocValues(document, name, number.longValue(), false);
+				}
+				if (field.isStored()) {
+					document.add(new StoredField(name, number.longValue()));
+				}
+			}
+		}
+	}
+
+	private static NumericKind computedKind(Object value) {
+		if (value instanceof Date) {
+			return NumericKind.DATE;
+		}
+		if (value instanceof Integer || value instanceof Short || value instanceof Byte) {
+			return NumericKind.INT;
+		}
+		if (value instanceof Float) {
+			return NumericKind.FLOAT;
+		}
+		if (value instanceof Double) {
+			return NumericKind.DOUBLE;
+		}
+		return NumericKind.LONG;
 	}
 
 	/**
@@ -504,8 +634,8 @@ public final class DocumentMapper {
 			List<EObject> targets = targetsOf(object, eReference);
 			switch (strategy) {
 				case ID_ONLY -> writeIdOnly(root, reference, eReference, targets);
-				case EMBED -> writeEmbedded(root, reference, eReference, targets, depth);
-				case NESTED -> writeNested(children, reference, eReference, targets, rootId);
+				case EMBED -> writeEmbedded(root, reference, eReference, targets, depth, object);
+				case NESTED -> writeNested(children, reference, eReference, targets, rootId, object);
 			}
 		}
 	}
@@ -549,7 +679,7 @@ public final class DocumentMapper {
 	}
 
 	private void writeEmbedded(Document root, ReferenceMapping reference, EReference eReference,
-			List<EObject> targets, int depth) {
+			List<EObject> targets, int depth, EObject owner) {
 		if (depth > Math.max(1, reference.getDepth())) {
 			return;
 		}
@@ -560,12 +690,12 @@ public final class DocumentMapper {
 			DocumentMapping targetMapping = reference.getTarget() != null
 					? reference.getTarget()
 					: resolve(target.eClass());
-			writeAttributes(root, target, targetMapping, prefix);
+			writeAttributes(root, target, targetMapping, prefix, owner);
 		}
 	}
 
 	private void writeNested(List<Document> children, ReferenceMapping reference, EReference eReference,
-			List<EObject> targets, String rootId) {
+			List<EObject> targets, String rootId, EObject blockRoot) {
 		if (!eReference.isContainment()) {
 			throw new MappingException("Reference '" + eReference.getName() + "' is mapped NESTED but is not "
 					+ "a containment reference. A block is written and replaced as a whole, which only "
@@ -580,7 +710,7 @@ public final class DocumentMapper {
 			writeSystemFields(child, childId, rootId, typeNameOf(targetMapping, target.eClass()), false);
 			// The reference name lets a block join restrict to children of one reference.
 			child.add(new StringField(SearchFields.NESTED, eReference.getName(), Field.Store.YES));
-			writeAttributes(child, target, targetMapping, "");
+			writeAttributes(child, target, targetMapping, "", blockRoot);
 			children.add(child);
 		}
 	}

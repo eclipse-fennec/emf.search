@@ -51,7 +51,7 @@ import org.osgi.annotation.versioning.ProviderType;
  * @generated
  */
 @ProviderType
-@EPackage(uri = ESearchPackage.eNS_URI, fingerprint = "fp1:b35480a3faab34d6712aa6842dd2fe44abe42156568265f864df5be35318b39b", genModel = "/model/esearch.genmodel", genModelSourceLocations = {"model/esearch.genmodel","org.eclipse.fennec.search.model/model/esearch.genmodel"}, ecore = "/model/esearch.ecore", ecoreSourceLocations = "/model/esearch.ecore")
+@EPackage(uri = ESearchPackage.eNS_URI, fingerprint = "fp1:622f46015319bc800e39d29d0c2cd3fccc39bf2ae7c187e9f4c2701f3598c9c1", genModel = "/model/esearch.genmodel", genModelSourceLocations = {"model/esearch.genmodel","org.eclipse.fennec.search.model/model/esearch.genmodel"}, ecore = "/model/esearch.ecore", ecoreSourceLocations = "/model/esearch.ecore")
 public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	/**
 	 * The package name.
@@ -432,13 +432,31 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	int FIELD_MAPPING__USE = 7;
 
 	/**
+	 * The feature id for the '<em><b>Sources</b></em>' containment reference list.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int FIELD_MAPPING__SOURCES = 8;
+
+	/**
+	 * The feature id for the '<em><b>Separator</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int FIELD_MAPPING__SEPARATOR = 9;
+
+	/**
 	 * The feature id for the '<em><b>Sub Fields</b></em>' containment reference list.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
 	 * @generated
 	 * @ordered
 	 */
-	int FIELD_MAPPING__SUB_FIELDS = 8;
+	int FIELD_MAPPING__SUB_FIELDS = 10;
 
 	/**
 	 * The number of structural features of the '<em>Field Mapping</em>' class.
@@ -447,7 +465,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @generated
 	 * @ordered
 	 */
-	int FIELD_MAPPING_FEATURE_COUNT = 9;
+	int FIELD_MAPPING_FEATURE_COUNT = 11;
 
 	/**
 	 * The number of operations of the '<em>Field Mapping</em>' class.
@@ -539,6 +557,24 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @ordered
 	 */
 	int TEXT_FIELD_MAPPING__USE = FIELD_MAPPING__USE;
+
+	/**
+	 * The feature id for the '<em><b>Sources</b></em>' containment reference list.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int TEXT_FIELD_MAPPING__SOURCES = FIELD_MAPPING__SOURCES;
+
+	/**
+	 * The feature id for the '<em><b>Separator</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int TEXT_FIELD_MAPPING__SEPARATOR = FIELD_MAPPING__SEPARATOR;
 
 	/**
 	 * The feature id for the '<em><b>Sub Fields</b></em>' containment reference list.
@@ -668,6 +704,24 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	int KEYWORD_FIELD_MAPPING__USE = FIELD_MAPPING__USE;
 
 	/**
+	 * The feature id for the '<em><b>Sources</b></em>' containment reference list.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int KEYWORD_FIELD_MAPPING__SOURCES = FIELD_MAPPING__SOURCES;
+
+	/**
+	 * The feature id for the '<em><b>Separator</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int KEYWORD_FIELD_MAPPING__SEPARATOR = FIELD_MAPPING__SEPARATOR;
+
+	/**
 	 * The feature id for the '<em><b>Sub Fields</b></em>' containment reference list.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
@@ -786,6 +840,24 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	int NUMERIC_FIELD_MAPPING__USE = FIELD_MAPPING__USE;
 
 	/**
+	 * The feature id for the '<em><b>Sources</b></em>' containment reference list.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int NUMERIC_FIELD_MAPPING__SOURCES = FIELD_MAPPING__SOURCES;
+
+	/**
+	 * The feature id for the '<em><b>Separator</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int NUMERIC_FIELD_MAPPING__SEPARATOR = FIELD_MAPPING__SEPARATOR;
+
+	/**
 	 * The feature id for the '<em><b>Sub Fields</b></em>' containment reference list.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
@@ -902,6 +974,24 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @ordered
 	 */
 	int GEO_POINT_FIELD_MAPPING__USE = FIELD_MAPPING__USE;
+
+	/**
+	 * The feature id for the '<em><b>Sources</b></em>' containment reference list.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int GEO_POINT_FIELD_MAPPING__SOURCES = FIELD_MAPPING__SOURCES;
+
+	/**
+	 * The feature id for the '<em><b>Separator</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int GEO_POINT_FIELD_MAPPING__SEPARATOR = FIELD_MAPPING__SEPARATOR;
 
 	/**
 	 * The feature id for the '<em><b>Sub Fields</b></em>' containment reference list.
@@ -1049,6 +1139,24 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	int RANGE_FIELD_MAPPING__USE = FIELD_MAPPING__USE;
 
 	/**
+	 * The feature id for the '<em><b>Sources</b></em>' containment reference list.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int RANGE_FIELD_MAPPING__SOURCES = FIELD_MAPPING__SOURCES;
+
+	/**
+	 * The feature id for the '<em><b>Separator</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int RANGE_FIELD_MAPPING__SEPARATOR = FIELD_MAPPING__SEPARATOR;
+
+	/**
 	 * The feature id for the '<em><b>Sub Fields</b></em>' containment reference list.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
@@ -1183,6 +1291,24 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @ordered
 	 */
 	int RANK_SIGNAL_FIELD_MAPPING__USE = FIELD_MAPPING__USE;
+
+	/**
+	 * The feature id for the '<em><b>Sources</b></em>' containment reference list.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int RANK_SIGNAL_FIELD_MAPPING__SOURCES = FIELD_MAPPING__SOURCES;
+
+	/**
+	 * The feature id for the '<em><b>Separator</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int RANK_SIGNAL_FIELD_MAPPING__SEPARATOR = FIELD_MAPPING__SEPARATOR;
 
 	/**
 	 * The feature id for the '<em><b>Sub Fields</b></em>' containment reference list.
@@ -1321,6 +1447,24 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	int VECTOR_FIELD_MAPPING__USE = FIELD_MAPPING__USE;
 
 	/**
+	 * The feature id for the '<em><b>Sources</b></em>' containment reference list.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int VECTOR_FIELD_MAPPING__SOURCES = FIELD_MAPPING__SOURCES;
+
+	/**
+	 * The feature id for the '<em><b>Separator</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int VECTOR_FIELD_MAPPING__SEPARATOR = FIELD_MAPPING__SEPARATOR;
+
+	/**
 	 * The feature id for the '<em><b>Sub Fields</b></em>' containment reference list.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
@@ -1330,13 +1474,13 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	int VECTOR_FIELD_MAPPING__SUB_FIELDS = FIELD_MAPPING__SUB_FIELDS;
 
 	/**
-	 * The feature id for the '<em><b>Sources</b></em>' reference list.
+	 * The feature id for the '<em><b>Embedding Sources</b></em>' reference list.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
 	 * @generated
 	 * @ordered
 	 */
-	int VECTOR_FIELD_MAPPING__SOURCES = FIELD_MAPPING_FEATURE_COUNT + 0;
+	int VECTOR_FIELD_MAPPING__EMBEDDING_SOURCES = FIELD_MAPPING_FEATURE_COUNT + 0;
 
 	/**
 	 * The feature id for the '<em><b>Provider</b></em>' attribute.
@@ -1393,6 +1537,154 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	int VECTOR_FIELD_MAPPING_OPERATION_COUNT = FIELD_MAPPING_OPERATION_COUNT + 0;
 
 	/**
+	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.impl.ValueSourceImpl <em>Value Source</em>}' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @see org.eclipse.fennec.search.esearch.impl.ValueSourceImpl
+	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getValueSource()
+	 * @generated
+	 */
+	int VALUE_SOURCE = 11;
+
+	/**
+	 * The number of structural features of the '<em>Value Source</em>' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int VALUE_SOURCE_FEATURE_COUNT = 0;
+
+	/**
+	 * The number of operations of the '<em>Value Source</em>' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int VALUE_SOURCE_OPERATION_COUNT = 0;
+
+	/**
+	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.impl.FeatureSourceImpl <em>Feature Source</em>}' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @see org.eclipse.fennec.search.esearch.impl.FeatureSourceImpl
+	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getFeatureSource()
+	 * @generated
+	 */
+	int FEATURE_SOURCE = 12;
+
+	/**
+	 * The feature id for the '<em><b>Feature</b></em>' reference.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int FEATURE_SOURCE__FEATURE = VALUE_SOURCE_FEATURE_COUNT + 0;
+
+	/**
+	 * The number of structural features of the '<em>Feature Source</em>' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int FEATURE_SOURCE_FEATURE_COUNT = VALUE_SOURCE_FEATURE_COUNT + 1;
+
+	/**
+	 * The number of operations of the '<em>Feature Source</em>' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int FEATURE_SOURCE_OPERATION_COUNT = VALUE_SOURCE_OPERATION_COUNT + 0;
+
+	/**
+	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.impl.PathSourceImpl <em>Path Source</em>}' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @see org.eclipse.fennec.search.esearch.impl.PathSourceImpl
+	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getPathSource()
+	 * @generated
+	 */
+	int PATH_SOURCE = 13;
+
+	/**
+	 * The feature id for the '<em><b>Segments</b></em>' reference list.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int PATH_SOURCE__SEGMENTS = VALUE_SOURCE_FEATURE_COUNT + 0;
+
+	/**
+	 * The number of structural features of the '<em>Path Source</em>' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int PATH_SOURCE_FEATURE_COUNT = VALUE_SOURCE_FEATURE_COUNT + 1;
+
+	/**
+	 * The number of operations of the '<em>Path Source</em>' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int PATH_SOURCE_OPERATION_COUNT = VALUE_SOURCE_OPERATION_COUNT + 0;
+
+	/**
+	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.impl.OclSourceImpl <em>Ocl Source</em>}' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @see org.eclipse.fennec.search.esearch.impl.OclSourceImpl
+	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getOclSource()
+	 * @generated
+	 */
+	int OCL_SOURCE = 14;
+
+	/**
+	 * The feature id for the '<em><b>Expression</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int OCL_SOURCE__EXPRESSION = VALUE_SOURCE_FEATURE_COUNT + 0;
+
+	/**
+	 * The feature id for the '<em><b>Context</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int OCL_SOURCE__CONTEXT = VALUE_SOURCE_FEATURE_COUNT + 1;
+
+	/**
+	 * The number of structural features of the '<em>Ocl Source</em>' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int OCL_SOURCE_FEATURE_COUNT = VALUE_SOURCE_FEATURE_COUNT + 2;
+
+	/**
+	 * The number of operations of the '<em>Ocl Source</em>' class.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 * @ordered
+	 */
+	int OCL_SOURCE_OPERATION_COUNT = VALUE_SOURCE_OPERATION_COUNT + 0;
+
+	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.impl.ReferenceMappingImpl <em>Reference Mapping</em>}' class.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
@@ -1400,7 +1692,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getReferenceMapping()
 	 * @generated
 	 */
-	int REFERENCE_MAPPING = 11;
+	int REFERENCE_MAPPING = 15;
 
 	/**
 	 * The feature id for the '<em><b>EReference</b></em>' reference.
@@ -1482,7 +1774,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getMaterialization()
 	 * @generated
 	 */
-	int MATERIALIZATION = 12;
+	int MATERIALIZATION = 16;
 
 	/**
 	 * The feature id for the '<em><b>Kind</b></em>' attribute.
@@ -1537,7 +1829,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getFacetMapping()
 	 * @generated
 	 */
-	int FACET_MAPPING = 13;
+	int FACET_MAPPING = 17;
 
 	/**
 	 * The feature id for the '<em><b>Dimension</b></em>' attribute.
@@ -1601,7 +1893,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getSuggestSource()
 	 * @generated
 	 */
-	int SUGGEST_SOURCE = 14;
+	int SUGGEST_SOURCE = 18;
 
 	/**
 	 * The feature id for the '<em><b>Name</b></em>' attribute.
@@ -1683,7 +1975,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getRefreshPolicy()
 	 * @generated
 	 */
-	int REFRESH_POLICY = 15;
+	int REFRESH_POLICY = 19;
 
 	/**
 	 * The feature id for the '<em><b>Mode</b></em>' attribute.
@@ -1729,7 +2021,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getCommitPolicy()
 	 * @generated
 	 */
-	int COMMIT_POLICY = 16;
+	int COMMIT_POLICY = 20;
 
 	/**
 	 * The feature id for the '<em><b>Max Uncommitted Docs</b></em>' attribute.
@@ -1784,7 +2076,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getIndexSort()
 	 * @generated
 	 */
-	int INDEX_SORT = 17;
+	int INDEX_SORT = 21;
 
 	/**
 	 * The feature id for the '<em><b>Entries</b></em>' containment reference list.
@@ -1821,7 +2113,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getSortEntry()
 	 * @generated
 	 */
-	int SORT_ENTRY = 18;
+	int SORT_ENTRY = 22;
 
 	/**
 	 * The feature id for the '<em><b>Feature</b></em>' reference.
@@ -1876,7 +2168,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getAnalyzerDefinition()
 	 * @generated
 	 */
-	int ANALYZER_DEFINITION = 19;
+	int ANALYZER_DEFINITION = 23;
 
 	/**
 	 * The feature id for the '<em><b>Name</b></em>' attribute.
@@ -1949,7 +2241,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getAnalyzerParameter()
 	 * @generated
 	 */
-	int ANALYZER_PARAMETER = 20;
+	int ANALYZER_PARAMETER = 24;
 
 	/**
 	 * The feature id for the '<em><b>Key</b></em>' attribute.
@@ -1995,7 +2287,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getFieldUse()
 	 * @generated
 	 */
-	int FIELD_USE = 21;
+	int FIELD_USE = 25;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.ReferenceStrategy <em>Reference Strategy</em>}' enum.
@@ -2005,7 +2297,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getReferenceStrategy()
 	 * @generated
 	 */
-	int REFERENCE_STRATEGY = 22;
+	int REFERENCE_STRATEGY = 26;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.MaterializationKind <em>Materialization Kind</em>}' enum.
@@ -2015,7 +2307,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getMaterializationKind()
 	 * @generated
 	 */
-	int MATERIALIZATION_KIND = 23;
+	int MATERIALIZATION_KIND = 27;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.RefreshMode <em>Refresh Mode</em>}' enum.
@@ -2025,7 +2317,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getRefreshMode()
 	 * @generated
 	 */
-	int REFRESH_MODE = 24;
+	int REFRESH_MODE = 28;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.FacetKind <em>Facet Kind</em>}' enum.
@@ -2035,7 +2327,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getFacetKind()
 	 * @generated
 	 */
-	int FACET_KIND = 25;
+	int FACET_KIND = 29;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.NumericKind <em>Numeric Kind</em>}' enum.
@@ -2045,7 +2337,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getNumericKind()
 	 * @generated
 	 */
-	int NUMERIC_KIND = 26;
+	int NUMERIC_KIND = 30;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.RangeKind <em>Range Kind</em>}' enum.
@@ -2055,7 +2347,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getRangeKind()
 	 * @generated
 	 */
-	int RANGE_KIND = 27;
+	int RANGE_KIND = 31;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.RankFunction <em>Rank Function</em>}' enum.
@@ -2065,7 +2357,17 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getRankFunction()
 	 * @generated
 	 */
-	int RANK_FUNCTION = 28;
+	int RANK_FUNCTION = 32;
+
+	/**
+	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.OclContextKind <em>Ocl Context Kind</em>}' enum.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @see org.eclipse.fennec.search.esearch.OclContextKind
+	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getOclContextKind()
+	 * @generated
+	 */
+	int OCL_CONTEXT_KIND = 33;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.VectorSimilarity <em>Vector Similarity</em>}' enum.
@@ -2075,7 +2377,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getVectorSimilarity()
 	 * @generated
 	 */
-	int VECTOR_SIMILARITY = 29;
+	int VECTOR_SIMILARITY = 34;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.SuggesterKind <em>Suggester Kind</em>}' enum.
@@ -2085,7 +2387,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getSuggesterKind()
 	 * @generated
 	 */
-	int SUGGESTER_KIND = 30;
+	int SUGGESTER_KIND = 35;
 
 	/**
 	 * The meta object id for the '{@link org.eclipse.fennec.search.esearch.AnalyzerKind <em>Analyzer Kind</em>}' enum.
@@ -2095,7 +2397,7 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getAnalyzerKind()
 	 * @generated
 	 */
-	int ANALYZER_KIND = 31;
+	int ANALYZER_KIND = 36;
 
 
 	/**
@@ -2447,6 +2749,28 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	EAttribute getFieldMapping_Use();
 
 	/**
+	 * Returns the meta object for the containment reference list '{@link org.eclipse.fennec.search.esearch.FieldMapping#getSources <em>Sources</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for the containment reference list '<em>Sources</em>'.
+	 * @see org.eclipse.fennec.search.esearch.FieldMapping#getSources()
+	 * @see #getFieldMapping()
+	 * @generated
+	 */
+	EReference getFieldMapping_Sources();
+
+	/**
+	 * Returns the meta object for the attribute '{@link org.eclipse.fennec.search.esearch.FieldMapping#getSeparator <em>Separator</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for the attribute '<em>Separator</em>'.
+	 * @see org.eclipse.fennec.search.esearch.FieldMapping#getSeparator()
+	 * @see #getFieldMapping()
+	 * @generated
+	 */
+	EAttribute getFieldMapping_Separator();
+
+	/**
 	 * Returns the meta object for the containment reference list '{@link org.eclipse.fennec.search.esearch.FieldMapping#getSubFields <em>Sub Fields</em>}'.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
@@ -2682,15 +3006,15 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	EClass getVectorFieldMapping();
 
 	/**
-	 * Returns the meta object for the reference list '{@link org.eclipse.fennec.search.esearch.VectorFieldMapping#getSources <em>Sources</em>}'.
+	 * Returns the meta object for the reference list '{@link org.eclipse.fennec.search.esearch.VectorFieldMapping#getEmbeddingSources <em>Embedding Sources</em>}'.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
-	 * @return the meta object for the reference list '<em>Sources</em>'.
-	 * @see org.eclipse.fennec.search.esearch.VectorFieldMapping#getSources()
+	 * @return the meta object for the reference list '<em>Embedding Sources</em>'.
+	 * @see org.eclipse.fennec.search.esearch.VectorFieldMapping#getEmbeddingSources()
 	 * @see #getVectorFieldMapping()
 	 * @generated
 	 */
-	EReference getVectorFieldMapping_Sources();
+	EReference getVectorFieldMapping_EmbeddingSources();
 
 	/**
 	 * Returns the meta object for the attribute '{@link org.eclipse.fennec.search.esearch.VectorFieldMapping#getProvider <em>Provider</em>}'.
@@ -2735,6 +3059,90 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	 * @generated
 	 */
 	EAttribute getVectorFieldMapping_ModelVersion();
+
+	/**
+	 * Returns the meta object for class '{@link org.eclipse.fennec.search.esearch.ValueSource <em>Value Source</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for class '<em>Value Source</em>'.
+	 * @see org.eclipse.fennec.search.esearch.ValueSource
+	 * @generated
+	 */
+	EClass getValueSource();
+
+	/**
+	 * Returns the meta object for class '{@link org.eclipse.fennec.search.esearch.FeatureSource <em>Feature Source</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for class '<em>Feature Source</em>'.
+	 * @see org.eclipse.fennec.search.esearch.FeatureSource
+	 * @generated
+	 */
+	EClass getFeatureSource();
+
+	/**
+	 * Returns the meta object for the reference '{@link org.eclipse.fennec.search.esearch.FeatureSource#getFeature <em>Feature</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for the reference '<em>Feature</em>'.
+	 * @see org.eclipse.fennec.search.esearch.FeatureSource#getFeature()
+	 * @see #getFeatureSource()
+	 * @generated
+	 */
+	EReference getFeatureSource_Feature();
+
+	/**
+	 * Returns the meta object for class '{@link org.eclipse.fennec.search.esearch.PathSource <em>Path Source</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for class '<em>Path Source</em>'.
+	 * @see org.eclipse.fennec.search.esearch.PathSource
+	 * @generated
+	 */
+	EClass getPathSource();
+
+	/**
+	 * Returns the meta object for the reference list '{@link org.eclipse.fennec.search.esearch.PathSource#getSegments <em>Segments</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for the reference list '<em>Segments</em>'.
+	 * @see org.eclipse.fennec.search.esearch.PathSource#getSegments()
+	 * @see #getPathSource()
+	 * @generated
+	 */
+	EReference getPathSource_Segments();
+
+	/**
+	 * Returns the meta object for class '{@link org.eclipse.fennec.search.esearch.OclSource <em>Ocl Source</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for class '<em>Ocl Source</em>'.
+	 * @see org.eclipse.fennec.search.esearch.OclSource
+	 * @generated
+	 */
+	EClass getOclSource();
+
+	/**
+	 * Returns the meta object for the attribute '{@link org.eclipse.fennec.search.esearch.OclSource#getExpression <em>Expression</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for the attribute '<em>Expression</em>'.
+	 * @see org.eclipse.fennec.search.esearch.OclSource#getExpression()
+	 * @see #getOclSource()
+	 * @generated
+	 */
+	EAttribute getOclSource_Expression();
+
+	/**
+	 * Returns the meta object for the attribute '{@link org.eclipse.fennec.search.esearch.OclSource#getContext <em>Context</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for the attribute '<em>Context</em>'.
+	 * @see org.eclipse.fennec.search.esearch.OclSource#getContext()
+	 * @see #getOclSource()
+	 * @generated
+	 */
+	EAttribute getOclSource_Context();
 
 	/**
 	 * Returns the meta object for class '{@link org.eclipse.fennec.search.esearch.ReferenceMapping <em>Reference Mapping</em>}'.
@@ -3302,6 +3710,16 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 	EEnum getRankFunction();
 
 	/**
+	 * Returns the meta object for enum '{@link org.eclipse.fennec.search.esearch.OclContextKind <em>Ocl Context Kind</em>}'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return the meta object for enum '<em>Ocl Context Kind</em>'.
+	 * @see org.eclipse.fennec.search.esearch.OclContextKind
+	 * @generated
+	 */
+	EEnum getOclContextKind();
+
+	/**
 	 * Returns the meta object for enum '{@link org.eclipse.fennec.search.esearch.VectorSimilarity <em>Vector Similarity</em>}'.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
@@ -3619,6 +4037,22 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 		EAttribute FIELD_MAPPING__USE = eINSTANCE.getFieldMapping_Use();
 
 		/**
+		 * The meta object literal for the '<em><b>Sources</b></em>' containment reference list feature.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @generated
+		 */
+		EReference FIELD_MAPPING__SOURCES = eINSTANCE.getFieldMapping_Sources();
+
+		/**
+		 * The meta object literal for the '<em><b>Separator</b></em>' attribute feature.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @generated
+		 */
+		EAttribute FIELD_MAPPING__SEPARATOR = eINSTANCE.getFieldMapping_Separator();
+
+		/**
 		 * The meta object literal for the '<em><b>Sub Fields</b></em>' containment reference list feature.
 		 * <!-- begin-user-doc -->
 		 * <!-- end-user-doc -->
@@ -3809,12 +4243,12 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 		EClass VECTOR_FIELD_MAPPING = eINSTANCE.getVectorFieldMapping();
 
 		/**
-		 * The meta object literal for the '<em><b>Sources</b></em>' reference list feature.
+		 * The meta object literal for the '<em><b>Embedding Sources</b></em>' reference list feature.
 		 * <!-- begin-user-doc -->
 		 * <!-- end-user-doc -->
 		 * @generated
 		 */
-		EReference VECTOR_FIELD_MAPPING__SOURCES = eINSTANCE.getVectorFieldMapping_Sources();
+		EReference VECTOR_FIELD_MAPPING__EMBEDDING_SOURCES = eINSTANCE.getVectorFieldMapping_EmbeddingSources();
 
 		/**
 		 * The meta object literal for the '<em><b>Provider</b></em>' attribute feature.
@@ -3847,6 +4281,78 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 		 * @generated
 		 */
 		EAttribute VECTOR_FIELD_MAPPING__MODEL_VERSION = eINSTANCE.getVectorFieldMapping_ModelVersion();
+
+		/**
+		 * The meta object literal for the '{@link org.eclipse.fennec.search.esearch.impl.ValueSourceImpl <em>Value Source</em>}' class.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @see org.eclipse.fennec.search.esearch.impl.ValueSourceImpl
+		 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getValueSource()
+		 * @generated
+		 */
+		EClass VALUE_SOURCE = eINSTANCE.getValueSource();
+
+		/**
+		 * The meta object literal for the '{@link org.eclipse.fennec.search.esearch.impl.FeatureSourceImpl <em>Feature Source</em>}' class.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @see org.eclipse.fennec.search.esearch.impl.FeatureSourceImpl
+		 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getFeatureSource()
+		 * @generated
+		 */
+		EClass FEATURE_SOURCE = eINSTANCE.getFeatureSource();
+
+		/**
+		 * The meta object literal for the '<em><b>Feature</b></em>' reference feature.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @generated
+		 */
+		EReference FEATURE_SOURCE__FEATURE = eINSTANCE.getFeatureSource_Feature();
+
+		/**
+		 * The meta object literal for the '{@link org.eclipse.fennec.search.esearch.impl.PathSourceImpl <em>Path Source</em>}' class.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @see org.eclipse.fennec.search.esearch.impl.PathSourceImpl
+		 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getPathSource()
+		 * @generated
+		 */
+		EClass PATH_SOURCE = eINSTANCE.getPathSource();
+
+		/**
+		 * The meta object literal for the '<em><b>Segments</b></em>' reference list feature.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @generated
+		 */
+		EReference PATH_SOURCE__SEGMENTS = eINSTANCE.getPathSource_Segments();
+
+		/**
+		 * The meta object literal for the '{@link org.eclipse.fennec.search.esearch.impl.OclSourceImpl <em>Ocl Source</em>}' class.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @see org.eclipse.fennec.search.esearch.impl.OclSourceImpl
+		 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getOclSource()
+		 * @generated
+		 */
+		EClass OCL_SOURCE = eINSTANCE.getOclSource();
+
+		/**
+		 * The meta object literal for the '<em><b>Expression</b></em>' attribute feature.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @generated
+		 */
+		EAttribute OCL_SOURCE__EXPRESSION = eINSTANCE.getOclSource_Expression();
+
+		/**
+		 * The meta object literal for the '<em><b>Context</b></em>' attribute feature.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @generated
+		 */
+		EAttribute OCL_SOURCE__CONTEXT = eINSTANCE.getOclSource_Context();
 
 		/**
 		 * The meta object literal for the '{@link org.eclipse.fennec.search.esearch.impl.ReferenceMappingImpl <em>Reference Mapping</em>}' class.
@@ -4307,6 +4813,16 @@ public interface ESearchPackage extends org.eclipse.emf.ecore.EPackage {
 		 * @generated
 		 */
 		EEnum RANK_FUNCTION = eINSTANCE.getRankFunction();
+
+		/**
+		 * The meta object literal for the '{@link org.eclipse.fennec.search.esearch.OclContextKind <em>Ocl Context Kind</em>}' enum.
+		 * <!-- begin-user-doc -->
+		 * <!-- end-user-doc -->
+		 * @see org.eclipse.fennec.search.esearch.OclContextKind
+		 * @see org.eclipse.fennec.search.esearch.impl.ESearchPackageImpl#getOclContextKind()
+		 * @generated
+		 */
+		EEnum OCL_CONTEXT_KIND = eINSTANCE.getOclContextKind();
 
 		/**
 		 * The meta object literal for the '{@link org.eclipse.fennec.search.esearch.VectorSimilarity <em>Vector Similarity</em>}' enum.

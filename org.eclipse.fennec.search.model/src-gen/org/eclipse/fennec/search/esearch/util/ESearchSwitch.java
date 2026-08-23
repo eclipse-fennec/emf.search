@@ -149,6 +149,33 @@ public class ESearchSwitch<T> extends Switch<T> {
 				if (result == null) result = defaultCase(theEObject);
 				return result;
 			}
+			case ESearchPackage.VALUE_SOURCE: {
+				ValueSource valueSource = (ValueSource)theEObject;
+				T result = caseValueSource(valueSource);
+				if (result == null) result = defaultCase(theEObject);
+				return result;
+			}
+			case ESearchPackage.FEATURE_SOURCE: {
+				FeatureSource featureSource = (FeatureSource)theEObject;
+				T result = caseFeatureSource(featureSource);
+				if (result == null) result = caseValueSource(featureSource);
+				if (result == null) result = defaultCase(theEObject);
+				return result;
+			}
+			case ESearchPackage.PATH_SOURCE: {
+				PathSource pathSource = (PathSource)theEObject;
+				T result = casePathSource(pathSource);
+				if (result == null) result = caseValueSource(pathSource);
+				if (result == null) result = defaultCase(theEObject);
+				return result;
+			}
+			case ESearchPackage.OCL_SOURCE: {
+				OclSource oclSource = (OclSource)theEObject;
+				T result = caseOclSource(oclSource);
+				if (result == null) result = caseValueSource(oclSource);
+				if (result == null) result = defaultCase(theEObject);
+				return result;
+			}
 			case ESearchPackage.REFERENCE_MAPPING: {
 				ReferenceMapping referenceMapping = (ReferenceMapping)theEObject;
 				T result = caseReferenceMapping(referenceMapping);
@@ -375,6 +402,66 @@ public class ESearchSwitch<T> extends Switch<T> {
 	 * @generated
 	 */
 	public T caseVectorFieldMapping(VectorFieldMapping object) {
+		return null;
+	}
+
+	/**
+	 * Returns the result of interpreting the object as an instance of '<em>Value Source</em>'.
+	 * <!-- begin-user-doc -->
+	 * This implementation returns null;
+	 * returning a non-null result will terminate the switch.
+	 * <!-- end-user-doc -->
+	 * @param object the target of the switch.
+	 * @return the result of interpreting the object as an instance of '<em>Value Source</em>'.
+	 * @see #doSwitch(org.eclipse.emf.ecore.EObject) doSwitch(EObject)
+	 * @generated
+	 */
+	public T caseValueSource(ValueSource object) {
+		return null;
+	}
+
+	/**
+	 * Returns the result of interpreting the object as an instance of '<em>Feature Source</em>'.
+	 * <!-- begin-user-doc -->
+	 * This implementation returns null;
+	 * returning a non-null result will terminate the switch.
+	 * <!-- end-user-doc -->
+	 * @param object the target of the switch.
+	 * @return the result of interpreting the object as an instance of '<em>Feature Source</em>'.
+	 * @see #doSwitch(org.eclipse.emf.ecore.EObject) doSwitch(EObject)
+	 * @generated
+	 */
+	public T caseFeatureSource(FeatureSource object) {
+		return null;
+	}
+
+	/**
+	 * Returns the result of interpreting the object as an instance of '<em>Path Source</em>'.
+	 * <!-- begin-user-doc -->
+	 * This implementation returns null;
+	 * returning a non-null result will terminate the switch.
+	 * <!-- end-user-doc -->
+	 * @param object the target of the switch.
+	 * @return the result of interpreting the object as an instance of '<em>Path Source</em>'.
+	 * @see #doSwitch(org.eclipse.emf.ecore.EObject) doSwitch(EObject)
+	 * @generated
+	 */
+	public T casePathSource(PathSource object) {
+		return null;
+	}
+
+	/**
+	 * Returns the result of interpreting the object as an instance of '<em>Ocl Source</em>'.
+	 * <!-- begin-user-doc -->
+	 * This implementation returns null;
+	 * returning a non-null result will terminate the switch.
+	 * <!-- end-user-doc -->
+	 * @param object the target of the switch.
+	 * @return the result of interpreting the object as an instance of '<em>Ocl Source</em>'.
+	 * @see #doSwitch(org.eclipse.emf.ecore.EObject) doSwitch(EObject)
+	 * @generated
+	 */
+	public T caseOclSource(OclSource object) {
 		return null;
 	}
 

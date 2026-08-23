@@ -64,6 +64,41 @@ Pinned by `SearchResourceTest` and the TCK binding.
    SORT_EXPRESSION refusal. The shared validator refuses it by name; the test pins that
    nobody declares it by accident.
 
+## Computed fields (S20/#28, 2026-08-23)
+
+**Mark's ecore round**, chosen from three shapes: `sources : ValueSource[0..*]` *beside*
+`feature`, with `FeatureSource` / `PathSource` / `OclSource` and an optional `separator`.
+Additive — no existing mapping changes, and the conventions stay feature-based.
+
+**Mark's second call, made while building it: the OCL rung stays out.** Wiring the m2x engine
+had pulled it into `IndexSchema`'s load path, and the suggest bundle fell over with a
+`NoClassDefFoundError` — which surfaced the real question rather than a missing buildpath
+entry: must every deployment carry an expression engine so that some mapping *could* compute
+something? Three roads were on the table (isolate behind an interface with an optional
+import; make m2x a hard dependency; drop the rung) and the answer is the third. `OclSource`
+stays declared and is refused by name, pointing at a `PathSource` or at a derived
+`EStructuralFeature` with the m2x derivation annotation — which is computed by EMF, arrives
+here as an ordinary feature, and is *queryable*, unlike anything computed inside a mapping.
+
+The calls I made around it, pinned by `ComputedFieldTest`:
+
+1. **A field says where its value comes from once.** Declaring both `feature` and `sources`
+   is refused rather than resolved by precedence.
+2. **A computed field must carry a name** — there is no attribute to take one from — and a
+   **sub-field may not be computed**: a sub-field is another projection of its parent's
+   attribute, which is exactly what a different value under that name would contradict.
+3. **Several sources are several values, unless `separator` joins them.** The two cases are
+   genuinely different (match one of these, versus search this one string), and guessing from
+   the field kind would be the kind of cleverness that surprises.
+4. **Only text, keyword and numeric fields take sources.** Geo, rank signals and the reserved
+   kinds declare their own inputs; a computed one of those would be the same thing said twice.
+5. **A computed numeric derives its encoding from the value** when the mapping says `AUTO`,
+   and a non-numeric value is refused by name rather than coerced.
+6. **`dependencies(EClass)` reports the navigated paths**, and losing the expression rung is
+   what makes that exact instead of best-effort. **`fingerprint()`** answers the third part of
+   the issue — a stable hash over everything that decides what lands in the index, for a unit
+   to record beside its data (S18) and notice that a rebuild is due.
+
 ## Autonomous calls in write commands (S21/#29, S22/#30, 2026-08-23)
 
 The blueprint prescribed the shape (§5.4) — these are the calls it did not make. Pinned by

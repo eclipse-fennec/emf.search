@@ -125,6 +125,33 @@ public interface ESearchFactory extends EFactory {
 	VectorFieldMapping createVectorFieldMapping();
 
 	/**
+	 * Returns a new object of class '<em>Feature Source</em>'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return a new object of class '<em>Feature Source</em>'.
+	 * @generated
+	 */
+	FeatureSource createFeatureSource();
+
+	/**
+	 * Returns a new object of class '<em>Path Source</em>'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return a new object of class '<em>Path Source</em>'.
+	 * @generated
+	 */
+	PathSource createPathSource();
+
+	/**
+	 * Returns a new object of class '<em>Ocl Source</em>'.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @return a new object of class '<em>Ocl Source</em>'.
+	 * @generated
+	 */
+	OclSource createOclSource();
+
+	/**
 	 * Returns a new object of class '<em>Reference Mapping</em>'.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->

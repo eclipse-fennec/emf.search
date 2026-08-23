@@ -122,6 +122,22 @@ public class ESearchAdapterFactory extends AdapterFactoryImpl {
 				return createVectorFieldMappingAdapter();
 			}
 			@Override
+			public Adapter caseValueSource(ValueSource object) {
+				return createValueSourceAdapter();
+			}
+			@Override
+			public Adapter caseFeatureSource(FeatureSource object) {
+				return createFeatureSourceAdapter();
+			}
+			@Override
+			public Adapter casePathSource(PathSource object) {
+				return createPathSourceAdapter();
+			}
+			@Override
+			public Adapter caseOclSource(OclSource object) {
+				return createOclSourceAdapter();
+			}
+			@Override
 			public Adapter caseReferenceMapping(ReferenceMapping object) {
 				return createReferenceMappingAdapter();
 			}
@@ -332,6 +348,62 @@ public class ESearchAdapterFactory extends AdapterFactoryImpl {
 	 * @generated
 	 */
 	public Adapter createVectorFieldMappingAdapter() {
+		return null;
+	}
+
+	/**
+	 * Creates a new adapter for an object of class '{@link org.eclipse.fennec.search.esearch.ValueSource <em>Value Source</em>}'.
+	 * <!-- begin-user-doc -->
+	 * This default implementation returns null so that we can easily ignore cases;
+	 * it's useful to ignore a case when inheritance will catch all the cases anyway.
+	 * <!-- end-user-doc -->
+	 * @return the new adapter.
+	 * @see org.eclipse.fennec.search.esearch.ValueSource
+	 * @generated
+	 */
+	public Adapter createValueSourceAdapter() {
+		return null;
+	}
+
+	/**
+	 * Creates a new adapter for an object of class '{@link org.eclipse.fennec.search.esearch.FeatureSource <em>Feature Source</em>}'.
+	 * <!-- begin-user-doc -->
+	 * This default implementation returns null so that we can easily ignore cases;
+	 * it's useful to ignore a case when inheritance will catch all the cases anyway.
+	 * <!-- end-user-doc -->
+	 * @return the new adapter.
+	 * @see org.eclipse.fennec.search.esearch.FeatureSource
+	 * @generated
+	 */
+	public Adapter createFeatureSourceAdapter() {
+		return null;
+	}
+
+	/**
+	 * Creates a new adapter for an object of class '{@link org.eclipse.fennec.search.esearch.PathSource <em>Path Source</em>}'.
+	 * <!-- begin-user-doc -->
+	 * This default implementation returns null so that we can easily ignore cases;
+	 * it's useful to ignore a case when inheritance will catch all the cases anyway.
+	 * <!-- end-user-doc -->
+	 * @return the new adapter.
+	 * @see org.eclipse.fennec.search.esearch.PathSource
+	 * @generated
+	 */
+	public Adapter createPathSourceAdapter() {
+		return null;
+	}
+
+	/**
+	 * Creates a new adapter for an object of class '{@link org.eclipse.fennec.search.esearch.OclSource <em>Ocl Source</em>}'.
+	 * <!-- begin-user-doc -->
+	 * This default implementation returns null so that we can easily ignore cases;
+	 * it's useful to ignore a case when inheritance will catch all the cases anyway.
+	 * <!-- end-user-doc -->
+	 * @return the new adapter.
+	 * @see org.eclipse.fennec.search.esearch.OclSource
+	 * @generated
+	 */
+	public Adapter createOclSourceAdapter() {
 		return null;
 	}
 
