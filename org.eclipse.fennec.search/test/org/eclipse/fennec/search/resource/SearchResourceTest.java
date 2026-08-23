@@ -31,6 +31,7 @@ import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
+import org.eclipse.fennec.persistence.capabilities.CommandFeature;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
 import org.eclipse.fennec.persistence.capabilities.StoreFeature;
 import org.eclipse.fennec.persistence.resource.PersistenceResource;
@@ -445,8 +446,13 @@ class SearchResourceTest {
 				.as("the query view is the processor's declaration, not a second list")
 				.isEqualTo(LuceneQueryProcessor.declaredCapabilities().supported());
 		assertThat(capabilities.command().supported())
-				.as("no command path until #29")
-				.isEmpty();
+				.as("the write vocabulary of #29 — declared backend-wide, narrowed per class")
+				.containsExactlyInAnyOrder(CommandFeature.INSERT, CommandFeature.DELETE_BY_SELECTOR,
+						CommandFeature.UPDATE_BY_SELECTOR);
+		EClass product = (EClass) catalog.getEClassifier("Product");
+		assertThat(capabilities.command().supports(CommandFeature.UPDATE_BY_SELECTOR, product))
+				.as("but not for a class whose mapping keeps no complete object")
+				.isFalse();
 		assertThat(capabilities.store().supports(StoreFeature.TRANSACTION_BRACKET))
 				.as("no transaction bracket in v1 (#30)")
 				.isFalse();

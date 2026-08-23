@@ -45,6 +45,7 @@ import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EDataType;
 import org.eclipse.emf.ecore.EEnum;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.InternalEObject;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.util.EcoreUtil;
@@ -506,9 +507,36 @@ public final class DocumentMapper {
 				? eReference.getName()
 				: reference.getPrefix();
 		for (EObject target : targets) {
-			String id = idOf(target, resolve(target.eClass()), target.eClass());
+			String id = target.eIsProxy()
+					? proxyId(target)
+					: idOf(target, resolve(target.eClass()), target.eClass());
 			addKeyword(root, name, id, true, true);
 		}
+	}
+
+	/**
+	 * The id of an unresolved reference target. A proxy carries no attribute values, but it
+	 * does carry the URI this backend wrote for it, and that URI's fragment is the id
+	 * ({@link org.eclipse.fennec.search.resource.SearchUris}). Reading it is what makes
+	 * read-patch-rewrite possible at all: an object read back from the index holds proxies
+	 * for its ID_ONLY references, and re-mapping it has to write the same ids again rather
+	 * than refuse for lack of a resolved target.
+	 */
+	private static String proxyId(EObject target) {
+		URI uri = ((InternalEObject) target).eProxyURI();
+		if (uri != null && uri.hasFragment() && !uri.fragment().isBlank()) {
+			return uri.fragment();
+		}
+		return uri != null && uri.segmentCount() > 0 && !uri.lastSegment().isBlank()
+				? uri.lastSegment()
+				: refuseProxy(target, uri);
+	}
+
+	private static String refuseProxy(EObject target, URI uri) {
+		throw new MappingException("The " + target.eClass().getName() + " reference target is an "
+				+ "unresolved proxy whose URI ('" + uri + "') carries no id, so there is nothing to "
+				+ "write for an ID_ONLY reference. Resolve the target, or give it a URI of the form "
+				+ "lucene://<unit>/<Type>/<id>.");
 	}
 
 	private void writeEmbedded(Document root, ReferenceMapping reference, EReference eReference,

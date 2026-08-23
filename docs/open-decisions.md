@@ -53,6 +53,41 @@ Pinned by `SearchResourceTest` and the TCK binding.
    SORT_EXPRESSION refusal. The shared validator refuses it by name; the test pins that
    nobody declares it by accident.
 
+## Autonomous calls in write commands (S21/#29, S22/#30, 2026-08-23)
+
+The blueprint prescribed the shape (§5.4) — these are the calls it did not make. Pinned by
+`WriteCommandTest` and by the TCK's command family.
+
+1. **The transaction bracket is refused, as recommended.** `IndexWriter.rollback()` discards
+   every uncommitted change in the unit rather than the caller's share, so a bracket would be
+   sound only while a single writer owns the unit — a condition this backend cannot enforce.
+   Option 2 of #30 (serialize the bracket) stays the documented upgrade path: it turns a write
+   bracket into a global write lock on the unit, which is a throughput decision a consumer has
+   to ask for, not a default.
+2. **A refusal carries its Diagnostic inside the exception.** `IOException` → cause
+   `QueryException` → `getDiagnostic()`, beside the `PersistenceDiagnostic` on the resource.
+   The upstream cross-product (#175) reads exactly that to separate a refusal from a failure,
+   and the query path was changed with the command path so both speak one contract.
+3. **Delete resolves matches to root ids and deletes blocks**, rather than handing the
+   selector to `deleteDocuments(Query)` — which would take the matched roots and leave the
+   `NESTED` children behind. The §4.4 referential-integrity refusal applies to the whole
+   matched set, with references *inside* the set exempt: they go away together.
+4. **Update patches everything before writing anything.** All matches are read, patched and
+   mapped first; the writer sees them only if every one of them worked. Half-applied is the
+   one outcome a store must not produce quietly.
+5. **`ID_ONLY` writes accept an unresolved proxy** and take the id from its URI fragment.
+   Without it read-patch-rewrite cannot work at all — a reconstructed object holds proxies for
+   its references — and it fixes the same latent hole on the ordinary save path.
+6. **A `STORED_OBJECT` document is completed with its `ID_ONLY` fields on read.** The
+   serialized tree cannot carry a cross-document reference (at write time the target lives in
+   another document, so the serializer has no href), the fields beside it can, and for those
+   references the fields are the truth — the reference is unset before it is re-read, or a
+   many-valued one comes back doubled. Found by the TCK the moment the binding declared
+   materialization.
+7. **The TCK binding declares `STORED_OBJECT` for its model.** Not cosmetics: it is what makes
+   `UPDATE_BY_SELECTOR` honest for the TCK's classes, so the update family runs for real
+   instead of being narrowed away. The refusal without it is covered by plain JUnit.
+
 ## Grouping with representatives (S19/#21, 2026-08-23)
 
 **Mark's call**, after the clarification the issue asked for: the pipeline cannot express

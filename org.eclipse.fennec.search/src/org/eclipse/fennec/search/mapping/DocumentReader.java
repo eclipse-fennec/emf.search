@@ -47,6 +47,7 @@ import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.FieldMapping;
 import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
 import org.eclipse.fennec.search.esearch.Materialization;
+import org.eclipse.fennec.search.esearch.MaterializationKind;
 import org.eclipse.fennec.search.esearch.NumericFieldMapping;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
 import org.eclipse.fennec.search.esearch.ReferenceStrategy;
@@ -124,7 +125,16 @@ public final class DocumentReader {
 		EClass eClass = eClassOf(root);
 		Materialization materialization = schema.materialization(eClass);
 		if (materialization != null) {
-			return materialized(root, eClass, materialization);
+			EObject complete = materialized(root, eClass, materialization);
+			if (materialization.getKind() == MaterializationKind.STORED_OBJECT) {
+				// The serialized tree cannot carry a cross-document reference: at write time
+				// its target lives in another document, or in no resource at all, so the
+				// serializer has no href to write and drops it. The ID_ONLY fields beside the
+				// bytes do carry those ids, and they are what this backend hands back as
+				// proxies it can resolve — so the complete object is completed with them.
+				readIdOnlyReferences(root, complete, schema.documentMapping(eClass));
+			}
+			return complete;
 		}
 		EObject object = instantiate(eClass);
 		DocumentMapping documentMapping = schema.documentMapping(eClass);
@@ -328,6 +338,26 @@ public final class DocumentReader {
 	}
 
 	// --- references -----------------------------------------------------------------------
+
+	/** The ID_ONLY half of {@link #readReferences}, for the materialized tier. */
+	private void readIdOnlyReferences(Document root, EObject object, DocumentMapping documentMapping) {
+		if (documentMapping == null) {
+			return;
+		}
+		for (ReferenceMapping reference : documentMapping.getReferences()) {
+			if (reference.getStrategy() != ReferenceStrategy.ID_ONLY) {
+				continue;
+			}
+			EReference eReference = reference.getEReference();
+			if (eReference != null && object.eIsSet(eReference)) {
+				// For an ID_ONLY reference the document's fields are the truth, and whatever
+				// survived serialization is at best the same thing twice — a many-valued
+				// reference would come back with every member doubled.
+				object.eUnset(eReference);
+			}
+			readIdOnly(root, object, reference, eReference);
+		}
+	}
 
 	private void readReferences(Document root, List<Document> children, EObject object,
 			DocumentMapping documentMapping) {

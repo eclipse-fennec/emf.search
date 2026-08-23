@@ -24,6 +24,7 @@ export const GUIDES = [
   { file: 'similarity.md', slug: 'similarity', title: 'Similarity' },
   { file: 'rank-signals.md', slug: 'rank-signals', title: 'Rank signals' },
   { file: 'grouping.md', slug: 'grouping', title: 'Grouping' },
+  { file: 'write-commands.md', slug: 'write-commands', title: 'Write commands' },
 ];
 
 export const EXAMPLES = [];

@@ -14,6 +14,7 @@ package org.eclipse.fennec.search.resource;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,22 +39,33 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.BytesRef;
+import org.eclipse.emf.common.util.BasicDiagnostic;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EDataType;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EPackage;
+import org.eclipse.emf.ecore.InternalEObject;
 import org.eclipse.emf.ecore.impl.EPackageRegistryImpl;
 import org.eclipse.emf.ecore.resource.impl.ResourceImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.eclipse.fennec.model.command.Command;
+import org.eclipse.fennec.model.command.DeleteCommand;
+import org.eclipse.fennec.model.command.InsertCommand;
+import org.eclipse.fennec.model.command.UpdateCommand;
 import org.eclipse.fennec.model.query.Selection;
+import org.eclipse.fennec.persistence.capabilities.CommandCapabilities;
 import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
+import org.eclipse.fennec.persistence.capabilities.CommandFeature;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
 import org.eclipse.fennec.persistence.api.ConverterService;
 import org.eclipse.fennec.persistence.capabilities.StoreCapabilitiesBuilder;
+import org.eclipse.fennec.persistence.capabilities.StoreFeature;
 import org.eclipse.fennec.persistence.converter.DefaultConverterService;
 import org.eclipse.fennec.persistence.diagnostic.PersistenceDiagnostic;
 import org.eclipse.fennec.persistence.helper.CompositeIds;
@@ -62,14 +74,20 @@ import org.eclipse.fennec.persistence.query.api.Hit;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
 import org.eclipse.fennec.persistence.query.api.QueryResultRow;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
+import org.eclipse.fennec.persistence.query.api.CommandResource;
 import org.eclipse.fennec.persistence.query.api.QueryableResource;
 import org.eclipse.fennec.persistence.query.support.NamedOperations;
+import org.eclipse.fennec.persistence.query.support.ChangeTemplates;
+import org.eclipse.fennec.persistence.query.support.CommandTransaction;
 import org.eclipse.fennec.persistence.query.support.PersistedQueries;
+import org.eclipse.fennec.persistence.query.support.ReferenceResolver;
 import org.eclipse.fennec.persistence.query.support.QueryContexts;
 import org.eclipse.fennec.persistence.query.support.QueryResultRows;
 import org.eclipse.fennec.persistence.query.support.QueryResults;
 import org.eclipse.fennec.persistence.resource.PersistenceResource;
 import org.eclipse.fennec.persistence.resource.StreamingResource;
+import org.eclipse.fennec.search.esearch.Materialization;
+import org.eclipse.fennec.search.esearch.MaterializationKind;
 import org.eclipse.fennec.search.mapping.DocumentMapper;
 import org.eclipse.fennec.search.mapping.DocumentReader;
 import org.eclipse.fennec.search.mapping.FacetFields;
@@ -105,17 +123,31 @@ import org.eclipse.fennec.search.unit.IndexUnit;
  * @author Data In Motion Consulting
  */
 public class SearchResource extends ResourceImpl
-		implements PersistenceResource, QueryableResource, StreamingResource {
+		implements PersistenceResource, QueryableResource, CommandResource, StreamingResource {
 
 	/**
-	 * The query view is the backend's one declaration; command and store stay empty until
-	 * the command path exists (#29) and deliberately never gain the transaction bracket in
-	 * v1 (#30) — Lucene has no isolation to bracket.
+	 * The write vocabulary this backend serves (S21, #29, §5.4). Insert and delete-by-selector
+	 * outright; update-by-selector <b>narrowed</b> to the classes whose mapping declares
+	 * {@code STORED_OBJECT} materialization, because Lucene has no partial update and a
+	 * document that cannot be reconstructed cannot be rewritten without losing what the
+	 * mapping never stored. Narrowing is the declaration the two-level contract of
+	 * emf.persistence-jpa#114 asks for: a backend that serves a feature for some classes says
+	 * so and narrows, rather than answering conservatively and hiding what it can do.
+	 * <p>
+	 * The store view stays empty: {@code TRANSACTION_BRACKET} is refused in v1 (S22, #30) —
+	 * see {@link #begin()}.
 	 */
-	private static final PersistenceCapabilities CAPABILITIES = PersistenceCapabilities.of(
-			LuceneQueryProcessor.declaredCapabilities(),
-			CommandCapabilitiesBuilder.create().build(),
-			StoreCapabilitiesBuilder.create().build());
+	private static CommandCapabilities commandCapabilities(IndexSchema schema) {
+		return CommandCapabilitiesBuilder.create()
+				.support(CommandFeature.INSERT, CommandFeature.DELETE_BY_SELECTOR,
+						CommandFeature.UPDATE_BY_SELECTOR)
+				.narrow(CommandFeature.UPDATE_BY_SELECTOR, eClass -> {
+					Materialization materialization = schema.materialization(eClass);
+					return materialization != null
+							&& materialization.getKind() == MaterializationKind.STORED_OBJECT;
+				})
+				.build();
+	}
 
 	/** The stack's plain default — concrete and exported since emf.persistence-jpa#164. */
 	private static final ConverterService DEFAULT_CONVERTERS = new DefaultConverterService();
@@ -126,6 +158,7 @@ public class SearchResource extends ResourceImpl
 	private final NamedOperations catalog;
 	private final ConverterService converter;
 	private final SearchUris address;
+	private final PersistenceCapabilities capabilities;
 	private final Map<ActionType, Map<Object, Object>> defaultOptions = new EnumMap<>(ActionType.class);
 
 	public SearchResource(URI uri, IndexUnit unit, DocumentMapper mapper) {
@@ -152,6 +185,8 @@ public class SearchResource extends ResourceImpl
 		this.catalog = catalog;
 		this.converter = converter == null ? DEFAULT_CONVERTERS : converter;
 		this.address = SearchUris.parse(uri);
+		this.capabilities = PersistenceCapabilities.of(LuceneQueryProcessor.declaredCapabilities(),
+				commandCapabilities(mapper.schema()), StoreCapabilitiesBuilder.create().build());
 	}
 
 	/** The unit this resource writes to. */
@@ -161,7 +196,7 @@ public class SearchResource extends ResourceImpl
 
 	@Override
 	public PersistenceCapabilities capabilities() {
-		return CAPABILITIES;
+		return capabilities;
 	}
 
 	@Override
@@ -198,13 +233,16 @@ public class SearchResource extends ResourceImpl
 	@Override
 	public void delete(Map<?, ?> options) throws IOException {
 		if (address.isObject()) {
-			refuseIfReferenced(mapper.schema().eClassOfOrNull(address.type()), address.id());
+			refuseIfReferenced(mapper.schema().eClassOfOrNull(address.type()), List.of(address.id()));
 			unit.deleteDocuments(new Term(SearchFields.ROOT, address.id()));
 		} else if (!getContents().isEmpty()) {
 			// Every object is checked before the first one is deleted: a refused delete
 			// changes nothing, and a half-applied one would be worse than either outcome.
 			for (EObject object : getContents()) {
-				refuseIfReferenced(object.eClass(), idOf(object));
+				String id = idOf(object);
+				if (id != null) {
+					refuseIfReferenced(object.eClass(), List.of(id));
+				}
 			}
 			for (EObject object : getContents()) {
 				unit.deleteDocuments(mapper.map(object).term());
@@ -228,35 +266,316 @@ public class SearchResource extends ResourceImpl
 	 * One read per delete is the price of the guarantee. It is paid where the guarantee is
 	 * asked for — no mapped ID_ONLY reference can point here, no probe.
 	 */
-	private void refuseIfReferenced(EClass type, String id) throws IOException {
-		if (type == null || id == null) {
+	private void refuseIfReferenced(EClass type, Collection<String> ids) throws IOException {
+		if (type == null || ids.isEmpty()) {
 			return;
 		}
 		Set<String> fields = mapper.schema().incomingIdOnlyFields(type);
 		if (fields.isEmpty()) {
 			return;
 		}
+		List<BytesRef> targets = ids.stream().filter(Objects::nonNull).map(BytesRef::new).toList();
+		if (targets.isEmpty()) {
+			return;
+		}
 		BooleanQuery.Builder incoming = new BooleanQuery.Builder();
 		for (String field : fields) {
-			incoming.add(new TermQuery(new Term(field, id)), Occur.SHOULD);
+			incoming.add(new TermInSetQuery(field, targets), Occur.SHOULD);
 		}
 		incoming.setMinimumNumberShouldMatch(1);
-		// The object's own block, children included — a reference an object holds to itself
-		// disappears with it. The exclusion is by root id, which is the same identity the
-		// delete itself uses.
-		incoming.add(new TermQuery(new Term(SearchFields.ROOT, id)), Occur.MUST_NOT);
+		// The blocks that are going away, children included — a reference between two objects
+		// of the same delete disappears with both of them, and one an object holds to itself
+		// with it. The exclusion is by root id, the same identity the delete itself uses.
+		incoming.add(new TermInSetQuery(SearchFields.ROOT, targets), Occur.MUST_NOT);
 		Query query = incoming.build();
 		long referencing = unit.<Integer>search(searcher -> searcher.count(query)).longValue();
 		if (referencing == 0) {
 			return;
 		}
-		String message = "Refusing to delete " + type.getName() + " '" + id + "': " + referencing
-				+ " document(s) still reference it through " + String.join(", ", fields)
+		String message = "Refusing to delete " + ids.size() + " " + type.getName() + " object(s) ("
+				+ String.join(", ", ids) + "): " + referencing + " document(s) still reference "
+				+ (ids.size() == 1 ? "it" : "them") + " through " + String.join(", ", fields)
 				+ ". A reference this index wrote must not end up pointing at nothing — clear the "
-				+ "referencing objects first, or delete them together with this one.";
+				+ "referencing objects first, or delete them together with these.";
 		getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE, message,
 				getURI()));
 		throw new IOException(message);
+	}
+
+	// --- commands -----------------------------------------------------------------------
+
+	@Override
+	public long execute(Command command) throws IOException {
+		return execute(command, null, null);
+	}
+
+	/**
+	 * The write vocabulary over one index unit (S21, #29, §5.4). Insert maps the payload and
+	 * replaces documents by id; delete translates the selector and removes whole blocks;
+	 * update reads, patches and rewrites — and only where the mapping declares the object is
+	 * there to be read. An undeclared feature is refused <em>before any work</em>, with a
+	 * diagnostic naming it (emf.persistence-jpa#114).
+	 */
+	@Override
+	public long execute(Command command, Map<String, Object> parameters, Map<?, ?> options)
+			throws IOException {
+		Objects.requireNonNull(command, "command must not be null");
+		if (command instanceof InsertCommand insert) {
+			for (EObject payload : insert.getObjects()) {
+				ensureSupported(CommandFeature.INSERT, payload.eClass());
+			}
+			return executeInsert(insert);
+		}
+		if (command instanceof DeleteCommand delete) {
+			EClass root = selectorRoot(delete.getSelector(), "delete");
+			ensureSupported(CommandFeature.DELETE_BY_SELECTOR, root);
+			return executeDelete(delete, root, parameters, options);
+		}
+		if (command instanceof UpdateCommand update) {
+			EClass root = selectorRoot(update.getSelector(), "update");
+			ensureSupported(CommandFeature.UPDATE_BY_SELECTOR, root);
+			return executeUpdate(update, root, parameters, options);
+		}
+		throw new IOException("Unsupported command " + command.eClass().getName());
+	}
+
+	/**
+	 * Lucene has no write bracket that means what the contract means (S22, #30, §5.4).
+	 * {@code IndexWriter.rollback()} discards <em>every</em> uncommitted change in the unit,
+	 * not the calling thread's share of it, so a bracket would be sound only while a single
+	 * writer owns the unit for its duration — a condition this backend cannot enforce and
+	 * would therefore be promising falsely. The refusal is the honest answer, and it is
+	 * declared: {@code TRANSACTION_BRACKET} is absent from the store capabilities, so a
+	 * consumer can route around it instead of discovering this at runtime.
+	 */
+	@Override
+	public CommandTransaction begin() throws IOException {
+		String message = "Store feature " + StoreFeature.TRANSACTION_BRACKET.getName() + " is not "
+				+ "supported by this lucene resource: IndexWriter.rollback() discards every "
+				+ "uncommitted change in unit '" + unit.name() + "', not just this caller's, so a "
+				+ "bracket could not keep its promise while anyone else writes. Batch at your own "
+				+ "level, or commit per command.";
+		getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE, message,
+				getURI()));
+		throw new IOException(message);
+	}
+
+	private EClass selectorRoot(org.eclipse.fennec.model.query.Query selector, String what)
+			throws IOException {
+		if (selector == null || selector.getFrom() == null) {
+			throw new IOException("The " + what + " command carries no selector with a root type, so "
+					+ "there is nothing to address.");
+		}
+		return selector.getFrom();
+	}
+
+	/**
+	 * The refusal contract in one place: the diagnostic lands on the resource <em>and</em>
+	 * travels inside the exception. A caller that only catches the {@code IOException} must
+	 * still be able to tell "this mapping does not serve that" from "the backend broke while
+	 * trying" — which is exactly what the TCK's command cross-product asserts by looking for a
+	 * {@link QueryException} carrying a {@code Diagnostic} in the cause chain.
+	 */
+	private IOException refused(String what, Exception cause) {
+		String message = what + ": " + cause.getMessage();
+		getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE, message,
+				getURI(), cause));
+		org.eclipse.emf.common.util.Diagnostic carried = cause instanceof QueryException refusal
+				&& refusal.getDiagnostic() != null
+						? refusal.getDiagnostic()
+						: new BasicDiagnostic(org.eclipse.emf.common.util.Diagnostic.ERROR,
+								LuceneQueryProcessor.DIAGNOSTIC_SOURCE, 0, message,
+								new Object[] { cause });
+		return new IOException(message, new QueryException(message, cause, carried));
+	}
+
+	/** Refuses an undeclared command feature before any work (emf.persistence-jpa#114). */
+	private void ensureSupported(CommandFeature feature, EClass target) throws IOException {
+		if (capabilities.command().supports(feature, target)) {
+			return;
+		}
+		String message = "command feature " + feature.getName() + " is not supported by this lucene "
+				+ "resource for EClass '" + target.getName() + "'"
+				+ (feature == CommandFeature.UPDATE_BY_SELECTOR
+						? ": Lucene has no partial update, so rewriting a document means rebuilding "
+								+ "it, and only a mapping declaring STORED_OBJECT materialization "
+								+ "keeps the whole object. Without it the index holds the mapped "
+								+ "fields alone — a rewrite would silently drop everything else."
+						: ".");
+		throw refused("Command refused", new QueryException(message));
+	}
+
+	/**
+	 * Insert writes copies: the command keeps its payload, and references to objects that
+	 * already exist are bound by id through the keyed-find contract
+	 * (emf.persistence-jpa#107) before anything is written.
+	 */
+	private long executeInsert(InsertCommand insert) throws IOException {
+		EcoreUtil.Copier copier = new EcoreUtil.Copier();
+		List<EObject> copies = new ArrayList<>(copier.copyAll(insert.getObjects()));
+		copier.copyReferences();
+		List<MappedDocument> mapped = new ArrayList<>(copies.size());
+		try {
+			ChangeTemplates.bindInsertReferences(copier, referenceResolver());
+			for (EObject copy : copies) {
+				mapped.add(mapper.map(copy));
+			}
+		} catch (QueryException | MappingException e) {
+			throw refused("Insert rejected", e);
+		}
+		for (MappedDocument document : mapped) {
+			unit.updateDocuments(document.term(), document.documents());
+		}
+		return mapped.size();
+	}
+
+	/**
+	 * Delete by selector: Lucene deletes by query natively, but a mapped object can be a
+	 * <em>block</em> of documents, and deleting the matched roots alone would leave their
+	 * children behind. So the matches are resolved to root ids first and the blocks removed
+	 * by that id — the same term every other write here uses.
+	 */
+	private long executeDelete(DeleteCommand delete, EClass root, Map<String, Object> parameters,
+			Map<?, ?> options) throws IOException {
+		Query selector = selectorQuery(delete.getSelector(), root, parameters, options, "Delete");
+		List<String> ids = unit.search(searcher -> rootIds(searcher, selector));
+		if (ids.isEmpty()) {
+			return 0;
+		}
+		refuseIfReferenced(root, ids);
+		Term[] terms = new Term[ids.size()];
+		for (int i = 0; i < terms.length; i++) {
+			terms[i] = new Term(SearchFields.ROOT, ids.get(i));
+		}
+		unit.deleteDocuments(terms);
+		return ids.size();
+	}
+
+	/**
+	 * Update by selector, which over Lucene is read-patch-rewrite (§5.4). Every match is
+	 * read complete (that is what the {@code STORED_OBJECT} narrowing buys), patched with
+	 * the template and re-mapped <b>before the first document is written</b>: a template
+	 * that fails on the third of five matches leaves the index as it was, rather than
+	 * half-applied.
+	 */
+	private long executeUpdate(UpdateCommand update, EClass root, Map<String, Object> parameters,
+			Map<?, ?> options) throws IOException {
+		try {
+			ChangeTemplates.validate(update.getTemplate(), root);
+		} catch (QueryException e) {
+			throw refused("Update rejected", e);
+		}
+		Query selector = selectorQuery(update.getSelector(), root, parameters, options, "Update");
+		DocumentReader reader = DocumentReader.of(mapper.schema(), mapper.serializers(), packages());
+		List<EObject> matches = unit.search(searcher -> {
+			List<EObject> found = new ArrayList<>();
+			int total = searcher.count(selector);
+			if (total == 0) {
+				return found;
+			}
+			TopDocs top = searcher.search(selector, total);
+			StoredFields stored = searcher.storedFields();
+			for (ScoreDoc hit : top.scoreDocs) {
+				Document document = stored.document(hit.doc);
+				found.add(reader.read(document, DocumentReader.blockChildren(searcher, stored, document)));
+			}
+			return found;
+		});
+		List<MappedDocument> rewritten = new ArrayList<>(matches.size());
+		try {
+			for (EObject match : matches) {
+				// A subtype of the selector's root can carry a mapping of its own, and the
+				// narrowing is per class: the refusal has to be asked again for what was
+				// actually matched, before anything is written.
+				ensureSupported(CommandFeature.UPDATE_BY_SELECTOR, match.eClass());
+				ChangeTemplates.apply(update.getTemplate(), match, referenceResolver());
+				rewritten.add(mapper.map(match));
+			}
+		} catch (QueryException | MappingException e) {
+			throw refused("Update rejected", e);
+		}
+		for (MappedDocument document : rewritten) {
+			unit.updateDocuments(document.term(), document.documents());
+		}
+		return rewritten.size();
+	}
+
+	/**
+	 * A command selector is a plain filter and nothing else — the upstream rule every
+	 * backend applies: projection, aggregation, ordering, paging and expansion have no
+	 * meaning when the answer is "what to write", and silently ignoring them would make a
+	 * selector mean something different here than elsewhere.
+	 */
+	private Query selectorQuery(org.eclipse.fennec.model.query.Query selector, EClass root,
+			Map<String, Object> parameters, Map<?, ?> options, String what) throws IOException {
+		try {
+			if (!selector.getSelect().isEmpty() || selector.getApply() != null
+					|| !selector.getOrderBy().isEmpty() || selector.getTop() > 0
+					|| selector.getSkip() > 0 || selector.isDistinct() || selector.isCountOnly()
+					|| !selector.getExpand().isEmpty()) {
+				throw new QueryException("Command selectors must be plain filters — projection, "
+						+ "aggregation, ordering and paging are not allowed on one.");
+			}
+			org.eclipse.emf.common.util.Diagnostic validation = processor.validate(selector, root);
+			if (validation.getSeverity() >= org.eclipse.emf.common.util.Diagnostic.ERROR) {
+				throw new QueryException(flatten(validation), null, validation);
+			}
+			LuceneQueryPlan plan = (LuceneQueryPlan) processor.translate(selector,
+					QueryContexts.of(root, converter, parameters, options));
+			return plan.query();
+		} catch (QueryException | MappingException e) {
+			throw refused(what + " selector rejected", e);
+		}
+	}
+
+	/** The root ids of everything a selector matches; the plan already keeps children out. */
+	private static List<String> rootIds(IndexSearcher searcher, Query selector) throws IOException {
+		int total = searcher.count(selector);
+		List<String> ids = new ArrayList<>(total);
+		if (total == 0) {
+			return ids;
+		}
+		TopDocs top = searcher.search(selector, total);
+		StoredFields stored = searcher.storedFields();
+		for (ScoreDoc hit : top.scoreDocs) {
+			String id = stored.document(hit.doc).get(SearchFields.ROOT);
+			if (id != null) {
+				ids.add(id);
+			}
+		}
+		return ids;
+	}
+
+	/**
+	 * The keyed-find contract of emf.persistence-jpa#107 over the index: a reference target
+	 * is bound by id only if a document of that type actually carries it, and what gets bound
+	 * is the canonical proxy this backend hands out for {@code ID_ONLY} references anywhere
+	 * else. Returning {@code null} is how the patch engine learns the target is dangling.
+	 */
+	private ReferenceResolver referenceResolver() {
+		return (reference, id) -> {
+			EClass targetType = reference.getEReferenceType();
+			if (targetType.isAbstract() || targetType.isInterface()) {
+				throw new QueryException("Reference target type '" + targetType.getName()
+						+ "' is abstract, so an id cannot say which document to bind.");
+			}
+			try {
+				Query exists = new BooleanQuery.Builder()
+						.add(new TermQuery(new Term(SearchFields.ID, id)), Occur.FILTER)
+						.add(mapper.schema().typeFilter(targetType), Occur.FILTER)
+						.build();
+				if (unit.<Integer>search(searcher -> searcher.count(exists)) == 0) {
+					return null;
+				}
+			} catch (IOException | MappingException e) {
+				throw new QueryException("Cannot resolve reference target '" + id + "': "
+						+ e.getMessage(), e);
+			}
+			InternalEObject proxy = (InternalEObject) EcoreUtil.create(targetType);
+			proxy.eSetProxyURI(SearchUris.objectUri(mapper.schema().mapping().getName(),
+					mapper.schema().typeNameOf(targetType), id));
+			return proxy;
+		};
 	}
 
 	// --- reading ------------------------------------------------------------------------
@@ -544,15 +863,13 @@ public class SearchResource extends ResourceImpl
 			// inside a Resource implementation.
 			org.eclipse.emf.common.util.Diagnostic validation = processor.validate(query, root);
 			if (validation.getSeverity() >= org.eclipse.emf.common.util.Diagnostic.ERROR) {
-				throw new QueryException(flatten(validation));
+				throw new QueryException(flatten(validation), null, validation);
 			}
 			LuceneQueryPlan plan = (LuceneQueryPlan) processor.translate(query,
 					QueryContexts.of(root, converter, parameters, options));
 			return execute(plan, root);
 		} catch (QueryException | MappingException e) {
-			getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
-					"Query rejected: " + e.getMessage(), getURI(), e));
-			throw new IOException("Query rejected: " + e.getMessage(), e);
+			throw refused("Query rejected", e);
 		}
 	}
 
