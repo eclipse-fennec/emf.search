@@ -19,6 +19,7 @@ export const GUIDES = [
   { file: 'facets.md', slug: 'facets', title: 'Facets' },
   { file: 'geo.md', slug: 'geo', title: 'Geographic queries' },
   { file: 'mapping-delivery.md', slug: 'mapping-delivery', title: 'Mapping delivery' },
+  { file: 'computed-fields.md', slug: 'computed-fields', title: 'Computed fields' },
   { file: 'suggest.md', slug: 'suggest', title: 'Suggest' },
   { file: 'highlighting.md', slug: 'highlighting', title: 'Highlighting' },
   { file: 'similarity.md', slug: 'similarity', title: 'Similarity' },

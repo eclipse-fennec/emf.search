@@ -37,7 +37,7 @@ import org.eclipse.fennec.search.esearch.VectorSimilarity;
  * The following features are implemented:
  * </p>
  * <ul>
- *   <li>{@link org.eclipse.fennec.search.esearch.impl.VectorFieldMappingImpl#getSources <em>Sources</em>}</li>
+ *   <li>{@link org.eclipse.fennec.search.esearch.impl.VectorFieldMappingImpl#getEmbeddingSources <em>Embedding Sources</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.impl.VectorFieldMappingImpl#getProvider <em>Provider</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.impl.VectorFieldMappingImpl#getDimensions <em>Dimensions</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.impl.VectorFieldMappingImpl#getSimilarity <em>Similarity</em>}</li>
@@ -48,14 +48,14 @@ import org.eclipse.fennec.search.esearch.VectorSimilarity;
  */
 public class VectorFieldMappingImpl extends FieldMappingImpl implements VectorFieldMapping {
 	/**
-	 * The cached value of the '{@link #getSources() <em>Sources</em>}' reference list.
+	 * The cached value of the '{@link #getEmbeddingSources() <em>Embedding Sources</em>}' reference list.
 	 * <!-- begin-user-doc -->
 	 * <!-- end-user-doc -->
-	 * @see #getSources()
+	 * @see #getEmbeddingSources()
 	 * @generated
 	 * @ordered
 	 */
-	protected EList<EAttribute> sources;
+	protected EList<EAttribute> embeddingSources;
 
 	/**
 	 * The default value of the '{@link #getProvider() <em>Provider</em>}' attribute.
@@ -162,11 +162,11 @@ public class VectorFieldMappingImpl extends FieldMappingImpl implements VectorFi
 	 * @generated
 	 */
 	@Override
-	public EList<EAttribute> getSources() {
-		if (sources == null) {
-			sources = new EObjectResolvingEList<EAttribute>(EAttribute.class, this, ESearchPackage.VECTOR_FIELD_MAPPING__SOURCES);
+	public EList<EAttribute> getEmbeddingSources() {
+		if (embeddingSources == null) {
+			embeddingSources = new EObjectResolvingEList<EAttribute>(EAttribute.class, this, ESearchPackage.VECTOR_FIELD_MAPPING__EMBEDDING_SOURCES);
 		}
-		return sources;
+		return embeddingSources;
 	}
 
 	/**
@@ -269,8 +269,8 @@ public class VectorFieldMappingImpl extends FieldMappingImpl implements VectorFi
 	@Override
 	public Object eGet(int featureID, boolean resolve, boolean coreType) {
 		switch (featureID) {
-			case ESearchPackage.VECTOR_FIELD_MAPPING__SOURCES:
-				return getSources();
+			case ESearchPackage.VECTOR_FIELD_MAPPING__EMBEDDING_SOURCES:
+				return getEmbeddingSources();
 			case ESearchPackage.VECTOR_FIELD_MAPPING__PROVIDER:
 				return getProvider();
 			case ESearchPackage.VECTOR_FIELD_MAPPING__DIMENSIONS:
@@ -292,9 +292,9 @@ public class VectorFieldMappingImpl extends FieldMappingImpl implements VectorFi
 	@Override
 	public void eSet(int featureID, Object newValue) {
 		switch (featureID) {
-			case ESearchPackage.VECTOR_FIELD_MAPPING__SOURCES:
-				getSources().clear();
-				getSources().addAll((Collection<? extends EAttribute>)newValue);
+			case ESearchPackage.VECTOR_FIELD_MAPPING__EMBEDDING_SOURCES:
+				getEmbeddingSources().clear();
+				getEmbeddingSources().addAll((Collection<? extends EAttribute>)newValue);
 				return;
 			case ESearchPackage.VECTOR_FIELD_MAPPING__PROVIDER:
 				setProvider((String)newValue);
@@ -320,8 +320,8 @@ public class VectorFieldMappingImpl extends FieldMappingImpl implements VectorFi
 	@Override
 	public void eUnset(int featureID) {
 		switch (featureID) {
-			case ESearchPackage.VECTOR_FIELD_MAPPING__SOURCES:
-				getSources().clear();
+			case ESearchPackage.VECTOR_FIELD_MAPPING__EMBEDDING_SOURCES:
+				getEmbeddingSources().clear();
 				return;
 			case ESearchPackage.VECTOR_FIELD_MAPPING__PROVIDER:
 				setProvider(PROVIDER_EDEFAULT);
@@ -347,8 +347,8 @@ public class VectorFieldMappingImpl extends FieldMappingImpl implements VectorFi
 	@Override
 	public boolean eIsSet(int featureID) {
 		switch (featureID) {
-			case ESearchPackage.VECTOR_FIELD_MAPPING__SOURCES:
-				return sources != null && !sources.isEmpty();
+			case ESearchPackage.VECTOR_FIELD_MAPPING__EMBEDDING_SOURCES:
+				return embeddingSources != null && !embeddingSources.isEmpty();
 			case ESearchPackage.VECTOR_FIELD_MAPPING__PROVIDER:
 				return PROVIDER_EDEFAULT == null ? provider != null : !PROVIDER_EDEFAULT.equals(provider);
 			case ESearchPackage.VECTOR_FIELD_MAPPING__DIMENSIONS:

@@ -12,6 +12,7 @@
  ********************************************************************/
 package org.eclipse.fennec.search.mapping;
 
+import java.util.Collection;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -31,7 +32,10 @@ import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EClassifier;
 import org.eclipse.emf.ecore.EEnum;
+import org.eclipse.emf.ecore.ENamedElement;
+import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
+import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.FieldMapping;
@@ -179,6 +183,16 @@ public final class IndexSchema {
 				}
 			}
 		}
+		// Everything about a computed field that can be known before a document exists is
+		// checked here (S20): paths against the model, expressions parsed and type-checked.
+		for (DocumentMapping document : mapping.getDocuments()) {
+			for (FieldMapping field : document.getFields()) {
+				ValueSources.validate(document.getEClass(), field, displayName(field));
+				for (FieldMapping sub : field.getSubFields()) {
+					ValueSources.refuseComputedSubField(sub, displayName(field) + "." + sub.getName());
+				}
+			}
+		}
 	}
 
 	/** Derives the schema of a unit. */
@@ -193,6 +207,80 @@ public final class IndexSchema {
 	/** The mapping this schema was derived from. */
 	public IndexUnitMapping mapping() {
 		return mapping;
+	}
+
+	/** A field's name for a message, where a composite mapping may have no attribute at all. */
+	private static String displayName(FieldMapping field) {
+		if (field.getName() != null && !field.getName().isBlank()) {
+			return field.getName();
+		}
+		return field.getFeature() != null ? field.getFeature().getName() : field.eClass().getName();
+	}
+
+	/**
+	 * What the computed fields of this class read beyond the object itself, as dotted paths
+	 * (S20, §4.2). Declared for a {@code PathSource}, compiled out of the expression for an
+	 * {@code OclSource}.
+	 * <p>
+	 * These are the documents' hidden dependencies made visible: the value is recomputed when
+	 * <em>this</em> object is saved, so a change to something on one of these paths leaves the
+	 * document stale until its owner is written again. A stream-fed index (S10) needs exactly
+	 * this list to know better.
+	 */
+	public Set<String> dependencies(EClass owner) {
+		DocumentMapping document = documentMapping(owner);
+		if (document == null) {
+			return Set.of();
+		}
+		Set<String> paths = new LinkedHashSet<>();
+		for (FieldMapping field : document.getFields()) {
+			paths.addAll(ValueSources.dependencies(field));
+		}
+		return paths;
+	}
+
+	/**
+	 * A stable fingerprint of everything in this mapping that decides <em>what ends up in the
+	 * index</em> (S20). Two schemas that would write the same documents share it; changing a
+	 * field name, an analyzer declaration or the text of an OCL expression changes it.
+	 * <p>
+	 * It exists because a computed field makes the mapping interpretation-relevant metadata:
+	 * an index written under one expression and read under another is silently wrong, and the
+	 * only honest answer is a rebuild. Recording this next to the data — the unit's commit
+	 * data is the place (S18) — is what lets a deployment notice.
+	 */
+	public String fingerprint() {
+		StringBuilder text = new StringBuilder();
+		for (Object content : (Iterable<Object>) () -> EcoreUtil.getAllContents(mapping, true)) {
+			if (content instanceof EObject part) {
+				text.append(part.eClass().getName()).append('{');
+				for (EStructuralFeature feature : part.eClass().getEAllStructuralFeatures()) {
+					if (feature instanceof EAttribute attribute && part.eIsSet(attribute)) {
+						text.append(attribute.getName()).append('=').append(part.eGet(attribute))
+								.append(';');
+					}
+					if (feature instanceof EReference reference && !reference.isContainment()
+							&& part.eIsSet(reference)) {
+						text.append(reference.getName()).append("->")
+								.append(referenceText(part.eGet(reference))).append(';');
+					}
+				}
+				text.append('}');
+			}
+		}
+		return Integer.toHexString(text.toString().hashCode());
+	}
+
+	private static String referenceText(Object value) {
+		if (value instanceof Collection<?> targets) {
+			List<String> names = new ArrayList<>(targets.size());
+			targets.forEach(target -> names.add(referenceText(target)));
+			return String.join(",", names);
+		}
+		if (value instanceof ENamedElement named) {
+			return named.getName();
+		}
+		return String.valueOf(value);
 	}
 
 	/** The name of the type discriminator field. */

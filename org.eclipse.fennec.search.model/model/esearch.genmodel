@@ -54,6 +54,10 @@
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RankFunction/LOG"/>
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//RankFunction/SIGMOID"/>
     </genEnums>
+    <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//OclContextKind">
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//OclContextKind/SELF"/>
+      <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//OclContextKind/ROOT"/>
+    </genEnums>
     <genEnums typeSafeEnumCompatible="false" ecoreEnum="esearch.ecore#//VectorSimilarity">
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//VectorSimilarity/COSINE"/>
       <genEnumLiterals ecoreEnumLiteral="esearch.ecore#//VectorSimilarity/DOT_PRODUCT"/>
@@ -109,6 +113,8 @@
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FieldMapping/boost"/>
       <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//FieldMapping/facet"/>
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FieldMapping/use"/>
+      <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//FieldMapping/sources"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//FieldMapping/separator"/>
       <genFeatures property="None" children="true" createChild="true" ecoreFeature="ecore:EReference esearch.ecore#//FieldMapping/subFields"/>
     </genClasses>
     <genClasses ecoreClass="esearch.ecore#//TextFieldMapping">
@@ -138,11 +144,22 @@
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//RankSignalFieldMapping/exponent"/>
     </genClasses>
     <genClasses ecoreClass="esearch.ecore#//VectorFieldMapping">
-      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//VectorFieldMapping/sources"/>
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//VectorFieldMapping/embeddingSources"/>
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//VectorFieldMapping/provider"/>
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//VectorFieldMapping/dimensions"/>
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//VectorFieldMapping/similarity"/>
       <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//VectorFieldMapping/modelVersion"/>
+    </genClasses>
+    <genClasses image="false" ecoreClass="esearch.ecore#//ValueSource"/>
+    <genClasses ecoreClass="esearch.ecore#//FeatureSource">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//FeatureSource/feature"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//PathSource">
+      <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//PathSource/segments"/>
+    </genClasses>
+    <genClasses ecoreClass="esearch.ecore#//OclSource">
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//OclSource/expression"/>
+      <genFeatures createChild="false" ecoreFeature="ecore:EAttribute esearch.ecore#//OclSource/context"/>
     </genClasses>
     <genClasses ecoreClass="esearch.ecore#//ReferenceMapping">
       <genFeatures notify="false" createChild="false" propertySortChoices="true" ecoreFeature="ecore:EReference esearch.ecore#//ReferenceMapping/eReference"/>

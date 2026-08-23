@@ -302,35 +302,49 @@ Fennec stack already uses for ingest mappings (`timeseries-access.md` §6.1), an
 `emf.search` adopts the same one, with the same bias — **the weakest sufficient rung**,
 because the lower ones are verifiable without running anything:
 
-| Source | Extraction | Verifiable |
-|---|---|---|
-| feature | `eGet` on one attribute | statically |
-| feature path | `eGet` along a chain (`address.city`), including a hop across a reference | statically |
-| m2x OCL | `OclEngine.evaluate(expr, OclContext.of(eObject))` | parse + type check at mapping load |
+| Source | Extraction | Verifiable | State |
+|---|---|---|---|
+| `FeatureSource` | `eGet` on one attribute | statically | served |
+| `PathSource` | `eGet` along a chain (`manufacturer.name`), including a hop across a reference | statically | served |
+| `OclSource` (m2x OCL) | `OclEngine.evaluate(expr, OclContext.of(eObject))` | only by parsing it | **refused** — see below |
 
-Several sources may feed one field (concatenated for text, multi-valued for keyword), and
-a field may have sources but no owning attribute — a **virtual field**, existing only in
-the index. OCL is stored as text and parsed with m2x (`OclEngine`, `OclExpressionCache`),
-mirroring how `DerivedReferenceCompiler` treats the `derivation` annotation; the workspace
-already has m2x via `-library: fennecM2X`, and the engine is a DS service in OSGi and a
-constructor call in plain Java, so §2.2 holds both ways.
+Several sources may feed one field — one value each, or joined into one by a declared
+`separator` — and a field may have sources but no owning attribute: a **virtual field**,
+existing only in the index.
 
-Three consequences, all owned by #28:
+**Landed 2026-08-23 with the third rung deliberately left out.** `FieldMapping.sources`
+carries `FeatureSource` and `PathSource`; `OclSource` stays declared in the metamodel and is
+**refused by name**. The reason is the one §2.2 states as a principle: an evaluated
+expression would put the m2x OCL engine into the load path of *every* deployment, including
+those whose mapping computes nothing, and this backend does not charge for a feature nobody
+declared (Mark's call; the alternatives — a hard m2x dependency, or an isolation layer with
+an optional import — were weighed and dropped). The refusal names two ways out, and the
+second is better than what it replaces:
+
+- a `PathSource`, where the value is reachable by navigation;
+- a **derived `EStructuralFeature`** carrying the m2x derivation annotation. EMF computes it
+  through the setting delegate, `DerivedReferenceCompiler` compiles it into the IR, and the
+  mapper sees an ordinary feature with no special case at all — which also makes it
+  *queryable*, unlike anything computed inside the mapping.
+
+Four consequences, all owned by #28:
 
 - **Virtual fields are not IR-addressable.** The canonical query IR names features; a field
   with none cannot appear in a canonical query. Virtual fields are for facets, suggest,
-  highlighting and as targets of full-text matching. When a computed value must be
-  *queryable*, the better carrier is a derived `EStructuralFeature` with the m2x derivation
-  annotation — `DerivedReferenceCompiler` compiles it into the IR, `eGet` computes it, and
-  the mapper needs no special case. Guidance, not a prohibition.
+  highlighting and as targets of full-text matching — and where a computed value must be
+  queryable, the derived feature above is the carrier. Guidance, not a prohibition.
 - **Reading across a reference makes documents stale.** The same exposure `EMBED`/`NESTED`
-  carry (§5.2), but hidden in an expression rather than declared. The mitigation is static:
-  `OclToExpr` compiles the expression into the Expression IR and `ExpressionAnalyzer` walks
-  it for navigated paths, turning an opaque dependency into a declared one — which is what
-  S10 needs to keep a stream-fed index from drifting silently (recorded on #22).
-- **Changing an expression changes the index**, so a mapping is interpretation-relevant
-  metadata: a changed source means a rebuild, and the mapping needs a version the index can
-  record.
+  carry (§5.2). The mitigation is that the dependency is *declared* rather than hidden:
+  `IndexSchema.dependencies(EClass)` reports the dotted paths a class's computed fields read
+  beyond the object itself, which is what S10 needs to keep a stream-fed index from drifting
+  silently (recorded on #22). Losing the expression rung is what makes this exact rather than
+  best-effort — a path is a declaration, an expression would have had to be decompiled.
+- **A source only recomputes when its owner is saved.** Stated, not fixed: nothing reindexes
+  the owner when the referenced object changes.
+- **Changing a mapping changes the index**, so a mapping is interpretation-relevant metadata.
+  `IndexSchema.fingerprint()` is the stable hash of everything that decides what ends up in
+  the index; recording it beside the data (the unit's commit data, S18) is how a deployment
+  notices that it needs a rebuild.
 
 ### 4.3 Materialization and the load path — three tiers (S16, #18)
 

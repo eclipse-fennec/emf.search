@@ -34,6 +34,7 @@ import org.eclipse.fennec.search.esearch.ESearchPackage;
 import org.eclipse.fennec.search.esearch.FacetMapping;
 import org.eclipse.fennec.search.esearch.FieldMapping;
 import org.eclipse.fennec.search.esearch.FieldUse;
+import org.eclipse.fennec.search.esearch.ValueSource;
 
 /**
  * <!-- begin-user-doc -->
@@ -51,6 +52,8 @@ import org.eclipse.fennec.search.esearch.FieldUse;
  *   <li>{@link org.eclipse.fennec.search.esearch.impl.FieldMappingImpl#getBoost <em>Boost</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.impl.FieldMappingImpl#getFacet <em>Facet</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.impl.FieldMappingImpl#getUse <em>Use</em>}</li>
+ *   <li>{@link org.eclipse.fennec.search.esearch.impl.FieldMappingImpl#getSources <em>Sources</em>}</li>
+ *   <li>{@link org.eclipse.fennec.search.esearch.impl.FieldMappingImpl#getSeparator <em>Separator</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.impl.FieldMappingImpl#getSubFields <em>Sub Fields</em>}</li>
  * </ul>
  *
@@ -186,6 +189,36 @@ public abstract class FieldMappingImpl extends MinimalEObjectImpl.Container impl
 	 * @ordered
 	 */
 	protected EList<FieldUse> use;
+
+	/**
+	 * The cached value of the '{@link #getSources() <em>Sources</em>}' containment reference list.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @see #getSources()
+	 * @generated
+	 * @ordered
+	 */
+	protected EList<ValueSource> sources;
+
+	/**
+	 * The default value of the '{@link #getSeparator() <em>Separator</em>}' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @see #getSeparator()
+	 * @generated
+	 * @ordered
+	 */
+	protected static final String SEPARATOR_EDEFAULT = null;
+
+	/**
+	 * The cached value of the '{@link #getSeparator() <em>Separator</em>}' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @see #getSeparator()
+	 * @generated
+	 * @ordered
+	 */
+	protected String separator = SEPARATOR_EDEFAULT;
 
 	/**
 	 * The cached value of the '{@link #getSubFields() <em>Sub Fields</em>}' containment reference list.
@@ -435,6 +468,42 @@ public abstract class FieldMappingImpl extends MinimalEObjectImpl.Container impl
 	 * @generated
 	 */
 	@Override
+	public EList<ValueSource> getSources() {
+		if (sources == null) {
+			sources = new EObjectContainmentEList<ValueSource>(ValueSource.class, this, ESearchPackage.FIELD_MAPPING__SOURCES);
+		}
+		return sources;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public String getSeparator() {
+		return separator;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public void setSeparator(String newSeparator) {
+		String oldSeparator = separator;
+		separator = newSeparator;
+		if (eNotificationRequired())
+			eNotify(new ENotificationImpl(this, Notification.SET, ESearchPackage.FIELD_MAPPING__SEPARATOR, oldSeparator, separator));
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
 	public EList<FieldMapping> getSubFields() {
 		if (subFields == null) {
 			subFields = new EObjectContainmentEList<FieldMapping>(FieldMapping.class, this, ESearchPackage.FIELD_MAPPING__SUB_FIELDS);
@@ -452,6 +521,8 @@ public abstract class FieldMappingImpl extends MinimalEObjectImpl.Container impl
 		switch (featureID) {
 			case ESearchPackage.FIELD_MAPPING__FACET:
 				return basicSetFacet(null, msgs);
+			case ESearchPackage.FIELD_MAPPING__SOURCES:
+				return ((InternalEList<?>)getSources()).basicRemove(otherEnd, msgs);
 			case ESearchPackage.FIELD_MAPPING__SUB_FIELDS:
 				return ((InternalEList<?>)getSubFields()).basicRemove(otherEnd, msgs);
 		}
@@ -483,6 +554,10 @@ public abstract class FieldMappingImpl extends MinimalEObjectImpl.Container impl
 				return getFacet();
 			case ESearchPackage.FIELD_MAPPING__USE:
 				return getUse();
+			case ESearchPackage.FIELD_MAPPING__SOURCES:
+				return getSources();
+			case ESearchPackage.FIELD_MAPPING__SEPARATOR:
+				return getSeparator();
 			case ESearchPackage.FIELD_MAPPING__SUB_FIELDS:
 				return getSubFields();
 		}
@@ -522,6 +597,13 @@ public abstract class FieldMappingImpl extends MinimalEObjectImpl.Container impl
 			case ESearchPackage.FIELD_MAPPING__USE:
 				getUse().clear();
 				getUse().addAll((Collection<? extends FieldUse>)newValue);
+				return;
+			case ESearchPackage.FIELD_MAPPING__SOURCES:
+				getSources().clear();
+				getSources().addAll((Collection<? extends ValueSource>)newValue);
+				return;
+			case ESearchPackage.FIELD_MAPPING__SEPARATOR:
+				setSeparator((String)newValue);
 				return;
 			case ESearchPackage.FIELD_MAPPING__SUB_FIELDS:
 				getSubFields().clear();
@@ -563,6 +645,12 @@ public abstract class FieldMappingImpl extends MinimalEObjectImpl.Container impl
 			case ESearchPackage.FIELD_MAPPING__USE:
 				getUse().clear();
 				return;
+			case ESearchPackage.FIELD_MAPPING__SOURCES:
+				getSources().clear();
+				return;
+			case ESearchPackage.FIELD_MAPPING__SEPARATOR:
+				setSeparator(SEPARATOR_EDEFAULT);
+				return;
 			case ESearchPackage.FIELD_MAPPING__SUB_FIELDS:
 				getSubFields().clear();
 				return;
@@ -594,6 +682,10 @@ public abstract class FieldMappingImpl extends MinimalEObjectImpl.Container impl
 				return facet != null;
 			case ESearchPackage.FIELD_MAPPING__USE:
 				return use != null && !use.isEmpty();
+			case ESearchPackage.FIELD_MAPPING__SOURCES:
+				return sources != null && !sources.isEmpty();
+			case ESearchPackage.FIELD_MAPPING__SEPARATOR:
+				return SEPARATOR_EDEFAULT == null ? separator != null : !SEPARATOR_EDEFAULT.equals(separator);
 			case ESearchPackage.FIELD_MAPPING__SUB_FIELDS:
 				return subFields != null && !subFields.isEmpty();
 		}
@@ -622,6 +714,8 @@ public abstract class FieldMappingImpl extends MinimalEObjectImpl.Container impl
 		result.append(boost);
 		result.append(", use: ");
 		result.append(use);
+		result.append(", separator: ");
+		result.append(separator);
 		result.append(')');
 		return result.toString();
 	}

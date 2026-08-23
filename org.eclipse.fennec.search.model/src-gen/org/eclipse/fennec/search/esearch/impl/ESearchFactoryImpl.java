@@ -77,6 +77,9 @@ public class ESearchFactoryImpl extends EFactoryImpl implements ESearchFactory {
 			case ESearchPackage.RANGE_FIELD_MAPPING: return createRangeFieldMapping();
 			case ESearchPackage.RANK_SIGNAL_FIELD_MAPPING: return createRankSignalFieldMapping();
 			case ESearchPackage.VECTOR_FIELD_MAPPING: return createVectorFieldMapping();
+			case ESearchPackage.FEATURE_SOURCE: return createFeatureSource();
+			case ESearchPackage.PATH_SOURCE: return createPathSource();
+			case ESearchPackage.OCL_SOURCE: return createOclSource();
 			case ESearchPackage.REFERENCE_MAPPING: return createReferenceMapping();
 			case ESearchPackage.MATERIALIZATION: return createMaterialization();
 			case ESearchPackage.FACET_MAPPING: return createFacetMapping();
@@ -116,6 +119,8 @@ public class ESearchFactoryImpl extends EFactoryImpl implements ESearchFactory {
 				return createRangeKindFromString(eDataType, initialValue);
 			case ESearchPackage.RANK_FUNCTION:
 				return createRankFunctionFromString(eDataType, initialValue);
+			case ESearchPackage.OCL_CONTEXT_KIND:
+				return createOclContextKindFromString(eDataType, initialValue);
 			case ESearchPackage.VECTOR_SIMILARITY:
 				return createVectorSimilarityFromString(eDataType, initialValue);
 			case ESearchPackage.SUGGESTER_KIND:
@@ -151,6 +156,8 @@ public class ESearchFactoryImpl extends EFactoryImpl implements ESearchFactory {
 				return convertRangeKindToString(eDataType, instanceValue);
 			case ESearchPackage.RANK_FUNCTION:
 				return convertRankFunctionToString(eDataType, instanceValue);
+			case ESearchPackage.OCL_CONTEXT_KIND:
+				return convertOclContextKindToString(eDataType, instanceValue);
 			case ESearchPackage.VECTOR_SIMILARITY:
 				return convertVectorSimilarityToString(eDataType, instanceValue);
 			case ESearchPackage.SUGGESTER_KIND:
@@ -270,6 +277,39 @@ public class ESearchFactoryImpl extends EFactoryImpl implements ESearchFactory {
 	public VectorFieldMapping createVectorFieldMapping() {
 		VectorFieldMappingImpl vectorFieldMapping = new VectorFieldMappingImpl();
 		return vectorFieldMapping;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public FeatureSource createFeatureSource() {
+		FeatureSourceImpl featureSource = new FeatureSourceImpl();
+		return featureSource;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public PathSource createPathSource() {
+		PathSourceImpl pathSource = new PathSourceImpl();
+		return pathSource;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public OclSource createOclSource() {
+		OclSourceImpl oclSource = new OclSourceImpl();
+		return oclSource;
 	}
 
 	/**
@@ -539,6 +579,26 @@ public class ESearchFactoryImpl extends EFactoryImpl implements ESearchFactory {
 	 * @generated
 	 */
 	public String convertRankFunctionToString(EDataType eDataType, Object instanceValue) {
+		return instanceValue == null ? null : instanceValue.toString();
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	public OclContextKind createOclContextKindFromString(EDataType eDataType, String initialValue) {
+		OclContextKind result = OclContextKind.get(initialValue);
+		if (result == null) throw new IllegalArgumentException("The value '" + initialValue + "' is not a valid enumerator of '" + eDataType.getName() + "'");
+		return result;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	public String convertOclContextKindToString(EDataType eDataType, Object instanceValue) {
 		return instanceValue == null ? null : instanceValue.toString();
 	}
 

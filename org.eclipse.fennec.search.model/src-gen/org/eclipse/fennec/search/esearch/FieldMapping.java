@@ -42,6 +42,8 @@ import org.osgi.annotation.versioning.ProviderType;
  *   <li>{@link org.eclipse.fennec.search.esearch.FieldMapping#getBoost <em>Boost</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.FieldMapping#getFacet <em>Facet</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.FieldMapping#getUse <em>Use</em>}</li>
+ *   <li>{@link org.eclipse.fennec.search.esearch.FieldMapping#getSources <em>Sources</em>}</li>
+ *   <li>{@link org.eclipse.fennec.search.esearch.FieldMapping#getSeparator <em>Separator</em>}</li>
  *   <li>{@link org.eclipse.fennec.search.esearch.FieldMapping#getSubFields <em>Sub Fields</em>}</li>
  * </ul>
  *
@@ -248,6 +250,50 @@ public interface FieldMapping extends EObject {
 	 * @generated
 	 */
 	EList<FieldUse> getUse();
+
+	/**
+	 * Returns the value of the '<em><b>Sources</b></em>' containment reference list.
+	 * The list contents are of type {@link org.eclipse.fennec.search.esearch.ValueSource}.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * <!-- begin-model-doc -->
+	 * Where the value written into this field comes from, when it is not simply one attribute of the mapped object (S20, docs/search-access.md §4.2). The rungs of the extraction ladder — FeatureSource, PathSource, OclSource — in ascending order of what has to run before the value is known; use the weakest one that suffices, because the lower ones can be checked against the metamodel without evaluating anything.
+	 * 
+	 * A field declaring sources must not also declare a feature: the two say the same thing in two places, and a mapping that says it twice can say it differently. A field with sources but no feature is a virtual field — it exists in the index and in no EClass, which means no canonical query can name it (the query IR addresses features). Virtual fields are for facets, suggest, highlighting and full-text matching; when a computed value has to be queryable, the carrier is a derived EStructuralFeature with the m2x derivation annotation, which the mapper then treats as an ordinary feature.
+	 * 
+	 * Several sources feed one field: each contributes its value, so the field is multi-valued unless separator joins them into one.
+	 * <!-- end-model-doc -->
+	 * @return the value of the '<em>Sources</em>' containment reference list.
+	 * @see org.eclipse.fennec.search.esearch.ESearchPackage#getFieldMapping_Sources()
+	 * @model containment="true"
+	 * @generated
+	 */
+	EList<ValueSource> getSources();
+
+	/**
+	 * Returns the value of the '<em><b>Separator</b></em>' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * <!-- begin-model-doc -->
+	 * Joins the values of several sources into one value with this separator, instead of writing one value per source. Set it for a text field that concatenates title and subtitle into one searchable string; leave it unset where several values are what you mean, as for a keyword field.
+	 * <!-- end-model-doc -->
+	 * @return the value of the '<em>Separator</em>' attribute.
+	 * @see #setSeparator(String)
+	 * @see org.eclipse.fennec.search.esearch.ESearchPackage#getFieldMapping_Separator()
+	 * @model
+	 * @generated
+	 */
+	String getSeparator();
+
+	/**
+	 * Sets the value of the '{@link org.eclipse.fennec.search.esearch.FieldMapping#getSeparator <em>Separator</em>}' attribute.
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @param value the new value of the '<em>Separator</em>' attribute.
+	 * @see #getSeparator()
+	 * @generated
+	 */
+	void setSeparator(String value);
 
 	/**
 	 * Returns the value of the '<em><b>Sub Fields</b></em>' containment reference list.

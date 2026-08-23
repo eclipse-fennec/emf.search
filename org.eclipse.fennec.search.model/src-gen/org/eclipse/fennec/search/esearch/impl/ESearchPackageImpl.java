@@ -29,6 +29,7 @@ import org.eclipse.fennec.search.esearch.ESearchFactory;
 import org.eclipse.fennec.search.esearch.ESearchPackage;
 import org.eclipse.fennec.search.esearch.FacetKind;
 import org.eclipse.fennec.search.esearch.FacetMapping;
+import org.eclipse.fennec.search.esearch.FeatureSource;
 import org.eclipse.fennec.search.esearch.FieldMapping;
 import org.eclipse.fennec.search.esearch.FieldUse;
 import org.eclipse.fennec.search.esearch.GeoPointFieldMapping;
@@ -39,6 +40,9 @@ import org.eclipse.fennec.search.esearch.Materialization;
 import org.eclipse.fennec.search.esearch.MaterializationKind;
 import org.eclipse.fennec.search.esearch.NumericFieldMapping;
 import org.eclipse.fennec.search.esearch.NumericKind;
+import org.eclipse.fennec.search.esearch.OclContextKind;
+import org.eclipse.fennec.search.esearch.OclSource;
+import org.eclipse.fennec.search.esearch.PathSource;
 import org.eclipse.fennec.search.esearch.RangeFieldMapping;
 import org.eclipse.fennec.search.esearch.RangeKind;
 import org.eclipse.fennec.search.esearch.RankFunction;
@@ -52,6 +56,7 @@ import org.eclipse.fennec.search.esearch.SortEntry;
 import org.eclipse.fennec.search.esearch.SuggestSource;
 import org.eclipse.fennec.search.esearch.SuggesterKind;
 import org.eclipse.fennec.search.esearch.TextFieldMapping;
+import org.eclipse.fennec.search.esearch.ValueSource;
 import org.eclipse.fennec.search.esearch.VectorFieldMapping;
 import org.eclipse.fennec.search.esearch.VectorSimilarity;
 
@@ -138,6 +143,34 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 	 * @generated
 	 */
 	private EClass vectorFieldMappingEClass = null;
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	private EClass valueSourceEClass = null;
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	private EClass featureSourceEClass = null;
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	private EClass pathSourceEClass = null;
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	private EClass oclSourceEClass = null;
 
 	/**
 	 * <!-- begin-user-doc -->
@@ -264,6 +297,13 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 	 * @generated
 	 */
 	private EEnum rankFunctionEEnum = null;
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	private EEnum oclContextKindEEnum = null;
 
 	/**
 	 * <!-- begin-user-doc -->
@@ -672,8 +712,28 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 	 * @generated
 	 */
 	@Override
-	public EReference getFieldMapping_SubFields() {
+	public EReference getFieldMapping_Sources() {
 		return (EReference)fieldMappingEClass.getEStructuralFeatures().get(8);
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EAttribute getFieldMapping_Separator() {
+		return (EAttribute)fieldMappingEClass.getEStructuralFeatures().get(9);
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EReference getFieldMapping_SubFields() {
+		return (EReference)fieldMappingEClass.getEStructuralFeatures().get(10);
 	}
 
 	/**
@@ -892,7 +952,7 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 	 * @generated
 	 */
 	@Override
-	public EReference getVectorFieldMapping_Sources() {
+	public EReference getVectorFieldMapping_EmbeddingSources() {
 		return (EReference)vectorFieldMappingEClass.getEStructuralFeatures().get(0);
 	}
 
@@ -934,6 +994,86 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 	@Override
 	public EAttribute getVectorFieldMapping_ModelVersion() {
 		return (EAttribute)vectorFieldMappingEClass.getEStructuralFeatures().get(4);
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EClass getValueSource() {
+		return valueSourceEClass;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EClass getFeatureSource() {
+		return featureSourceEClass;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EReference getFeatureSource_Feature() {
+		return (EReference)featureSourceEClass.getEStructuralFeatures().get(0);
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EClass getPathSource() {
+		return pathSourceEClass;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EReference getPathSource_Segments() {
+		return (EReference)pathSourceEClass.getEStructuralFeatures().get(0);
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EClass getOclSource() {
+		return oclSourceEClass;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EAttribute getOclSource_Expression() {
+		return (EAttribute)oclSourceEClass.getEStructuralFeatures().get(0);
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
+	public EAttribute getOclSource_Context() {
+		return (EAttribute)oclSourceEClass.getEStructuralFeatures().get(1);
 	}
 
 	/**
@@ -1472,6 +1612,16 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 	 * @generated
 	 */
 	@Override
+	public EEnum getOclContextKind() {
+		return oclContextKindEEnum;
+	}
+
+	/**
+	 * <!-- begin-user-doc -->
+	 * <!-- end-user-doc -->
+	 * @generated
+	 */
+	@Override
 	public EEnum getVectorSimilarity() {
 		return vectorSimilarityEEnum;
 	}
@@ -1560,6 +1710,8 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		createEAttribute(fieldMappingEClass, FIELD_MAPPING__BOOST);
 		createEReference(fieldMappingEClass, FIELD_MAPPING__FACET);
 		createEAttribute(fieldMappingEClass, FIELD_MAPPING__USE);
+		createEReference(fieldMappingEClass, FIELD_MAPPING__SOURCES);
+		createEAttribute(fieldMappingEClass, FIELD_MAPPING__SEPARATOR);
 		createEReference(fieldMappingEClass, FIELD_MAPPING__SUB_FIELDS);
 
 		textFieldMappingEClass = createEClass(TEXT_FIELD_MAPPING);
@@ -1589,11 +1741,23 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		createEAttribute(rankSignalFieldMappingEClass, RANK_SIGNAL_FIELD_MAPPING__EXPONENT);
 
 		vectorFieldMappingEClass = createEClass(VECTOR_FIELD_MAPPING);
-		createEReference(vectorFieldMappingEClass, VECTOR_FIELD_MAPPING__SOURCES);
+		createEReference(vectorFieldMappingEClass, VECTOR_FIELD_MAPPING__EMBEDDING_SOURCES);
 		createEAttribute(vectorFieldMappingEClass, VECTOR_FIELD_MAPPING__PROVIDER);
 		createEAttribute(vectorFieldMappingEClass, VECTOR_FIELD_MAPPING__DIMENSIONS);
 		createEAttribute(vectorFieldMappingEClass, VECTOR_FIELD_MAPPING__SIMILARITY);
 		createEAttribute(vectorFieldMappingEClass, VECTOR_FIELD_MAPPING__MODEL_VERSION);
+
+		valueSourceEClass = createEClass(VALUE_SOURCE);
+
+		featureSourceEClass = createEClass(FEATURE_SOURCE);
+		createEReference(featureSourceEClass, FEATURE_SOURCE__FEATURE);
+
+		pathSourceEClass = createEClass(PATH_SOURCE);
+		createEReference(pathSourceEClass, PATH_SOURCE__SEGMENTS);
+
+		oclSourceEClass = createEClass(OCL_SOURCE);
+		createEAttribute(oclSourceEClass, OCL_SOURCE__EXPRESSION);
+		createEAttribute(oclSourceEClass, OCL_SOURCE__CONTEXT);
 
 		referenceMappingEClass = createEClass(REFERENCE_MAPPING);
 		createEReference(referenceMappingEClass, REFERENCE_MAPPING__EREFERENCE);
@@ -1659,6 +1823,7 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		numericKindEEnum = createEEnum(NUMERIC_KIND);
 		rangeKindEEnum = createEEnum(RANGE_KIND);
 		rankFunctionEEnum = createEEnum(RANK_FUNCTION);
+		oclContextKindEEnum = createEEnum(OCL_CONTEXT_KIND);
 		vectorSimilarityEEnum = createEEnum(VECTOR_SIMILARITY);
 		suggesterKindEEnum = createEEnum(SUGGESTER_KIND);
 		analyzerKindEEnum = createEEnum(ANALYZER_KIND);
@@ -1699,6 +1864,9 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		rangeFieldMappingEClass.getESuperTypes().add(this.getFieldMapping());
 		rankSignalFieldMappingEClass.getESuperTypes().add(this.getFieldMapping());
 		vectorFieldMappingEClass.getESuperTypes().add(this.getFieldMapping());
+		featureSourceEClass.getESuperTypes().add(this.getValueSource());
+		pathSourceEClass.getESuperTypes().add(this.getValueSource());
+		oclSourceEClass.getESuperTypes().add(this.getValueSource());
 
 		// Initialize classes, features, and operations; add parameters
 		initEClass(searchMappingRegistryEClass, SearchMappingRegistry.class, "SearchMappingRegistry", !IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
@@ -1736,6 +1904,8 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		initEAttribute(getFieldMapping_Boost(), ecorePackage.getEFloat(), "boost", "1.0", 0, 1, FieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 		initEReference(getFieldMapping_Facet(), this.getFacetMapping(), null, "facet", null, 0, 1, FieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, IS_COMPOSITE, !IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 		initEAttribute(getFieldMapping_Use(), this.getFieldUse(), "use", null, 0, -1, FieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+		initEReference(getFieldMapping_Sources(), this.getValueSource(), null, "sources", null, 0, -1, FieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, IS_COMPOSITE, !IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+		initEAttribute(getFieldMapping_Separator(), ecorePackage.getEString(), "separator", null, 0, 1, FieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 		initEReference(getFieldMapping_SubFields(), this.getFieldMapping(), null, "subFields", null, 0, -1, FieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, IS_COMPOSITE, !IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 
 		initEClass(textFieldMappingEClass, TextFieldMapping.class, "TextFieldMapping", !IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
@@ -1765,11 +1935,23 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		initEAttribute(getRankSignalFieldMapping_Exponent(), ecorePackage.getEDouble(), "exponent", "1.0", 0, 1, RankSignalFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 
 		initEClass(vectorFieldMappingEClass, VectorFieldMapping.class, "VectorFieldMapping", !IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
-		initEReference(getVectorFieldMapping_Sources(), ecorePackage.getEAttribute(), null, "sources", null, 0, -1, VectorFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+		initEReference(getVectorFieldMapping_EmbeddingSources(), ecorePackage.getEAttribute(), null, "embeddingSources", null, 0, -1, VectorFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 		initEAttribute(getVectorFieldMapping_Provider(), ecorePackage.getEString(), "provider", null, 0, 1, VectorFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 		initEAttribute(getVectorFieldMapping_Dimensions(), ecorePackage.getEInt(), "dimensions", null, 0, 1, VectorFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 		initEAttribute(getVectorFieldMapping_Similarity(), this.getVectorSimilarity(), "similarity", "COSINE", 0, 1, VectorFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 		initEAttribute(getVectorFieldMapping_ModelVersion(), ecorePackage.getEString(), "modelVersion", null, 0, 1, VectorFieldMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+
+		initEClass(valueSourceEClass, ValueSource.class, "ValueSource", IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
+
+		initEClass(featureSourceEClass, FeatureSource.class, "FeatureSource", !IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
+		initEReference(getFeatureSource_Feature(), ecorePackage.getEAttribute(), null, "feature", null, 1, 1, FeatureSource.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+
+		initEClass(pathSourceEClass, PathSource.class, "PathSource", !IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
+		initEReference(getPathSource_Segments(), ecorePackage.getEStructuralFeature(), null, "segments", null, 1, -1, PathSource.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+
+		initEClass(oclSourceEClass, OclSource.class, "OclSource", !IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
+		initEAttribute(getOclSource_Expression(), ecorePackage.getEString(), "expression", null, 1, 1, OclSource.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
+		initEAttribute(getOclSource_Context(), this.getOclContextKind(), "context", "SELF", 0, 1, OclSource.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_UNSETTABLE, !IS_ID, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
 
 		initEClass(referenceMappingEClass, ReferenceMapping.class, "ReferenceMapping", !IS_ABSTRACT, !IS_INTERFACE, IS_GENERATED_INSTANCE_CLASS);
 		initEReference(getReferenceMapping_EReference(), ecorePackage.getEReference(), null, "eReference", null, 1, 1, ReferenceMapping.class, !IS_TRANSIENT, !IS_VOLATILE, IS_CHANGEABLE, !IS_COMPOSITE, IS_RESOLVE_PROXIES, !IS_UNSETTABLE, IS_UNIQUE, !IS_DERIVED, IS_ORDERED);
@@ -1872,6 +2054,10 @@ public class ESearchPackageImpl extends EPackageImpl implements ESearchPackage {
 		addEEnumLiteral(rankFunctionEEnum, RankFunction.SATURATION);
 		addEEnumLiteral(rankFunctionEEnum, RankFunction.LOG);
 		addEEnumLiteral(rankFunctionEEnum, RankFunction.SIGMOID);
+
+		initEEnum(oclContextKindEEnum, OclContextKind.class, "OclContextKind");
+		addEEnumLiteral(oclContextKindEEnum, OclContextKind.SELF);
+		addEEnumLiteral(oclContextKindEEnum, OclContextKind.ROOT);
 
 		initEEnum(vectorSimilarityEEnum, VectorSimilarity.class, "VectorSimilarity");
 		addEEnumLiteral(vectorSimilarityEEnum, VectorSimilarity.COSINE);

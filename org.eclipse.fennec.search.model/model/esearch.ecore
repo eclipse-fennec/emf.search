@@ -195,6 +195,17 @@
         <details key="documentation" value="What this projection is for. Empty — the normal case — derives it from the field kind: a text field serves MATCH and HIGHLIGHT, a keyword field EXACT, SORT and FACET, a numeric field RANGE and SORT.&#xA;&#xA;Declare it explicitly when derivation would be ambiguous, which is precisely when one attribute has several projections that could serve the same purpose: two keyword projections with different normalizers, or two analyzed projections in different languages. The translator picks the projection whose use covers the predicate; two projections claiming the same use for one attribute are refused at mapping time rather than resolved by declaration order."/>
       </eAnnotations>
     </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="sources" upperBound="-1"
+        eType="#//ValueSource" containment="true">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Where the value written into this field comes from, when it is not simply one attribute of the mapped object (S20, docs/search-access.md &#xa7;4.2). The rungs of the extraction ladder — FeatureSource, PathSource, OclSource — in ascending order of what has to run before the value is known; use the weakest one that suffices, because the lower ones can be checked against the metamodel without evaluating anything.&#xA;&#xA;A field declaring sources must not also declare a feature: the two say the same thing in two places, and a mapping that says it twice can say it differently. A field with sources but no feature is a virtual field — it exists in the index and in no EClass, which means no canonical query can name it (the query IR addresses features). Virtual fields are for facets, suggest, highlighting and full-text matching; when a computed value has to be queryable, the carrier is a derived EStructuralFeature with the m2x derivation annotation, which the mapper then treats as an ordinary feature.&#xA;&#xA;Several sources feed one field: each contributes its value, so the field is multi-valued unless separator joins them into one."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="separator" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="Joins the values of several sources into one value with this separator, instead of writing one value per source. Set it for a text field that concatenates title and subtitle into one searchable string; leave it unset where several values are what you mean, as for a keyword field."/>
+      </eAnnotations>
+    </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EReference" name="subFields" upperBound="-1"
         eType="#//FieldMapping" containment="true">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
@@ -313,10 +324,10 @@
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
       <details key="documentation" value="RESERVED for wave 2 — dense vector field for k-nearest-neighbour search.&#xA;&#xA;Declared in the metamodel now so that adding vector search later is additive rather than a breaking change, but NOT implemented: a mapping that declares one is refused with a clear diagnostic until the wave-2 work lands. Three things are still open and deliberately not fixed here: whether the query IR carries a vector or a text to embed, how the embedding provider is selected, and the dimension ceiling of the chosen codec."/>
     </eAnnotations>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="sources" upperBound="-1"
+    <eStructuralFeatures xsi:type="ecore:EReference" name="embeddingSources" upperBound="-1"
         eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
       <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
-        <details key="documentation" value="Attributes whose values are concatenated into the text handed to the embedding provider."/>
+        <details key="documentation" value="Attributes whose values are concatenated into the text handed to the embedding provider. Renamed from sources when FieldMapping gained the extraction ladder (S20): every field mapping now has sources of its own, and a vector field's inputs are a different thing — free to rename while the slot is reserved and nothing writes it."/>
       </eAnnotations>
     </eStructuralFeatures>
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="provider" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString">
@@ -340,6 +351,65 @@
         <details key="documentation" value="Version of the embedding model. Recorded as index metadata because changing the embedding model invalidates every vector in the index — a version change is a rebuild, and the index must be able to say so."/>
       </eAnnotations>
     </eStructuralFeatures>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ValueSource" abstract="true">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="One rung of the extraction ladder: where a field's value comes from (S20, docs/search-access.md &#xa7;4.2). The ladder is ordered by what has to run before the value is known — an attribute read, a navigation, an evaluated expression — and the rule is to use the weakest rung that suffices, because the lower ones are verifiable against the metamodel alone."/>
+    </eAnnotations>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="FeatureSource" eSuperTypes="#//ValueSource">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Rung one: one attribute of the mapped object, read with eGet — the same thing FieldMapping.feature says, spelled as a source so it can stand beside others. A field fed by one attribute alone needs no source at all; declare this one only where a second source joins it."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="feature" lowerBound="1"
+        eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EAttribute">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The attribute to read from the mapped object."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="PathSource" eSuperTypes="#//ValueSource">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Rung two: a value reached by navigating a chain of features (address.city), the last of which is an attribute. Still statically verifiable — every segment is checked against the metamodel when the mapping is read.&#xA;&#xA;A path that crosses a reference makes this document depend on another object's state: it is recomputed when the owner is saved, and a change to the referenced object does not refresh it. That is the same exposure EMBED and NESTED carry, and it is why the path is declared rather than hidden in an expression."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="segments" lowerBound="1"
+        upperBound="-1" eType="ecore:EClass http://www.eclipse.org/emf/2002/Ecore#//EStructuralFeature">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The features to follow, in order. Every segment but the last is a reference; the last is the attribute whose value is written."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="OclSource" eSuperTypes="#//ValueSource">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="Rung three: an m2x OCL expression, stored as text and evaluated per document — the same shape the derivation annotation uses, so a modeller who knows one knows the other.&#xA;&#xA;The expression is parsed and type-checked when the mapping is read, not when a document is written: a mapping carrying an invalid expression is refused at load, where a human is still watching. Changing the expression changes what is in the index, which makes it interpretation-relevant metadata — a changed expression means a rebuild."/>
+    </eAnnotations>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="expression" lowerBound="1"
+        eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The OCL expression text, for example self.firstName.concat(' ').concat(self.lastName)."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="context" eType="#//OclContextKind"
+        defaultValueLiteral="SELF">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="What self is bound to when the expression runs."/>
+      </eAnnotations>
+    </eStructuralFeatures>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="OclContextKind">
+    <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+      <details key="documentation" value="The object an OclSource evaluates against."/>
+    </eAnnotations>
+    <eLiterals name="SELF">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The mapped object itself — the document being written. The default, and the only context a flat document has."/>
+      </eAnnotations>
+    </eLiterals>
+    <eLiterals name="ROOT" value="1">
+      <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
+        <details key="documentation" value="The root object of the block. Meaningful on a NESTED child, whose field may need something from the parent it was written under; on a root document it is the same object as SELF."/>
+      </eAnnotations>
+    </eLiterals>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="ReferenceMapping">
     <eAnnotations source="http://www.eclipse.org/emf/2002/GenModel">
