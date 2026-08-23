@@ -13,9 +13,13 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   `QueryResult.close()` (an `IndexUnit` acquire/release surface) and declaring the
   feature. Next sizeable unit-lifecycle task; until built, results stay materialized —
   behaviour must not change undeclared.
-- **Shared named-query catalog** — our factory-attached `EObjectRegistry` is the interim;
-  emf.persistence-jpa**#163** asks for the stack-wide contract. *When it lands:* swap the
-  lookup to the shared contract.
+- **Shared named-query catalog — the trigger has fired.** Our factory-attached
+  `EObjectRegistry` is the interim; emf.persistence-jpa**#163** asked for the stack-wide
+  contract, and it **landed upstream on 2026-08-22** (`NamedOperations` /
+  `RegistryNamedOperations`, issues #203/#204, plus #201/#202 on the command side). Pending
+  work here: swap `SearchResource`'s `_qname`/`_qxmi` document convention for the shared
+  contract and drop the convention. Not started — sequenced after the TCK re-sync of
+  2026-08-23.
 
 ## Decided upstream, zero change here
 
@@ -25,6 +29,30 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   is exactly what this backend already does; the #114-by-analogy stance is now the stated
   upstream rule. *Revisit trigger (upstream's):* a real pre-validation router would make
   the `EStructuralFeature` overload a purely additive extension.
+
+## Autonomous calls re-syncing with the persistence update (2026-08-23)
+
+The upstream snapshot of 2026-08-22 added an abstract TCK method and eleven ungated §8
+core cases. Three of them failed here; all three were product defects, not binding gaps.
+Pinned by `SearchResourceTest` and the TCK binding.
+
+1. **An unmapped type name is an error diagnostic, and the read stays empty** — the trigger
+   this backend gives `provokeLoadDiagnostic()` (emf.persistence-jpa#197). The alternative
+   trigger, the partial-reconstruction warning that §4.3 already emits, would have needed
+   no product change and was rejected as ducking the point (Mark's call, 2026-08-23).
+   Not thrown: a resource that addresses an unknown type is still a legitimate, empty view,
+   and the TCK case is only meaningful when the resource comes back.
+2. **The URI type segment widens to subtypes** (`typeFilter`, abstract classes included).
+   Previously a raw discriminator term — every polymorphic case had gone through a gated
+   type predicate, so the URI path had never been asked.
+3. **Delete refuses when an `ID_ONLY` reference still points at the object** (#195), by
+   probing before deleting. The known limit is the id model, not the probe: `_root` is the
+   bare id value, so two types sharing an id share a block identity — the same collision
+   the delete itself has. *Revisit if* a unit-wide unique document key ever replaces the
+   bare id.
+4. **`PROJECTION_EXPRESSION` (#189) stays undeclared** — the projection counterpart of the
+   SORT_EXPRESSION refusal. The shared validator refuses it by name; the test pins that
+   nobody declares it by accident.
 
 ## Autonomous calls in geo (S9/#13, 2026-08-19)
 

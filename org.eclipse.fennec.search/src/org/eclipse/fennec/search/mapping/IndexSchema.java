@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -217,13 +218,22 @@ public final class IndexSchema {
 	 * @throws MappingException if no class of this unit's EPackage writes that name
 	 */
 	public EClass eClassOf(String typeName) {
-		EClass eClass = byTypeName.get(typeName);
+		EClass eClass = eClassOfOrNull(typeName);
 		if (eClass == null) {
 			throw new MappingException("No class of unit '" + mapping.getName() + "' writes the type name '"
 					+ typeName + "'. Either the document was written by another mapping, or the mapping "
 					+ "changed since — both mean the index and this schema disagree.");
 		}
 		return eClass;
+	}
+
+	/**
+	 * The class behind a type-discriminator value, or {@code null} when this unit writes no
+	 * such name — the probing form of {@link #eClassOf}, for a caller that answers an unknown
+	 * name with a diagnostic of its own instead of a failure.
+	 */
+	public EClass eClassOfOrNull(String typeName) {
+		return byTypeName.get(typeName);
 	}
 
 	/**
@@ -522,9 +532,43 @@ public final class IndexSchema {
 
 	/** The name prefix an EMBED reference contributes. */
 	public String embedPrefix(ReferenceMapping reference, EReference eReference) {
+		return referenceFieldName(reference, eReference);
+	}
+
+	/** The field name a reference writes under: its declared prefix, else the reference name. */
+	public String referenceFieldName(ReferenceMapping reference, EReference eReference) {
 		return reference.getPrefix() == null || reference.getPrefix().isBlank()
 				? eReference.getName()
 				: reference.getPrefix();
+	}
+
+	/**
+	 * Every ID_ONLY reference field in this unit that could hold the id of an object of this
+	 * class — what a delete has to look at before it leaves a reference pointing at nothing
+	 * (§8, emf.persistence-jpa#195). ID_ONLY is the only strategy that can dangle:
+	 * containment is ownership and goes with its parent, and an EMBED copy is a value.
+	 * <p>
+	 * "Could hold" is deliberately generous in both directions — a reference typed on a
+	 * supertype of the deleted class can point at it, and a URI scoped on an abstract class
+	 * covers the subtypes references are typed on. An id says nothing about its type, so the
+	 * probe over-approximates rather than miss a dangling reference.
+	 */
+	public Set<String> incomingIdOnlyFields(EClass target) {
+		Set<String> names = new LinkedHashSet<>();
+		for (DocumentMapping document : mapping.getDocuments()) {
+			for (ReferenceMapping reference : document.getReferences()) {
+				EReference eReference = reference.getEReference();
+				if (reference.getStrategy() != ReferenceStrategy.ID_ONLY || eReference == null) {
+					continue;
+				}
+				EClass referenced = eReference.getEReferenceType();
+				if (referenced != null
+						&& (referenced.isSuperTypeOf(target) || target.isSuperTypeOf(referenced))) {
+					names.add(referenceFieldName(reference, eReference));
+				}
+			}
+		}
+		return names;
 	}
 
 	private static String pathOf(List<EStructuralFeature> segments) {

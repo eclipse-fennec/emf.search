@@ -378,6 +378,29 @@ In the metamodel this is `Materialization.kind : MaterializationKind` (`STORED_O
 `STORED_OBJECT` only, unset = `binary`) complete it. Every tier is user-facing behaviour
 and ships with a user-documentation page (`docs/`, `docs-site/guides.mjs`) in #18.
 
+### 4.4 What a URI addresses, and what a delete owes
+
+Three properties of the resource path that the mapping model does not state, pinned by
+`SearchResourceTest` and by the §8 core cases of the persistence TCK.
+
+- **The type segment scopes by class, not by discriminator value.** `lucene://<unit>/Product`
+  reads `Bundle` documents too, exactly as a `TYPE_FILTER` predicate does, and an
+  *abstract* class in the segment is the ordinary case rather than an empty one — the
+  polymorphic round trip is core, not capability-gated.
+- **A type this unit does not map is a refusal, not an empty answer** (emf.persistence-jpa#197).
+  An index has no schema to reject a write with, so an unknown type name would otherwise
+  read back as a successful, empty load — indistinguishable from "nothing indexed yet".
+  The read leaves an error diagnostic on the resource instead and returns nothing.
+- **A delete that would leave a reference pointing at nothing is refused**
+  (emf.persistence-jpa#195). Lucene has no foreign key, so the resource looks before it
+  deletes: every `ID_ONLY` reference field that could carry the object's id is probed, the
+  object's own block excluded so a self-reference does not block its owner. Containment
+  children are owned and go with the parent, an `EMBED` copy is a value — `ID_ONLY` is the
+  only strategy that can dangle. One read per delete buys the guarantee, and only where a
+  mapped reference could point at the deleted type. The probe inherits the id model's
+  limit: `_root` is the bare id, so two types sharing an id value share a block identity,
+  and the exclusion of "the object's own documents" is as precise as that identity is.
+
 ## 5. Query translation — capability profile
 
 `QueryProcessor` with `backend=lucene`, IR → Lucene `Query`:
@@ -401,9 +424,11 @@ and ships with a user-documentation page (`docs/`, `docs-site/guides.mjs`) in #1
 | TYPE_CHECK / TYPE_FILTER | type discriminator field (the codec `_type` analogue, written by the mapper) |
 
 Refused (capability, not error): EXISTS/FOR_ALL over `EMBED`/`ID_ONLY` references,
-FIELD_TO_FIELD, ARITHMETIC/functions pushdown, PIPELINE beyond the facet/grouping subset,
-EXPAND, and joins other than the index-time block join of §5.2 (no term joins across
-index units, no equi-joins). The refusals are the honesty of the backend — consumers
+FIELD_TO_FIELD, ARITHMETIC/functions pushdown, SORT_EXPRESSION and its projection
+counterpart PROJECTION_EXPRESSION (emf.persistence-jpa#189 — a computed column is
+per-document arithmetic, which an inverted index cannot produce), PIPELINE beyond the
+facet/grouping subset, EXPAND, and joins other than the index-time block join of §5.2 (no
+term joins across index units, no equi-joins). The refusals are the honesty of the backend — consumers
 route those to the primary store (role 2) or restructure.
 
 ### 5.1 The 3VL lesson carries over
