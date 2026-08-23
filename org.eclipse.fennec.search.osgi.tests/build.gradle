@@ -1,8 +1,49 @@
 
+// The resolved closure goes to a generated file rather than into the committed bndrun: the
+// resolver rewrites the whole file, and a build that dirties the working tree on every run
+// is a build nobody trusts. `testOSGi` launches that generated file.
 def resolveTask = tasks.named("resolve.test") {
 	outputBndrun = layout.buildDirectory.file("test.bndrun")
+	// Never up to date (#35). Gradle cannot see that a *changed bundle* invalidates a
+	// resolution: it considers the task current across commits that gave the core new
+	// imports, and the stale closure then fails to start the test bundle — which used to be
+	// a silent green. Resolving takes seconds; being wrong about it cost a release cycle.
+	outputs.upToDateWhen { false }
 }
 
 tasks.named("testOSGi") {
 	bndrun = resolveTask.flatMap { it.outputBndrun }
 }
+
+// The committed `-runbundles` is a convenience copy for launching this bndrun from bndtools,
+// and a copy that may lie is worth less than no copy (#35 — it went stale once already). The
+// check compares it with what the resolver just produced and says how to fix the difference.
+tasks.register("checkRunbundles") {
+	dependsOn resolveTask
+	def committed = layout.projectDirectory.file("test.bndrun")
+	def resolved = resolveTask.flatMap { it.outputBndrun }
+	inputs.file(committed)
+	inputs.file(resolved)
+	outputs.upToDateWhen { false }
+	doLast {
+		def bundlesOf = { file ->
+			def text = file.asFile.text
+			def match = (text =~ /(?sm)^-runbundles:\s*(.*?)(?=\n\s*\n|\n[^\s\\]|\z)/)
+			if (!match) {
+				throw new GradleException("No -runbundles block in ${file} — the comparison "
+						+ "would have compared nothing with nothing.")
+			}
+			match[0][1].replaceAll(/[\\\s]+/, ' ').trim()
+		}
+		def here = bundlesOf(committed)
+		def there = bundlesOf(resolved.get())
+		if (here != there) {
+			throw new GradleException("The -runbundles in test.bndrun is not what the resolver "
+					+ "produces, so the committed list lies about what testOSGi runs. Copy the "
+					+ "-runbundles block from ${resolved.get().asFile} into "
+					+ "${committed.asFile} and commit it.")
+		}
+	}
+}
+
+tasks.named("check").configure { dependsOn "checkRunbundles" }

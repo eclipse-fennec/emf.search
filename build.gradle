@@ -93,3 +93,46 @@ subprojects {
 }
 
 
+
+// --- testOSGi may not pass by having run nothing (#35) ------------------------------------
+//
+// bnd launches the framework, tracks bundles carrying a `Test-Cases` header and runs what it
+// finds. When *no* such bundle starts — a broken runtime wiring, a stale resolution — the
+// tracker finds nothing, no report is written, and the task exits 0. A green build that
+// tested nothing is worse than a red one: it removes the only signal that would have caught
+// the wiring. So every testOSGi run has to leave a report behind, and that report has to
+// contain at least one test.
+subprojects {
+    tasks.matching { it.name == 'testOSGi' }.configureEach {
+        // The reports of the previous run go first: a guard that would accept yesterday's
+        // report is the same silent green with an extra step.
+        doFirst {
+            delete fileTree(dir: "${projectDir}/generated/test-reports/testOSGi",
+                    include: 'TEST-*.xml')
+        }
+        doLast {
+            def reports = fileTree(dir: "${projectDir}/generated/test-reports/testOSGi",
+                    include: 'TEST-*.xml')
+            if (reports.isEmpty()) {
+                throw new GradleException("testOSGi of ${project.name} wrote no report, which "
+                        + "means no bundle with Test-Cases ever started — the framework could "
+                        + "not resolve the test bundle. Re-resolve "
+                        + "(./gradlew :${project.name}:resolve.test --rerun-tasks) and read the "
+                        + "launcher output for the missing requirement.")
+            }
+            int total = 0
+            reports.each { report ->
+                def match = (report.text =~ /<testsuite[^>]*\stests="(\d+)"/)
+                if (match) {
+                    total += match[0][1] as int
+                }
+            }
+            if (total == 0) {
+                throw new GradleException("testOSGi of ${project.name} ran 0 tests. The report "
+                        + "exists but the bundle contributed no case — check the Test-Cases "
+                        + "header and whether the test bundle actually started.")
+            }
+            logger.lifecycle("testOSGi of ${project.name}: ${total} test(s) ran")
+        }
+    }
+}
