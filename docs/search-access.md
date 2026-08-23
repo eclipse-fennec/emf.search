@@ -481,12 +481,30 @@ everything.
 ### 5.3 Score shaping without arithmetic pushdown
 
 Static rank signals (popularity, recency, a curated boost) are declared in the mapping
-model as `FeatureField`s and applied via `FeatureField#newSaturationQuery`/
-`newLogQuery`. This deliberately keeps the ARITHMETIC refusal intact: the consumer never
-expresses a scoring formula in the IR, it selects declared signals. `lucene-expressions`
-(JavaScript compiled over DocValues) would be the general escape hatch and is **not**
-part of the plan — it is a code-execution surface driven by query input, and it would
-re-open the door the refusal closes.
+model as `RankSignalFieldMapping` and written as `FeatureField`s — every signal of a unit
+under one reserved field (`_features`), each with its own feature name, which is what
+`FeatureField` is built for. At query time they are applied via
+`newSaturationQuery`/`newLogQuery`/`newSigmoidQuery` as **optional clauses**: a signal can
+only add score, never change what matches. This deliberately keeps the ARITHMETIC refusal
+intact: the consumer never expresses a scoring formula in the IR, it selects declared
+signals. `lucene-expressions` (JavaScript compiled over DocValues) would be the general
+escape hatch and is **not** part of the plan — it is a code-execution surface driven by
+query input, and it would re-open the door the refusal closes.
+
+**Selection is a backend option, not IR vocabulary** (S14, #16): `SearchOptions.RANK_SIGNALS`
+in the `options` map that `QueryContext` already carries for exactly this purpose, holding
+the names of declared signals. An own API of the suggest/highlighting kind (§6) would have
+meant duplicating the whole query and materialization path to change one thing about the
+score, and a new IR concept would have broken the §3 ground rule for a decision that is
+per-engine by nature. Everything else about a signal — function, pivot, exponent, and the
+weight the mapping's `boost` sets — stays in the mapping, where a relevance decision can be
+reviewed and versioned.
+
+Two consequences are stated rather than papered over. A signal is a quantized weight, so an
+attribute mapped *only* as a signal is no longer a comparable field; a model that needs both
+declares the signal as a sub-field beside an ordinary projection (`views.signal`). And a
+result shape without a score — a count, an aggregation — refuses a selected signal instead
+of ignoring it. The user-facing page is `docs/rank-signals.md`.
 
 ### 5.4 Write commands
 

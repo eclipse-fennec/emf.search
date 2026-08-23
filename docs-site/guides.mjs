@@ -22,6 +22,7 @@ export const GUIDES = [
   { file: 'suggest.md', slug: 'suggest', title: 'Suggest' },
   { file: 'highlighting.md', slug: 'highlighting', title: 'Highlighting' },
   { file: 'similarity.md', slug: 'similarity', title: 'Similarity' },
+  { file: 'rank-signals.md', slug: 'rank-signals', title: 'Rank signals' },
 ];
 
 export const EXAMPLES = [];
