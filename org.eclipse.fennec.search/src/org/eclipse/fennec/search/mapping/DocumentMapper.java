@@ -265,6 +265,10 @@ public final class DocumentMapper {
 					// attribute, so it is written by writeGeoFields rather than from here.
 					continue;
 				}
+				// The other composite kinds have no writer at all, and their refusal has to be
+				// the one that names why — reaching the "declares no feature" answer below
+				// would send a modeller after the wrong issue.
+				refuseUnimplemented(field, field.getFeature());
 				if (field.getFeature() == null) {
 					throw new MappingException("A field mapping of " + documentMapping.getEClass().getName()
 							+ " declares no feature. Computed values without a feature are not implemented "
@@ -393,7 +397,12 @@ public final class DocumentMapper {
 	private void refuseUnimplemented(FieldMapping field, EAttribute attribute) {
 		String kind = field.eClass().getName();
 		String issue = switch (kind) {
-			case "RangeFieldMapping" -> "interval fields are S15 (#17)";
+			case "RangeFieldMapping" -> "interval fields are S15 (#17), and they wait on query "
+					+ "vocabulary that does not exist yet (emf.persistence-jpa#215): a range field "
+					+ "nothing can ask about is dead weight in the index. Until then, model the two "
+					+ "bounds as ordinary numeric attributes and ask with two comparisons — "
+					+ "'from <= t AND to >= t' — which is correct, just neither indexed as one "
+					+ "interval nor able to say CONTAINS";
 			case "VectorFieldMapping" -> "vector fields are reserved for wave 2 and deliberately not implemented";
 			default -> null;
 		};

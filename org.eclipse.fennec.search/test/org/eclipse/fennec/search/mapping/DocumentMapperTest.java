@@ -30,6 +30,7 @@ import org.eclipse.fennec.search.esearch.KeywordFieldMapping;
 import org.eclipse.fennec.search.esearch.ReferenceMapping;
 import org.eclipse.fennec.search.esearch.ReferenceStrategy;
 import org.eclipse.fennec.search.esearch.TextFieldMapping;
+import org.eclipse.fennec.search.esearch.RangeFieldMapping;
 import org.eclipse.fennec.search.esearch.VectorFieldMapping;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -234,6 +235,25 @@ class DocumentMapperTest {
 		assertThatThrownBy(() -> mapper.map(catalog.create("Product", "id", "p-1", "description", "text")))
 				.isInstanceOf(MappingException.class)
 				.hasMessageContaining("reserved for wave 2");
+	}
+
+	@Test
+	void anIntervalFieldIsRefusedAndNamesTheWayToAskToday() {
+		// S15 (#17) waits on query vocabulary (emf.persistence-jpa#215): a range field nothing
+		// can ask about would be dead weight. The refusal has to carry the fallback, because
+		// that is the whole answer a modeller needs today.
+		IndexUnitMapping unit = unit();
+		DocumentMapping product = document(unit, "Product");
+		RangeFieldMapping validity = ESEARCH.createRangeFieldMapping();
+		validity.setLowerBound((EAttribute) catalog.feature("Product", "price"));
+		validity.setUpperBound((EAttribute) catalog.feature("Product", "stock"));
+		product.getFields().add(validity);
+		DocumentMapper mapper = DocumentMapper.of(unit);
+
+		assertThatThrownBy(() -> mapper.map(product("p-1", "x")))
+				.isInstanceOf(MappingException.class)
+				.hasMessageContaining("emf.persistence-jpa#215")
+				.hasMessageContaining("two comparisons");
 	}
 
 	// --- references -------------------------------------------------------------------------

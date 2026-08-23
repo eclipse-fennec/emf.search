@@ -13,6 +13,17 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   `QueryResult.close()` (an `IndexUnit` acquire/release surface) and declaring the
   feature. Next sizeable unit-lifecycle task; until built, results stay materialized —
   behaviour must not change undeclared.
+- **Interval predicates (S15, #17)** — raised 2026-08-23 as emf.persistence-jpa**#215**
+  (INTERSECTS / WITHIN / CONTAINS, where the interval comes from, boundary and unbounded
+  semantics, one capability). Nothing is built here on purpose: the metamodel's
+  `RangeFieldMapping` stays refused by the writer, because a range field no query can reach
+  is dead weight in the index and would have to be rebuilt anyway once the shape is known.
+  The refusal names the fallback (two comparisons over the bound attributes), which is what
+  a modeller needs today. *When it lands:* write `LongRange`/`DoubleRange` and map the three
+  relations — Lucene's side is one-to-one, so this is a small task the day the vocabulary
+  exists. *Also revisit if* the upstream round decides the query names the bound pair
+  (the `GeoSubject` precedent of #113) rather than the mapping declaring it: then
+  `RangeFieldMapping` becomes an index-shape declaration only, not the subject.
 
 ## Decided upstream, zero change here
 
