@@ -85,6 +85,50 @@ From there it is an ordinary authored mapping — see
   [materialization](./materialization.md) — each of those pages shows the declaration to
   add by hand.
 
+## Generating at runtime, if you really want to
+
+Everything above assumes the healthy order: generate, read, edit, commit. A deployment can
+skip the reading — but only by saying so explicitly, and it is worth understanding what is
+being traded away. A generated mapping **guesses from attribute names**, which is safe
+while a human reviews it and stops being safe when nobody does.
+
+Both roads therefore require an explicit act, and both log the generator's full reasoning
+at INFO — an index whose shape nobody authored must at least be able to say where that
+shape came from.
+
+**Plain Java** — a `MappingSource` that answers for a unit named after one of its
+packages, composed **last**, behind everything authored:
+
+```java
+MappingSource sources = MappingSources.withPrecedence(
+        RegistryMappingSource.of(registry),                     // authored wins
+        GeneratingMappingSource.of(List.of(catalogPackage)));   // …then the proposal
+```
+
+It generates once per unit and keeps the result: a mapping decides what a document looks
+like, so answering the same unit differently on a second call would mean two shapes in one
+index.
+
+**OSGi** — the `SearchGeneratedMappings` component publishes generated mappings into the
+search mapping registry through the ordinary `EObjectProvider` extension point, so they are
+visible where an operator looks rather than hidden behind a lookup. Configuration is
+required, and packages are named one by one:
+
+```properties
+generateFor = ["https://example.org/catalog"]
+```
+
+Point the mapping registry at it like any other provider:
+
+```properties
+name = search-mappings
+initialProvider.target = (emf.eobject.provider.name=search-generated-mappings)
+```
+
+**It never generates for a package that ships its own mapping** as an `esearch` metadata
+aspect ([mapping delivery](./mapping-delivery.md)): the model already answered, and
+generating beside that answer would put two mappings in one registry.
+
 ## Selected classes only
 
 ```java
