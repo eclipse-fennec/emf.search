@@ -155,6 +155,11 @@ IndexSearch search;
 
 ## Where to go next
 
+- **Worked examples**, each one an executable test in `org.eclipse.fennec.search.examples`:
+  [a product search box](./example-search-box.md),
+  [a secondary index beside a primary store](./example-secondary-index.md),
+  [relevance from your data](./example-relevance.md),
+  [search by position](./example-geo.md).
 - [Querying the index](./query-path.md) — the canonical query IR against the index:
   shapes, capabilities, refusals, options.
 - [The direct search API](./search-api.md) — hits as objects, the attachable primary store.

@@ -1,0 +1,38 @@
+Bundle-Name: Eclipse Fennec Search Examples
+Bundle-Description: The worked examples of the documentation, executable: every EXAMPLES \
+	page of the docs site mirrors one plain-JUnit test here, over the shared catalog model \
+	(catalog.ecore) and its authored mapping (catalog.esearch) — so an example that stops \
+	working turns the build red instead of quietly rotting in the docs (issue #47).
+
+-workingset: search
+
+-buildpath: \
+	org.osgi.annotation.versioning;version=latest
+
+-testpath: \
+	assertj-core,\
+	org.eclipse.fennec.search;version=snapshot,\
+	org.eclipse.fennec.search.model;version=snapshot,\
+	org.eclipse.fennec.search.suggest;version=snapshot,\
+	org.eclipse.fennec.persistence;version=latest,\
+	org.eclipse.fennec.persistence.capabilities;version=latest,\
+	org.eclipse.fennec.persistence.query;version=latest,\
+	org.eclipse.fennec.persistence.pushstreams;version=latest,\
+	org.eclipse.fennec.query.model;version=latest,\
+	org.eclipse.fennec.expression.model;version=latest,\
+	org.eclipse.fennec.command.model;version=latest,\
+	org.eclipse.fennec.stream.model;version=latest,\
+	org.eclipse.emf.common;version=latest,\
+	org.eclipse.emf.ecore;version=latest,\
+	org.eclipse.emf.ecore.xmi;version=latest,\
+	org.apache.lucene.core;version=latest,\
+	org.apache.lucene.facet;version=latest,\
+	org.apache.lucene.grouping;version=latest,\
+	org.apache.lucene.highlighter;version=latest,\
+	org.apache.lucene.join;version=latest,\
+	org.apache.lucene.memory;version=latest,\
+	org.apache.lucene.queries;version=latest,\
+	org.apache.lucene.suggest;version=latest,\
+	org.osgi.util.pushstream;version=latest,\
+	org.osgi.util.promise;version=latest,\
+	org.osgi.util.function;version=latest

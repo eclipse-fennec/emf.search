@@ -31,4 +31,9 @@ export const GUIDES = [
   { file: 'write-commands.md', slug: 'write-commands', title: 'Write commands' },
 ];
 
-export const EXAMPLES = [];
+export const EXAMPLES = [
+  { file: 'example-search-box.md', slug: 'search-box', title: 'A product search box' },
+  { file: 'example-secondary-index.md', slug: 'secondary-index', title: 'A secondary index beside a primary store' },
+  { file: 'example-relevance.md', slug: 'relevance', title: 'Relevance from your data' },
+  { file: 'example-geo.md', slug: 'geo-search', title: 'Search by position' },
+];
