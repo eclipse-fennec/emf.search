@@ -292,6 +292,17 @@ resolution O7 proposed, now with concrete machinery behind it. Implementing that
 including which of the two wins when both exist, and what a mapping change does to a unit whose
 index was written under the previous one — is S23 (#32).
 
+**Authoring the first one is generated, not guessed** (#51, 2026-08-24): `MappingGenerator`
+derives a *suggested* mapping from an ecore — the eorm mapper's road — and returns it with
+one explanation per declaration. The line it must not blur is the one this section rests
+on: conventions never guess from a name, because a wrong guess would silently change what a
+query answers; the generator may, because its output is a proposal a human reads and edits
+before it runs. It therefore proposes only what convention does *not* already do (facet
+dimensions for enums and tags, a sortable keyword and a suggest source for a label,
+`NESTED`/`ID_ONLY` for references, a position for a structurally recognised packed point)
+and never merges into an existing mapping — a mapping is authored, and generating over
+authored declarations is how generators destroy work.
+
 The metamodel stays a self-contained tree (registry → unit → document → fields) rather
 than being decomposed into per-element aspect fragments. Two reasons: composite mappings
 (`RangeFieldMapping`, `GeoPointFieldMapping`, `VectorFieldMapping`, `SuggestSource`)

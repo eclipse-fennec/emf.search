@@ -97,6 +97,12 @@ pages takes beside the unit:
 IndexSchema schema = IndexSchema.of(mapping);
 ```
 
+::: tip Don't write the first one by hand
+[`MappingGenerator`](./mapping-generator.md) reads your ecore and proposes a mapping —
+facet dimensions, sortable labels, containment as a block — each declaration with the
+reason it was suggested. Edit that instead of starting from an empty file.
+:::
+
 ## End to end
 
 ```java
