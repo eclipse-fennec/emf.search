@@ -63,3 +63,31 @@ would be the old stack's commit-per-entry amplification wearing a new hat. Calle
 cadence — rebuild after a bulk load, on commit, or on a schedule. A rebuild swaps
 atomically: lookups in flight keep answering from the previous snapshot, never from a
 half-built one.
+
+### Rebuilding on commit, if you ask for it
+
+A commit is the natural cadence for many deployments, and one call subscribes to it:
+
+```java
+try (AutoCloseable subscription = suggest.rebuildOnCommit()) {
+    // every commit of the unit now refreshes the suggesters
+}   // closing the handle returns to the caller-owned cadence
+```
+
+In OSGi it is configuration on the `SearchSuggest` component, per unit alias:
+
+```properties
+rebuildOnCommit = ["catalog"]
+```
+
+Three properties of that subscription, stated because they are the ones that bite:
+
+- **The rebuild runs on the committing thread.** Whoever commits pays for the freshness.
+  A unit tuned to commit per document should therefore not opt in — that is the
+  amplification this API avoids by default, and opting in is you choosing it.
+- **Commits collapse.** At most one rebuild runs at a time; commits arriving during a
+  rebuild are covered by one trailing rebuild. The FSTs are snapshots — the latest commit
+  is what matters, not each intermediate one.
+- **A failed rebuild does not fail the commit** (it is already durable), and it does not
+  silently serve stale suggestions either: the failure is kept and thrown by the next
+  lookup, naming `rebuild()` as the way back.

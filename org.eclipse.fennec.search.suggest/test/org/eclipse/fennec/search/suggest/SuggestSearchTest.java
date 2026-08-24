@@ -236,6 +236,47 @@ class SuggestSearchTest {
 		return document;
 	}
 
+	// --- commit-driven rebuild (#48) --------------------------------------------------------
+
+	@Test
+	void rebuildOnCommitKeepsSuggestionsFreshWithoutACallersHand() throws Exception {
+		IndexSchema schema = schema(source("titles", title, popularity, SuggesterKind.ANALYZING));
+		index(schema, product("p-1", "Espresso Machine", 10));
+		SuggestSearch suggest = SuggestSearch.of(unit, schema);
+		try (AutoCloseable subscription = suggest.rebuildOnCommit()) {
+			assertThat(suggest.suggest("titles", "espresso", 5))
+					.extracting(Suggestion::text)
+					.containsExactly("Espresso Machine");
+
+			// A new document, committed — nobody calls rebuild().
+			index(schema, product("p-2", "Espresso Grinder", 99));
+			unit.commit();
+
+			assertThat(suggest.suggest("titles", "espresso", 5))
+					.as("the commit rebuilt the snapshot")
+					.extracting(Suggestion::text)
+					.containsExactly("Espresso Grinder", "Espresso Machine");
+		}
+	}
+
+	@Test
+	void closingTheSubscriptionFreezesTheSnapshotAgain() throws Exception {
+		IndexSchema schema = schema(source("titles", title, popularity, SuggesterKind.ANALYZING));
+		index(schema, product("p-1", "Espresso Machine", 10));
+		SuggestSearch suggest = SuggestSearch.of(unit, schema);
+		AutoCloseable subscription = suggest.rebuildOnCommit();
+		assertThat(suggest.suggest("titles", "espresso", 5)).hasSize(1);
+		subscription.close();
+
+		index(schema, product("p-2", "Espresso Grinder", 99));
+		unit.commit();
+
+		assertThat(suggest.suggest("titles", "espresso", 5))
+				.as("after the handle closed, the cadence is caller-owned again")
+				.extracting(Suggestion::text)
+				.containsExactly("Espresso Machine");
+	}
+
 	private static IndexSchema schema(SuggestSource... sources) {
 		IndexUnitMapping mapping = mapping();
 		DocumentMapping document = document(mapping);

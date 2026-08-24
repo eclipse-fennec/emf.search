@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -84,6 +85,15 @@ public final class IndexUnit implements AutoCloseable {
 	private final ScheduledExecutorService scheduler;
 	private final AtomicLong uncommitted = new AtomicLong();
 	private final AtomicBoolean closed = new AtomicBoolean();
+	private final List<CommitListener> commitListeners = new CopyOnWriteArrayList<>();
+
+	/** Told after a commit of this unit made writes durable (#48). */
+	@FunctionalInterface
+	public interface CommitListener {
+
+		/** @param sequenceNumber the sequence number the writer assigned to the commit */
+		void committed(long sequenceNumber);
+	}
 
 	private IndexUnit(IndexUnitConfig config, Directory directory, IndexWriter writer,
 			SearcherManager searcherManager, ControlledRealTimeReopenThread<IndexSearcher> reopenThread,
@@ -330,7 +340,37 @@ public final class IndexUnit implements AutoCloseable {
 		if (config.refresh().mode() == RefreshTrigger.Mode.ON_COMMIT && config.access().allowsSearch()) {
 			searcherManager.maybeRefreshBlocking();
 		}
+		if (sequenceNumber >= 0) {
+			// After the refresh, so a listener rebuilding derived structures (suggesters)
+			// sees what this commit made visible. On the committing thread — a listener
+			// that needs to be cheap must make itself cheap.
+			for (CommitListener listener : commitListeners) {
+				try {
+					listener.committed(sequenceNumber);
+				} catch (RuntimeException e) {
+					// The commit is durable; a listener failure must neither undo that
+					// answer nor starve the listeners after it. Listeners own their
+					// failure reporting — the suggest subscription, for one, surfaces
+					// its own on the next lookup.
+				}
+			}
+		}
 		return sequenceNumber;
+	}
+
+	/**
+	 * Registers a listener told after every successful commit of this unit — explicit,
+	 * document-count-triggered or interval-driven (#48). Not told: a no-op commit (nothing
+	 * was pending), and the implicit commit of {@link #close()}, where collaborators are
+	 * tearing down anyway.
+	 *
+	 * @return a handle that unregisters the listener
+	 */
+	public AutoCloseable onCommit(CommitListener listener) {
+		checkOpen();
+		Objects.requireNonNull(listener, "listener");
+		commitListeners.add(listener);
+		return () -> commitListeners.remove(listener);
 	}
 
 	/**
