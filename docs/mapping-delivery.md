@@ -59,7 +59,10 @@ configurations (or let the provider's files be present at framework start) and t
 activates once, with its order. The per-unit services — suggest, highlight, similarity —
 follow a replaced unit on their own.
 
-In plain Java the same mechanism is one line, not a parallel implementation:
+In plain Java the same mechanism is one line, not a parallel implementation — the
+registry API (`EObjectRegistries`, `FileEObjectProvider`) comes from the `emf.osgi`
+stack's `org.eclipse.fennec.emf.osgi.eobject.registry` bundle, which despite its home
+runs without a framework:
 
 ```java
 EObjectRegistryWriter writer = EObjectRegistries.createRegistry("search-mappings",
@@ -67,6 +70,12 @@ EObjectRegistryWriter writer = EObjectRegistries.createRegistry("search-mappings
         FileEObjectProvider.featureKeys("name")));
 MappingSource source = RegistryMappingSource.of(writer.getRegistry());
 ```
+
+From there to a running search is the hand-off the
+[getting-started page](./getting-started.md#end-to-end) walks through: the source answers
+`mappingFor("catalog")`, the mapping becomes the schema
+(`IndexSchema.of(mapping)`), and unit plus schema feed every API. In OSGi nothing of this
+is written by hand — the components do exactly these steps per configured unit.
 
 ## The shipped path: the metadata aspect
 

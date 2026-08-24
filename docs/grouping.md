@@ -1,12 +1,17 @@
 # Grouping with representatives
 
 Grouping answers the question a facet cannot: not *how many* products each manufacturer
-has, but **which** — the best three of each, as objects, in one search.
+has, but **which** — the best three of each, as objects, in one search. The API is
+`GroupSearch` in the core bundle `org.eclipse.fennec.search`; the example uses the
+[shared catalog model](./getting-started.md#the-example-model), extended by one derived
+attribute (below), with `unit` and `mapping` set up as on that page.
 
 ```java
+IndexSchema schema = IndexSchema.of(mapping);
+
 GroupResults results = GroupSearch.of(unit, schema)
         .search(GroupRequest.over(query)   // the ordinary query IR, as everywhere
-                .by(manufacturerName)      // the attribute whose value forms the groups
+                .by(manufacturerName)      // the EAttribute whose value forms the groups
                 .representatives(3)        // documents per group, best first
                 .topGroups(10));           // groups, best group first
 
@@ -34,14 +39,32 @@ shape.
 
 ## The group key
 
-The key is one attribute, and it has to be a **keyword projection carrying doc values**:
-grouping reads one exact term per document out of the doc-values column.
+The key is one **attribute of the grouped class**, and it has to be a keyword projection
+carrying doc values: grouping reads one exact term per document out of the doc-values
+column.
+
+The manufacturer's name is one reference away from `Product` — and a value computed in the
+mapping cannot be a key, because `by(…)` names an `EAttribute`. The road the catalog model
+takes is the one [computed fields](./computed-fields.md#virtual-fields) recommends for
+every queryable computed value: a **derived attribute** `manufacturerName : EString` on
+`Product` (m2x derivation over `manufacturer.name`), which EMF computes and this mapper
+treats as an ordinary feature. As a string it is analyzed text by convention, so the key
+needs the keyword declaration:
+
+```xml
+<documents eClass="https://example.org/catalog#//Product">
+  <fields xsi:type="esearch:KeywordFieldMapping"
+      feature="https://example.org/catalog#//Product/manufacturerName" docValues="true"/>
+</documents>
+```
+
+The rules, by attribute kind:
 
 - An **enum, boolean or id** attribute is a keyword by convention, doc values included —
-  nothing to declare.
+  nothing to declare (`condition` would group with no mapping at all).
 - A **string** is analyzed text by convention and is refused as a key; declare a
-  `KeywordFieldMapping` (`docValues="true"`) for it, or a keyword sub-field beside the text
-  projection, and group by that.
+  `KeywordFieldMapping` (`docValues="true"`) for it — as above — or a keyword sub-field
+  beside the text projection, and group by that.
 - A **numeric** attribute is refused: grouping by an exact number is rarely what anyone
   means, and grouping by ranges would need ranges nobody declared.
 - A **many-valued** attribute is refused: an object would belong to several groups at once.

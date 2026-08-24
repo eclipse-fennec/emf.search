@@ -11,12 +11,14 @@ suggester is **derived from the unit's own documents**: the declared source fiel
 values, and the weight attribute's doc values, read through the same searcher every query
 uses. One mapping, one index, one lifecycle.
 
+All examples use the [shared catalog model](./getting-started.md#the-example-model).
+
 ## Declaring a source
 
 ```xml
-<documents eClass="...#//Product">
-  <suggestions name="titles" feature="...#//Product/title"
-      weight="...#//Product/popularity" kind="FUZZY"/>
+<documents eClass="https://example.org/catalog#//Product">
+  <suggestions name="names" feature="https://example.org/catalog#//Product/name"
+      weight="https://example.org/catalog#//Product/views" kind="FUZZY"/>
 </documents>
 ```
 
@@ -39,9 +41,14 @@ uses. One mapping, one index, one lifecycle.
 
 ## Looking up
 
+`unit` and `mapping` are set up as in [getting started](./getting-started.md):
+
 ```java
+IndexSchema schema = IndexSchema.of(mapping);
 SuggestSearch suggest = SuggestSearch.of(unit, schema);
-List<Suggestion> top = suggest.suggest("titles", "espreso", 5);   // text + weight, rank-descending
+
+suggest.rebuild();   // snapshot the current documents; the first lookup would do it lazily
+List<Suggestion> top = suggest.suggest("names", "espreso", 5);   // text + weight, rank-descending
 ```
 
 In OSGi one `SuggestSearch` service is published **per index unit** whose mapping declares

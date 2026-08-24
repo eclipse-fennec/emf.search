@@ -2,23 +2,27 @@
 
 A field mapping usually reads one attribute of the object being indexed. Sometimes the value
 you want to search on is somewhere else: the manufacturer's name on the product, the authors
-of all its reviews, a title and a subtitle in one searchable string.
+of all its reviews, a name and a description in one searchable string.
 
-`sources` says where a field's value comes from:
+`sources` says where a field's value comes from (the model is the
+[shared catalog](./getting-started.md#the-example-model)):
 
 ```xml
 <documents eClass="https://example.org/catalog#//Product">
   <!-- one index field, fed from the referenced manufacturer -->
   <fields xsi:type="esearch:KeywordFieldMapping" name="maker" docValues="true">
+    <facet/>                      <!-- counted below, like any declared dimension -->
     <sources xsi:type="esearch:PathSource"
         segments="https://example.org/catalog#//Product/manufacturer
                   https://example.org/catalog#//Manufacturer/name"/>
   </fields>
 
-  <!-- title and subtitle as one searchable string -->
+  <!-- name and description as one searchable string -->
   <fields xsi:type="esearch:TextFieldMapping" name="searchable" separator=" ">
-    <sources xsi:type="esearch:FeatureSource" feature="…#//Product/name"/>
-    <sources xsi:type="esearch:FeatureSource" feature="…#//Product/description"/>
+    <sources xsi:type="esearch:FeatureSource"
+        feature="https://example.org/catalog#//Product/name"/>
+    <sources xsi:type="esearch:FeatureSource"
+        feature="https://example.org/catalog#//Product/description"/>
   </fields>
 </documents>
 ```
@@ -56,12 +60,25 @@ carry a `name`, since there is no attribute to take one from.
 That has one consequence worth planning around: **the canonical query IR addresses features,
 so no query can name a virtual field.** They are for [facets](./facets.md),
 [suggest](./suggest.md), [highlighting](./highlighting.md) and as targets of full-text
-matching.
+matching. The `maker` field above declared a facet, so counting it works like any other
+dimension — this is what a virtual field is *for*:
+
+```java
+IndexSchema schema = IndexSchema.of(mapping);   // unit and mapping: see getting started
+
+FacetResults results = FacetSearch.of(unit, schema).count(FacetRequest
+    .over(QueryBuilder.from(product).build())
+    .dimension("maker"));
+
+results.dimension("maker").orElseThrow().values();   // one count per manufacturer name
+```
 
 When a computed value has to be *queryable*, do not compute it in the mapping — put it on a
 **derived `EStructuralFeature`** with the m2x derivation annotation. EMF computes it,
 `eGet` returns it, the query IR can name it, and this mapper treats it as an ordinary
-feature with no special case at all.
+feature with no special case at all. That is also the road a
+[group key](./grouping.md#the-group-key) takes: the catalog model's derived
+`manufacturerName` attribute is this pattern, verbatim.
 
 ## Why OCL is refused
 

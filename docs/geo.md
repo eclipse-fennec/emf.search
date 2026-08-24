@@ -10,21 +10,29 @@ Two capabilities carry it: `GEO_WITHIN` and `GEO_DISTANCE`, both declared by thi
 ## Declaring a position
 
 A position is a field mapping like any other — `GeoPointFieldMapping` — and it accepts the
-three shapes real models are written in. Whichever you declare, the mapper resolves it at
-index time into one `LatLonPoint`, after which nothing downstream can tell the difference:
+three shapes real models are written in. The examples run on the
+[shared catalog model](./getting-started.md#the-example-model), whose
+`Manufacturer.location : GeoPoint` is the packed shape (2); the split pair (1) and the
+combined attribute (3) show the same manufacturer as models with `lat`/`lon` or a
+many-valued `corner` attribute would declare it. Whichever you declare, the mapper
+resolves it at index time into one `LatLonPoint`, after which nothing downstream can tell
+the difference:
 
 ```xml
 <!-- 1. the split pair: two attributes, the dominant Ecore shape -->
 <fields xsi:type="esearch:GeoPointFieldMapping" name="position"
-        latitude="...#//Place/lat" longitude="...#//Place/lon" docValues="true"/>
+        latitude="https://example.org/catalog#//Manufacturer/lat"
+        longitude="https://example.org/catalog#//Manufacturer/lon" docValues="true"/>
 
-<!-- 2. the packed point: a GeoJSON-style child object with [lon, lat] -->
+<!-- 2. the packed point: a GeoJSON-style child object with [lon, lat] — the shared
+     model's shape -->
 <fields xsi:type="esearch:GeoPointFieldMapping"
-        pointReference="...#//Place/location"
-        coordinates="...#//GeoPoint/coordinates" docValues="true"/>
+        pointReference="https://example.org/catalog#//Manufacturer/location"
+        coordinates="https://example.org/catalog#//GeoPoint/coordinates" docValues="true"/>
 
 <!-- 3. the combined attribute: one many-valued numeric attribute holding [lon, lat] -->
-<fields xsi:type="esearch:GeoPointFieldMapping" coordinates="...#//Place/corner"/>
+<fields xsi:type="esearch:GeoPointFieldMapping"
+        coordinates="https://example.org/catalog#//Manufacturer/corner"/>
 ```
 
 Notes that save debugging time:
@@ -60,8 +68,9 @@ Expressions.geoDistance(subject, Expressions.geoPoint(11.586, 50.927)).le(37_000
 ```
 
 The `subject` is the coordinate binding, and it must name the features the mapping declared
-the position over — the pair for a split field, the reference (or attribute) for a packed
-one:
+the position over — the pair for a split field (variant 1), the reference (or attribute)
+for a packed one. `location` is the shared model's `Manufacturer.location` reference;
+`lat`/`lon` exist only under variant 1:
 
 ```java
 GeoSubject split  = Expressions.geoSubject(Expressions.propertyPath(lat),
@@ -79,7 +88,7 @@ the real position of every candidate from doc values, "nearest k" is *sort + lim
 rather than approximate:
 
 ```java
-QueryBuilder.from(place)
+QueryBuilder.from(manufacturer)   // the Manufacturer EClass; packed as above
     .orderBy(Expressions.geoDistance(packed, Expressions.geoPoint(11.586, 50.927)))
     .limit(10);
 ```

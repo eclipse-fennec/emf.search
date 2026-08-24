@@ -6,9 +6,16 @@ full-text, facets, suggestions and highlighting over `EObject`s, declared once i
 model instead of hand-coded per use case.
 
 ::: warning Status
-Early development. The wave-1 line is being built; nothing is published to Maven Central
-yet. See the [issue board](https://github.com/eclipse-fennec/emf.search/issues) for what is
-in flight, and the [architecture page](./architecture.md) for how the pieces fit.
+The wave-1 feature line is complete and TCK-conformant; SNAPSHOTs publish from the
+`snapshot` branch, nothing is released to Maven Central yet. See the
+[issue board](https://github.com/eclipse-fennec/emf.search/issues) for what is in flight,
+and the [architecture page](./architecture.md) for how the pieces fit.
+:::
+
+::: tip First steps
+[Getting started](./getting-started.md) goes from zero to a scored search result on one
+page — and defines the example model every guide shares.
+[Querying the index](./query-path.md) is the query language against it.
 :::
 
 ## What problem this solves

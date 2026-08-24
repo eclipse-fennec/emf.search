@@ -4,6 +4,9 @@ Facets answer "which values occur in my matches, and how often" — the counts b
 drill-down UI. In `emf.search` they are **an own API next to the persistence contract**,
 because counting values over a match set is not query vocabulary; the one aggregation that
 *is* honest query vocabulary (group by one key, count) is answered from the same machinery.
+The API is `FacetSearch` in the core bundle `org.eclipse.fennec.search`.
+
+All examples use the [shared catalog model](./getting-started.md#the-example-model).
 
 ## Declaring a dimension
 
@@ -12,11 +15,13 @@ write the doc values the counting reads, so there is no separate "facet index" t
 step:
 
 ```xml
-<documents eClass="...#//Product">
-  <fields xsi:type="esearch:KeywordFieldMapping" feature="...#//Product/condition">
+<documents eClass="https://example.org/catalog#//Product">
+  <fields xsi:type="esearch:KeywordFieldMapping"
+      feature="https://example.org/catalog#//Product/condition">
     <facet/>                                    <!-- dimension name defaults to the field name -->
   </fields>
-  <fields xsi:type="esearch:KeywordFieldMapping" feature="...#//Product/tags">
+  <fields xsi:type="esearch:KeywordFieldMapping"
+      feature="https://example.org/catalog#//Product/tags">
     <facet multiValued="true"/>
   </fields>
 </documents>
@@ -29,7 +34,12 @@ and an attribute value is a single path component — neither has earned its cos
 
 ## Counting
 
+`unit` and `mapping` are set up as in [getting started](./getting-started.md); the `price`
+predicate below needs no declaration of its own — a numeric attribute is a point field by
+convention:
+
 ```java
+IndexSchema schema = IndexSchema.of(mapping);
 FacetSearch facets = FacetSearch.of(unit, schema);
 
 FacetResults results = facets.count(FacetRequest
@@ -54,15 +64,19 @@ The one pipeline the backend serves through `QueryableResource` is the shape fac
 exactly — **one group key that carries a facet declaration, one `COUNT`**:
 
 ```java
-Query query = QueryBuilder.from(product)
-    .groupBy(condition)      // the attribute needs a declared facet
+Query query = QueryBuilder.from(product)      // the Product EClass
+    .groupBy(condition)                       // the attribute needs a declared facet
     .countOf("n")
     .build();
 
+// resource: a lucene:// resource over the same unit — see "Querying the index"
 try (QueryResult result = resource.query(query)) {
     result.rows();           // columns: "condition" (EMF-typed key) and "n", count-descending
 }
 ```
+
+The resource mechanics — creating a `lucene://catalog/Product` resource, closing results —
+are on the [query path](./query-path.md) page.
 
 Everything beyond — expression keys, more keys, other aggregates, compute or having
 stages — is refused by name: those need a pipeline engine, and pretending the index has

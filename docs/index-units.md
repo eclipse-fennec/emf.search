@@ -4,11 +4,6 @@ An **index unit** is one Lucene index: one directory, with the writer and search
 configuration asks for. Everything else in `emf.search` — mapping, query translation,
 suggest — runs on top of a unit.
 
-::: warning Status
-The unit lifecycle exists; the mapping and query layers above it are being built. See the
-[issue board](https://github.com/eclipse-fennec/emf.search/issues).
-:::
-
 ## Three axes
 
 A unit is described by three independent choices, kept apart because collapsing them is how
@@ -35,6 +30,12 @@ neither open an index on a write-protected filesystem nor share a directory with
 writer. That fails when the unit opens, with a message saying exactly this.
 
 ## In plain Java
+
+`IndexUnit` lives in the core bundle `org.eclipse.fennec.search`. This page shows the unit
+bare, because it *is* the physical layer: `document` and `query` below are raw Lucene
+objects. In real use nobody hand-builds either — the EMF road in is the mapper
+([getting started](./getting-started.md)), the road out is the
+[query path](./query-path.md); both meet the unit exactly through these calls.
 
 ```java
 try (IndexUnit unit = IndexUnit.open(
@@ -181,9 +182,10 @@ is why it is *declared* in the mapping rather than configured on the unit: chang
 order is a rebuild, like every shape-relevant mapping change.
 
 ```xml
-<esearch:IndexUnitMapping name="events" ePackage="...#/">
+<esearch:IndexUnitMapping name="catalog" ePackage="https://example.org/catalog#/">
   <sort>
-    <entries feature="...#//Event/timestamp" descending="true" missingLast="true"/>
+    <entries feature="https://example.org/catalog#//Product/released"
+        descending="true" missingLast="true"/>
   </sort>
 </esearch:IndexUnitMapping>
 ```
@@ -198,4 +200,6 @@ position), analyzed text (tokens have no value order) and fields without doc val
 `missingLast` is mandatory semantics, not decoration — a sorted index with unspecified
 absence ordering would page differently per segment. In OSGi the unit derives the order
 from its mapping automatically when the mapping registry is present; in plain Java it is
-one line: `IndexUnitConfig.builder(...).indexSort(IndexOrders.indexSort(schema))`.
+one line: `IndexUnitConfig.builder(...).indexSort(IndexOrders.indexSort(schema))` — with
+`schema` from `IndexSchema.of(mapping)`, as everywhere
+([getting started](./getting-started.md)).

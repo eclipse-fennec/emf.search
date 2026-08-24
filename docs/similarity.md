@@ -5,7 +5,10 @@ statistics of the already-indexed corpus (`MoreLikeThis`). It is the honest base
 later vector/KNN search has to beat, and it costs almost nothing: no second index, no
 model, no training — the unit's own inverted index is the statistic. Like facets, suggest
 and highlighting it is **an own API next to the persistence contract**, because "like
-this object" is engine-specific machinery, not query vocabulary.
+this object" is engine-specific machinery, not query vocabulary. The API is
+`SimilaritySearch` in the core bundle `org.eclipse.fennec.search`.
+
+All examples use the [shared catalog model](./getting-started.md#the-example-model).
 
 ## The anchor must be indexed
 
@@ -27,13 +30,34 @@ refused by name. A text field mapped `stored="false"` *without* term vectors has
 recoverable terms — the refusal names both ways out: keep the stored value or declare
 term vectors.
 
+For the `description` field the example below compares on, **convention is enough**: a
+string attribute is analyzed text with its value stored. Declaring term vectors is the
+one thing worth adding for long descriptions:
+
+```xml
+<documents eClass="https://example.org/catalog#//Product">
+  <fields xsi:type="esearch:TextFieldMapping"
+      feature="https://example.org/catalog#//Product/description" termVectors="true"/>
+</documents>
+```
+
 ## Finding neighbours
 
+`unit`, `mapping` and the `lucene://` resource the write goes through (`anchorResource`
+below) are set up exactly as in [getting started](./getting-started.md). The anchor must
+be in the index — and visible, so the write is followed by a refresh:
+
 ```java
+IndexSchema schema = IndexSchema.of(mapping);
+
+anchorResource.getContents().add(anchorProduct);   // index the anchor first
+anchorResource.save(Map.of());
+unit.refresh();                                    // make it visible
+
 SimilaritySearch similarity = SimilaritySearch.of(unit, schema);
 
 List<SimilarHit> hits = similarity.search(SimilarityRequest
-    .to(anchorProduct)          // an already-indexed EObject
+    .to(anchorProduct)          // the just-indexed EObject
     .field(description)         // the EAttributes whose terms define "similar"; repeatable
     .maxHits(10));              // default 10
 
@@ -72,6 +96,6 @@ The thin DS layer publishes one `SimilaritySearch` per configured index unit tha
 mapping, addressable by the unit's alias — same shape as suggest and highlighting:
 
 ```java
-@Reference(target = "(search.unit.alias=products)")
+@Reference(target = "(search.unit.alias=catalog)")
 SimilaritySearch similarity;
 ```

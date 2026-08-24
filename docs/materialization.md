@@ -31,6 +31,18 @@ Partial objects are legitimate read results — list views, pick lists, search r
 They are never write sources: saving one back would erase everything the index did not
 carry, which is why update-by-selector stays gated on `STORED_OBJECT`.
 
+Reading the honesty label is one load away (`resourceSet` wired as in
+[getting started](./getting-started.md); the resource mechanics are on the
+[query path](./query-path.md) page):
+
+```java
+Resource products = resourceSet.createResource(URI.createURI("lucene://catalog/Product"));
+products.load(Map.of());
+
+products.getContents();   // the partial objects
+products.getWarnings();   // one diagnostic per class, naming what cannot come back
+```
+
 ## References that leave the resource
 
 **This index stores ids, not URIs.** An `ID_ONLY` reference writes the target's id whether the
@@ -58,7 +70,7 @@ looks right:
 ## `STORED_OBJECT`: the self-sufficient index
 
 ```xml
-<documents eClass="...#//Product">
+<documents eClass="https://example.org/catalog#//Product">
   <materialization/>                      <!-- kind defaults to STORED_OBJECT -->
 </documents>
 ```
@@ -70,7 +82,9 @@ primary store: this is what makes the standalone role self-sufficient.
 The serialization mechanism is pluggable (`ObjectSerializer`, selected by the mapping's
 `format` attribute). The default is **`binary`** — EMF's own binary resource format: no
 extra dependency, compact, and references leaving the tree follow standard EMF rules
-(serialized as URIs, back as proxies).
+(serialized as URIs, back as proxies). A custom format registers in plain Java through the
+constructor-filled `ObjectSerializers` registry, and in OSGi as an `ObjectSerializer`
+service, which the whiteboard adds beside the binary default.
 
 Two caveats, both enforced rather than documented away:
 
@@ -84,7 +98,7 @@ Two caveats, both enforced rather than documented away:
 ## `SOURCE_URI`: the secondary index
 
 ```xml
-<documents eClass="...#//Product">
+<documents eClass="https://example.org/catalog#//Product">
   <materialization kind="SOURCE_URI"/>
 </documents>
 ```
