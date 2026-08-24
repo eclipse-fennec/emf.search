@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.suggest.DocumentDictionary;
@@ -72,6 +73,9 @@ public final class SuggestSearch {
 	private final Map<String, Source> sources;
 	private final Object buildLock = new Object();
 	private volatile Map<String, Lookup> lookups;
+	private final AtomicBoolean rebuildInFlight = new AtomicBoolean();
+	private final AtomicBoolean rebuildPending = new AtomicBoolean();
+	private volatile IOException rebuildFailure;
 
 	private SuggestSearch(IndexUnit unit, Map<String, Source> sources) {
 		this.unit = unit;
@@ -117,6 +121,14 @@ public final class SuggestSearch {
 			throw new MappingException("No suggest source '" + source + "' is declared; declared: "
 					+ sources.keySet() + ".");
 		}
+		IOException failed = rebuildFailure;
+		if (failed != null) {
+			// A commit-driven rebuild broke after its commit had already succeeded; the
+			// suggesters still hold the previous snapshot. Serving it silently would be
+			// the lying default — the failure surfaces here, where someone reads.
+			throw new IOException("The commit-driven rebuild of unit '" + unit.name() + "' failed; "
+					+ "these suggestions would be stale. Fix the cause and rebuild().", failed);
+		}
 		Map<String, Lookup> current = lookups;
 		if (current == null) {
 			current = rebuild();
@@ -141,8 +153,42 @@ public final class SuggestSearch {
 				fresh.put(source.declared().getName(), build(source));
 			}
 			this.lookups = Map.copyOf(fresh);
+			this.rebuildFailure = null;
 			return this.lookups;
 		}
+	}
+
+	/**
+	 * Opts into an automatic rebuild after every commit of the unit (#48). The default
+	 * stays caller-owned: nothing subscribes unless this is called.
+	 * <p>
+	 * The costs are stated, not hidden. The rebuild runs <b>on the committing thread</b> —
+	 * read-your-suggestions is paid for by whoever commits, so a unit tuned to commit per
+	 * document should not opt in. Commits arriving while a rebuild runs <b>collapse</b>:
+	 * at most one rebuild is in flight, and one trailing rebuild covers everything that
+	 * arrived meanwhile — the FSTs are snapshots, the latest commit wins. A rebuild that
+	 * fails does not fail the commit (it is already durable); the failure is kept and
+	 * thrown by the next {@link #suggest(String, String, int) lookup}, because stale
+	 * suggestions served silently would be worse than a loud answer.
+	 *
+	 * @return a handle that ends the subscription
+	 */
+	public AutoCloseable rebuildOnCommit() {
+		return unit.onCommit(sequenceNumber -> {
+			rebuildPending.set(true);
+			while (rebuildPending.get() && rebuildInFlight.compareAndSet(false, true)) {
+				try {
+					rebuildPending.set(false);
+					rebuild();
+				} catch (IOException e) {
+					rebuildFailure = e;
+				} finally {
+					rebuildInFlight.set(false);
+				}
+				// Loop: a commit that landed during the rebuild set pending again, and
+				// whoever sees it first — this thread or that one — runs the trailing build.
+			}
+		});
 	}
 
 	private Lookup build(Source source) throws IOException {
