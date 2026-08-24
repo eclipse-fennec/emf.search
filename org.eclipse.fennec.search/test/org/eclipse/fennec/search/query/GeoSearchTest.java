@@ -386,8 +386,9 @@ class GeoSearchTest {
 	/** What the IR's reference engine answers for the same query over the same corpus. */
 	private List<String> oracle(Expression predicate) throws Exception {
 		Query query = QueryBuilder.from(place).where(predicate).build();
-		try (QueryResult result = MemoryQueries.execute(query, corpus(), null)) {
-			return result.objects().map(found -> (String) found.eGet(models.feature("Place", "name")))
+		try (QueryResult result = MemoryQueries.execute(query, corpus(), null);
+				var objects = result.objects()) {
+			return objects.map(found -> (String) found.eGet(models.feature("Place", "name")))
 					.toList();
 		}
 	}

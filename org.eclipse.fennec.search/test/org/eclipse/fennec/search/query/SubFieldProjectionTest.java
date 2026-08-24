@@ -86,36 +86,36 @@ class SubFieldProjectionTest {
 
 	@Test
 	void anEqualityFindsTheKeywordSubFieldOfAnAnalyzedField() throws Exception {
-		SearchResource resource = indexed(textWithKeywordSubField());
-
-		// Before #39 this refused: the primary projection is analyzed, and an exact
-		// comparison cannot be answered on tokens.
-		assertThat(ids(resource, QueryBuilder.from(product)
-				.where(path(name()).eq("Espresso Machine")).build()))
-				.containsExactly("p-1");
+		try (SearchResource resource = indexed(textWithKeywordSubField())) {
+			// Before #39 this refused: the primary projection is analyzed, and an exact
+			// comparison cannot be answered on tokens.
+			assertThat(ids(resource, QueryBuilder.from(product)
+					.where(path(name()).eq("Espresso Machine")).build()))
+					.containsExactly("p-1");
+		}
 	}
 
 	@Test
 	void aMatchStaysOnTheAnalyzedPrimary() throws Exception {
-		SearchResource resource = indexed(textWithKeywordSubField());
-
-		// One word of the value: only the analyzed projection can answer that, and the
-		// keyword sub-field must not steal it.
-		assertThat(ids(resource, QueryBuilder.from(product)
-				.where(path(description()).contains("coffee")).build()))
-				.containsExactlyInAnyOrder("p-1", "p-2");
+		try (SearchResource resource = indexed(textWithKeywordSubField())) {
+			// One word of the value: only the analyzed projection can answer that, and the
+			// keyword sub-field must not steal it.
+			assertThat(ids(resource, QueryBuilder.from(product)
+					.where(path(description()).contains("coffee")).build()))
+					.containsExactlyInAnyOrder("p-1", "p-2");
+		}
 	}
 
 	@Test
 	void aSortReadsTheProjectionThatHasDocValues() throws Exception {
-		SearchResource resource = indexed(textWithKeywordSubField());
-
-		// Sorting an analyzed field is impossible; its keyword sub-field carries doc values.
-		assertThat(ids(resource, QueryBuilder.from(product)
-				.where(path(description()).contains("coffee"))
-				.orderByAsc(name())
-				.build()))
-				.containsExactly("p-1", "p-2");
+		try (SearchResource resource = indexed(textWithKeywordSubField())) {
+			// Sorting an analyzed field is impossible; its keyword sub-field carries doc values.
+			assertThat(ids(resource, QueryBuilder.from(product)
+					.where(path(description()).contains("coffee"))
+					.orderByAsc(name())
+					.build()))
+					.containsExactly("p-1", "p-2");
+		}
 	}
 
 	@Test
@@ -226,8 +226,9 @@ class SubFieldProjectionTest {
 	}
 
 	private List<Object> ids(SearchResource resource, Query query) throws Exception {
-		try (QueryResult result = resource.query(query)) {
-			return result.objects()
+		try (QueryResult result = resource.query(query);
+				var objects = result.objects()) {
+			return objects
 					.map(hit -> hit.eGet(hit.eClass().getEStructuralFeature("id")))
 					.toList();
 		}

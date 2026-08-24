@@ -18,6 +18,7 @@ import static org.eclipse.fennec.model.query.builder.Expressions.path;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
@@ -155,21 +156,23 @@ class FacetSearchTest {
 	void theGroupBySubsetAnswersThroughTheQueryPath() throws Exception {
 		// The honest IR half of #11: one group key with a facet declaration, one COUNT —
 		// the QueryableResource answers it from the same SortedSet doc values.
-		SearchResource resource = new SearchResource(
-				URI.createURI("lucene://catalog/Product"), unit, DocumentMapper.of(schema));
-		Query query = QueryBuilder.from(product)
-				.groupBy(catalog.feature("Product", "condition"))
-				.countOf("n")
-				.build();
+		try (SearchResource resource = new SearchResource(
+				URI.createURI("lucene://catalog/Product"), unit, DocumentMapper.of(schema))) {
+			Query query = QueryBuilder.from(product)
+					.groupBy(catalog.feature("Product", "condition"))
+					.countOf("n")
+					.build();
 
-		try (QueryResult result = resource.query(query)) {
-			assertThat(result.shape()).isEqualTo(QueryShape.AGGREGATION);
-			List<QueryResultRow> rows = result.rows().toList();
-			assertThat(rows).hasSize(2);
-			assertThat(rows.get(0).get("condition").toString()).isEqualTo("NEW");
-			assertThat(rows.get(0).get("n")).isEqualTo(2L);
-			assertThat(rows.get(1).get("condition").toString()).isEqualTo("USED");
-			assertThat(rows.get(1).get("n")).isEqualTo(1L);
+			try (QueryResult result = resource.query(query);
+					Stream<QueryResultRow> resultRows = result.rows()) {
+				assertThat(result.shape()).isEqualTo(QueryShape.AGGREGATION);
+				List<QueryResultRow> rows = resultRows.toList();
+				assertThat(rows).hasSize(2);
+				assertThat(rows.get(0).get("condition").toString()).isEqualTo("NEW");
+				assertThat(rows.get(0).get("n")).isEqualTo(2L);
+				assertThat(rows.get(1).get("condition").toString()).isEqualTo("USED");
+				assertThat(rows.get(1).get("n")).isEqualTo(1L);
+			}
 		}
 	}
 

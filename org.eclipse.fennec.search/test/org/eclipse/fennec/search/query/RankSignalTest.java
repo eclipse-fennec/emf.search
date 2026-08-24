@@ -19,6 +19,7 @@ import static org.eclipse.fennec.model.query.builder.Expressions.path;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
@@ -26,6 +27,7 @@ import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.fennec.model.query.Query;
 import org.eclipse.fennec.model.query.builder.QueryBuilder;
+import org.eclipse.fennec.persistence.query.api.Hit;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
@@ -85,111 +87,131 @@ class RankSignalTest {
 
 	@Test
 	void aSelectedSignalRanksTheDocumentThatCarriesItFirst() throws Exception {
-		SearchResource resource = indexed(saturation(10.0));
-
-		assertThat(names(resource, coffee(), signals("stock")))
-				.as("identical text, so the order is the signal's doing")
-				.containsExactly("popular", "quiet", "unknown");
+		try (SearchResource resource = indexed(saturation(10.0))) {
+			assertThat(names(resource, coffee(), signals("stock")))
+					.as("identical text, so the order is the signal's doing")
+					.containsExactly("popular", "quiet", "unknown");
+		}
 	}
 
 	@Test
 	void withoutTheOptionTheSignalDoesNothing() throws Exception {
-		SearchResource resource = indexed(saturation(10.0));
-		Query query = QueryBuilder.from(product)
-				.where(path(description()).contains("coffee")).withScores().build();
+		try (SearchResource resource = indexed(saturation(10.0))) {
+			Query query = QueryBuilder.from(product)
+					.where(path(description()).contains("coffee")).withScores().build();
 
-		try (QueryResult result = resource.query(query, null, Map.of())) {
-			assertThat(result.hits().map(hit -> hit.score()).distinct().count())
-					.as("a declared signal nobody selected leaves the score to the text")
-					.isEqualTo(1);
+			try (QueryResult result = resource.query(query, null, Map.of());
+					Stream<Hit> hits = result.hits()) {
+				assertThat(hits.map(hit -> hit.score()).distinct().count())
+						.as("a declared signal nobody selected leaves the score to the text")
+						.isEqualTo(1);
+			}
 		}
 	}
 
 	@Test
 	void aDocumentWithoutTheSignalStillMatches() throws Exception {
-		SearchResource resource = indexed(saturation(10.0));
-
-		// The signal joins as SHOULD: it can only add score, never take a hit away — and an
-		// unset attribute is no signal, exactly like a value that is not positive.
-		assertThat(names(resource, coffee(), signals("stock"))).contains("unknown");
+		try (SearchResource resource = indexed(saturation(10.0))) {
+			// The signal joins as SHOULD: it can only add score, never take a hit away — and an
+			// unset attribute is no signal, exactly like a value that is not positive.
+			assertThat(names(resource, coffee(), signals("stock"))).contains("unknown");
+		}
 	}
 
 	@Test
 	void aNonPositiveSignalIsNoSignalAtAll() throws Exception {
-		SearchResource resource = indexed(saturation(10.0),
+		try (SearchResource resource = indexed(saturation(10.0),
 				catalog.create("Product", "id", "zero", "name", "zero", "stock", 0,
 						"description", "coffee grinder kitchen"),
 				catalog.create("Product", "id", "one", "name", "one", "stock", 1,
-						"description", "coffee grinder kitchen"));
-
-		assertThat(names(resource, coffee(), signals("stock")))
-				.as("zero cannot be a weight, so that document ranks below the one that has one")
-				.containsExactly("one", "zero");
+						"description", "coffee grinder kitchen"))) {
+			assertThat(names(resource, coffee(), signals("stock")))
+					.as("zero cannot be a weight, so that document ranks below the one that has one")
+					.containsExactly("one", "zero");
+		}
 	}
 
 	@Test
 	void theLogFunctionRanksTheSameWayForSignalsSpanningMagnitudes() throws Exception {
 		RankSignalFieldMapping signal = signal(RankFunction.LOG);
 		signal.setPivot(1.0);
-		SearchResource resource = indexed(signal);
-
-		assertThat(names(resource, coffee(), signals("stock")))
-				.containsExactly("popular", "quiet", "unknown");
+		try (SearchResource resource = indexed(signal)) {
+			assertThat(names(resource, coffee(), signals("stock")))
+					.containsExactly("popular", "quiet", "unknown");
+		}
 	}
 
 	@Test
 	void aSignalDeclaredAsASubFieldKeepsTheAttributeItself() throws Exception {
-		SearchResource resource = indexed(numericWithRankSubField());
-
-		// The primary projection is an ordinary numeric field, so the attribute is still
-		// comparable — and the sub-field feeds the score under its compound name.
-		Query filtered = QueryBuilder.from(product)
-				.where(path(stock()).gt(5)).build();
-		assertThat(names(resource, filtered, Map.of())).containsExactly("popular");
-		assertThat(names(resource, coffee(), signals("stock.signal")))
-				.containsExactly("popular", "quiet", "unknown");
+		try (SearchResource resource = indexed(numericWithRankSubField())) {
+			// The primary projection is an ordinary numeric field, so the attribute is still
+			// comparable — and the sub-field feeds the score under its compound name.
+			Query filtered = QueryBuilder.from(product)
+					.where(path(stock()).gt(5)).build();
+			assertThat(names(resource, filtered, Map.of())).containsExactly("popular");
+			assertThat(names(resource, coffee(), signals("stock.signal")))
+					.containsExactly("popular", "quiet", "unknown");
+		}
 	}
 
 	// --- what it refuses ---------------------------------------------------------------------
 
 	@Test
 	void anUndeclaredSignalNameIsRefusedWithTheDeclaredOnes() throws Exception {
-		SearchResource resource = indexed(saturation(10.0));
-
-		assertThatThrownBy(() -> resource.query(coffee(), null, signals("virality")))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("virality")
-				.hasMessageContaining("stock");
+		try (SearchResource resource = indexed(saturation(10.0))) {
+			assertThatThrownBy(() -> {
+				try (QueryResult unexpected = resource.query(coffee(), null, signals("virality"))) {
+					// must throw before a result exists
+				}
+			})
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("virality")
+					.hasMessageContaining("stock");
+		}
 	}
 
 	@Test
 	void aCountCarriesNoScoreAndRefusesSignals() throws Exception {
-		SearchResource resource = indexed(saturation(10.0));
-		Query count = QueryBuilder.from(product)
-				.where(path(description()).contains("coffee")).countOnly().build();
+		try (SearchResource resource = indexed(saturation(10.0))) {
+			Query count = QueryBuilder.from(product)
+					.where(path(description()).contains("coffee")).countOnly().build();
 
-		assertThatThrownBy(() -> resource.query(count, null, signals("stock")))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("COUNT");
+			assertThatThrownBy(() -> {
+				try (QueryResult unexpected = resource.query(count, null, signals("stock"))) {
+					// must throw before a result exists
+				}
+			})
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("COUNT");
+		}
 	}
 
 	@Test
 	void aSigmoidWithoutAPivotIsRefusedRatherThanGuessed() throws Exception {
-		SearchResource resource = indexed(signal(RankFunction.SIGMOID));
-
-		assertThatThrownBy(() -> resource.query(coffee(), null, signals("stock")))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("SIGMOID");
+		try (SearchResource resource = indexed(signal(RankFunction.SIGMOID))) {
+			assertThatThrownBy(() -> {
+				try (QueryResult unexpected = resource.query(coffee(), null, signals("stock"))) {
+					// must throw before a result exists
+				}
+			})
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("SIGMOID");
+		}
 	}
 
 	@Test
 	void aRankSignalIsNotAComparableField() throws Exception {
-		SearchResource resource = indexed(saturation(10.0));
-		Query query = QueryBuilder.from(product).where(path(stock()).gt(5)).build();
+		try (SearchResource resource = indexed(saturation(10.0))) {
+			Query query = QueryBuilder.from(product).where(path(stock()).gt(5)).build();
 
-		assertThatThrownBy(() -> resource.query(query, null, Map.of()))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("rank signal");
+			assertThatThrownBy(() -> {
+				try (QueryResult unexpected = resource.query(query, null, Map.of())) {
+					// must throw before a result exists
+				}
+			})
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("rank signal");
+		}
 	}
 
 	@Test
@@ -210,12 +232,16 @@ class RankSignalTest {
 		bundle.setEClass(catalog.eClass("Bundle"));
 		bundle.getFields().add(saturation(99.0));
 		mapping.getDocuments().add(bundle);
-		SearchResource resource = new SearchResource(URI.createURI("lucene://catalog/Product"), unit,
-				DocumentMapper.of(mapping));
-
-		assertThatThrownBy(() -> resource.query(coffee(), null, signals("stock")))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("One name is one signal");
+		try (SearchResource resource = new SearchResource(URI.createURI("lucene://catalog/Product"), unit,
+				DocumentMapper.of(mapping))) {
+			assertThatThrownBy(() -> {
+				try (QueryResult unexpected = resource.query(coffee(), null, signals("stock"))) {
+					// must throw before a result exists
+				}
+			})
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("One name is one signal");
+		}
 	}
 
 	@Test
@@ -308,8 +334,9 @@ class RankSignalTest {
 
 	private List<Object> names(SearchResource resource, Query query, Map<?, ?> options)
 			throws Exception {
-		try (QueryResult result = resource.query(query, null, options)) {
-			return result.objects()
+		try (QueryResult result = resource.query(query, null, options);
+				Stream<EObject> objects = result.objects()) {
+			return objects
 					.map(hit -> hit.eGet(hit.eClass().getEStructuralFeature("name")))
 					.toList();
 		}

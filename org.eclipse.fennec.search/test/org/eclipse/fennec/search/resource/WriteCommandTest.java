@@ -19,6 +19,7 @@ import static org.eclipse.fennec.model.query.builder.Expressions.path;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
@@ -93,239 +94,252 @@ class WriteCommandTest {
 
 	@Test
 	void insertWritesThePayloadAndLeavesItWithTheCommand() throws Exception {
-		SearchResource resource = resource(complete());
-		InsertCommand insert = CommandFactory.eINSTANCE.createInsertCommand();
-		EObject espresso = product("p-1", "Espresso Machine", 499.0);
-		insert.getObjects().add(espresso);
-		insert.getObjects().add(product("p-2", "Grinder", 129.0));
+		try (SearchResource resource = resource(complete())) {
+			InsertCommand insert = CommandFactory.eINSTANCE.createInsertCommand();
+			EObject espresso = product("p-1", "Espresso Machine", 499.0);
+			insert.getObjects().add(espresso);
+			insert.getObjects().add(product("p-2", "Grinder", 129.0));
 
-		assertThat(resource.execute(insert)).isEqualTo(2);
-		unit.refresh();
+			assertThat(resource.execute(insert)).isEqualTo(2);
+			unit.refresh();
 
-		assertThat(names(resource, all())).containsExactlyInAnyOrder("Espresso Machine", "Grinder");
-		assertThat(espresso.eResource()).as("execution works on copies — the payload stays the "
-				+ "command's").isNull();
-		assertThat(insert.getObjects()).hasSize(2);
+			assertThat(names(resource, all())).containsExactlyInAnyOrder("Espresso Machine", "Grinder");
+			assertThat(espresso.eResource()).as("execution works on copies — the payload stays the "
+					+ "command's").isNull();
+			assertThat(insert.getObjects()).hasSize(2);
+		}
 	}
 
 	@Test
 	void insertBindsAnExistingReferenceTargetById() throws Exception {
-		SearchResource resource = resource(complete());
-		EObject maker = manufacturer("m-1", "ACME");
-		InsertCommand makers = CommandFactory.eINSTANCE.createInsertCommand();
-		makers.getObjects().add(maker);
-		resource.execute(makers);
-		unit.refresh();
+		try (SearchResource resource = resource(complete())) {
+			EObject maker = manufacturer("m-1", "ACME");
+			InsertCommand makers = CommandFactory.eINSTANCE.createInsertCommand();
+			makers.getObjects().add(maker);
+			resource.execute(makers);
+			unit.refresh();
 
-		InsertCommand insert = CommandFactory.eINSTANCE.createInsertCommand();
-		EObject machine = product("p-1", "Espresso Machine", 499.0);
-		machine.eSet(manufacturerReference(), EcoreUtil.copy(maker));
-		insert.getObjects().add(machine);
+			InsertCommand insert = CommandFactory.eINSTANCE.createInsertCommand();
+			EObject machine = product("p-1", "Espresso Machine", 499.0);
+			machine.eSet(manufacturerReference(), EcoreUtil.copy(maker));
+			insert.getObjects().add(machine);
 
-		assertThat(resource.execute(insert)).isEqualTo(1);
-		unit.refresh();
+			assertThat(resource.execute(insert)).isEqualTo(1);
+			unit.refresh();
 
-		EObject stored = single(resource, QueryBuilder.from(product)
-				.where(path(id()).eq("p-1")).build());
-		EObject bound = (EObject) stored.eGet(manufacturerReference(), false);
-		assertThat(bound).as("the reference comes back as a proxy into this unit").isNotNull();
-		assertThat(bound.eIsProxy()).isTrue();
+			EObject stored = single(resource, QueryBuilder.from(product)
+					.where(path(id()).eq("p-1")).build());
+			EObject bound = (EObject) stored.eGet(manufacturerReference(), false);
+			assertThat(bound).as("the reference comes back as a proxy into this unit").isNotNull();
+			assertThat(bound.eIsProxy()).isTrue();
+		}
 	}
 
 	@Test
 	void insertRefusesAReferenceTargetThatIsNotThere() throws Exception {
-		SearchResource resource = resource(complete());
-		InsertCommand insert = CommandFactory.eINSTANCE.createInsertCommand();
-		EObject machine = product("p-1", "Espresso Machine", 499.0);
-		machine.eSet(manufacturerReference(), manufacturer("ghost", "Nobody"));
-		insert.getObjects().add(machine);
+		try (SearchResource resource = resource(complete())) {
+			InsertCommand insert = CommandFactory.eINSTANCE.createInsertCommand();
+			EObject machine = product("p-1", "Espresso Machine", 499.0);
+			machine.eSet(manufacturerReference(), manufacturer("ghost", "Nobody"));
+			insert.getObjects().add(machine);
 
-		assertThatThrownBy(() -> resource.execute(insert))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("Insert rejected");
-		unit.refresh();
-		assertThat(names(resource, all())).as("a refused insert writes nothing").isEmpty();
+			assertThatThrownBy(() -> resource.execute(insert))
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("Insert rejected");
+			unit.refresh();
+			assertThat(names(resource, all())).as("a refused insert writes nothing").isEmpty();
+		}
 	}
 
 	// --- delete ------------------------------------------------------------------------------
 
 	@Test
 	void deleteBySelectorRemovesWhatItMatches() throws Exception {
-		SearchResource resource = indexed(complete());
-		DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
-		delete.setSelector(QueryBuilder.from(product).where(path(price()).gt(100.0)).build());
+		try (SearchResource resource = indexed(complete())) {
+			DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
+			delete.setSelector(QueryBuilder.from(product).where(path(price()).gt(100.0)).build());
 
-		assertThat(resource.execute(delete)).isEqualTo(2);
-		unit.refresh();
+			assertThat(resource.execute(delete)).isEqualTo(2);
+			unit.refresh();
 
-		assertThat(names(resource, all())).containsExactly("Kettle");
+			assertThat(names(resource, all())).containsExactly("Kettle");
+		}
 	}
 
 	@Test
 	void deleteBySelectorTakesTheWholeBlockWithIt() throws Exception {
-		SearchResource resource = resource(nestedReviews());
-		EObject machine = product("p-1", "Espresso Machine", 499.0);
-		reviews(machine).add(review("r-1", "ada"));
-		reviews(machine).add(review("r-2", "linus"));
-		InsertCommand insert = CommandFactory.eINSTANCE.createInsertCommand();
-		insert.getObjects().add(machine);
-		resource.execute(insert);
-		unit.refresh();
+		try (SearchResource resource = resource(nestedReviews())) {
+			EObject machine = product("p-1", "Espresso Machine", 499.0);
+			reviews(machine).add(review("r-1", "ada"));
+			reviews(machine).add(review("r-2", "linus"));
+			InsertCommand insert = CommandFactory.eINSTANCE.createInsertCommand();
+			insert.getObjects().add(machine);
+			resource.execute(insert);
+			unit.refresh();
 
-		DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
-		delete.setSelector(QueryBuilder.from(product).build());
-		assertThat(resource.execute(delete)).as("one object, not three documents").isEqualTo(1);
-		unit.refresh();
+			DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
+			delete.setSelector(QueryBuilder.from(product).build());
+			assertThat(resource.execute(delete)).as("one object, not three documents").isEqualTo(1);
+			unit.refresh();
 
-		// Deleting the matched roots alone would leave the children behind as orphans; the
-		// block goes as a whole, which is what the document count proves.
-		assertThat(unit.<Integer>search(searcher -> searcher.getIndexReader().numDocs())).isZero();
+			// Deleting the matched roots alone would leave the children behind as orphans; the
+			// block goes as a whole, which is what the document count proves.
+			assertThat(unit.<Integer>search(searcher -> searcher.getIndexReader().numDocs())).isZero();
+		}
 	}
 
 	@Test
 	void aSelectorTheProcessorRefusesDoesNotDegradeIntoAFullDelete() throws Exception {
-		SearchResource resource = indexed(complete());
-		DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
-		delete.setSelector(QueryBuilder.from(product)
-				.where(path(price()).plus(1).gt(10)).build());
+		try (SearchResource resource = indexed(complete())) {
+			DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
+			delete.setSelector(QueryBuilder.from(product)
+					.where(path(price()).plus(1).gt(10)).build());
 
-		assertThatThrownBy(() -> resource.execute(delete))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("ARITHMETIC");
-		unit.refresh();
-		assertThat(names(resource, all())).as("nothing was deleted").hasSize(3);
+			assertThatThrownBy(() -> resource.execute(delete))
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("ARITHMETIC");
+			unit.refresh();
+			assertThat(names(resource, all())).as("nothing was deleted").hasSize(3);
+		}
 	}
 
 	@Test
 	void aSelectorThatIsNotAPlainFilterIsRefused() throws Exception {
-		SearchResource resource = indexed(complete());
-		DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
-		delete.setSelector(QueryBuilder.from(product).top(1).build());
+		try (SearchResource resource = indexed(complete())) {
+			DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
+			delete.setSelector(QueryBuilder.from(product).top(1).build());
 
-		assertThatThrownBy(() -> resource.execute(delete))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("plain filter");
-		unit.refresh();
-		assertThat(names(resource, all())).hasSize(3);
+			assertThatThrownBy(() -> resource.execute(delete))
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("plain filter");
+			unit.refresh();
+			assertThat(names(resource, all())).hasSize(3);
+		}
 	}
 
 	@Test
 	void deleteBySelectorRefusesToOrphanAReference() throws Exception {
-		SearchResource resource = resource(withManufacturer());
-		EObject maker = manufacturer("m-1", "ACME");
-		EObject machine = product("p-1", "Espresso Machine", 499.0);
-		machine.eSet(manufacturerReference(), maker);
-		InsertCommand insert = CommandFactory.eINSTANCE.createInsertCommand();
-		insert.getObjects().add(maker);
-		insert.getObjects().add(machine);
-		resource.execute(insert);
-		unit.refresh();
+		try (SearchResource resource = resource(withManufacturer())) {
+			EObject maker = manufacturer("m-1", "ACME");
+			EObject machine = product("p-1", "Espresso Machine", 499.0);
+			machine.eSet(manufacturerReference(), maker);
+			InsertCommand insert = CommandFactory.eINSTANCE.createInsertCommand();
+			insert.getObjects().add(maker);
+			insert.getObjects().add(machine);
+			resource.execute(insert);
+			unit.refresh();
 
-		DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
-		delete.setSelector(QueryBuilder.from(catalog.eClass("Manufacturer")).build());
+			DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
+			delete.setSelector(QueryBuilder.from(catalog.eClass("Manufacturer")).build());
 
-		assertThatThrownBy(() -> resource.execute(delete))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("still reference");
-		unit.refresh();
-		assertThat(unit.<Integer>search(searcher -> searcher.getIndexReader().numDocs()))
-				.as("the refused delete changed nothing — the maker is still there")
-				.isEqualTo(2);
+			assertThatThrownBy(() -> resource.execute(delete))
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("still reference");
+			unit.refresh();
+			assertThat(unit.<Integer>search(searcher -> searcher.getIndexReader().numDocs()))
+					.as("the refused delete changed nothing — the maker is still there")
+					.isEqualTo(2);
+		}
 	}
 
 	@Test
 	void aSelectorParameterIsBoundByTheCall() throws Exception {
-		SearchResource resource = indexed(complete());
-		DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
-		delete.setSelector(QueryBuilder.from(product)
-				.where(path(price()).gt(Expressions.param("floor")))
-				.parameter("floor", null)
-				.build());
+		try (SearchResource resource = indexed(complete())) {
+			DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
+			delete.setSelector(QueryBuilder.from(product)
+					.where(path(price()).gt(Expressions.param("floor")))
+					.parameter("floor", null)
+					.build());
 
-		assertThat(resource.execute(delete, Map.of("floor", 100.0), null)).isEqualTo(2);
-		unit.refresh();
-		assertThat(names(resource, all())).containsExactly("Kettle");
+			assertThat(resource.execute(delete, Map.of("floor", 100.0), null)).isEqualTo(2);
+			unit.refresh();
+			assertThat(names(resource, all())).containsExactly("Kettle");
+		}
 	}
 
 	// --- update ------------------------------------------------------------------------------
 
 	@Test
 	void updateAppliesTheTemplateToEveryMatch() throws Exception {
-		SearchResource resource = indexed(complete());
-		UpdateCommand update = update(QueryBuilder.from(product).where(path(price()).gt(100.0)).build(),
-				entry(DeltaKind.SET, name(), "Reduced"));
+		try (SearchResource resource = indexed(complete())) {
+			UpdateCommand update = update(QueryBuilder.from(product).where(path(price()).gt(100.0)).build(),
+					entry(DeltaKind.SET, name(), "Reduced"));
 
-		assertThat(resource.execute(update)).isEqualTo(2);
-		unit.refresh();
+			assertThat(resource.execute(update)).isEqualTo(2);
+			unit.refresh();
 
-		assertThat(names(resource, all()))
-				.containsExactlyInAnyOrder("Reduced", "Reduced", "Kettle");
+			assertThat(names(resource, all()))
+					.containsExactlyInAnyOrder("Reduced", "Reduced", "Kettle");
+		}
 	}
 
 	@Test
 	void anUpdateKeepsWhatTheMappingNeverIndexed() throws Exception {
-		SearchResource resource = indexed(complete());
-		UpdateCommand update = update(QueryBuilder.from(product).where(path(id()).eq("p-1")).build(),
-				entry(DeltaKind.SET, name(), "Renamed"));
-		resource.execute(update);
-		unit.refresh();
+		try (SearchResource resource = indexed(complete())) {
+			UpdateCommand update = update(QueryBuilder.from(product).where(path(id()).eq("p-1")).build(),
+					entry(DeltaKind.SET, name(), "Renamed"));
+			resource.execute(update);
+			unit.refresh();
 
-		EObject stored = single(resource, QueryBuilder.from(product).where(path(id()).eq("p-1")).build());
-		assertThat(stored.eGet(name())).isEqualTo("Renamed");
-		assertThat(stored.eGet(description()))
-				.as("the rewrite read the whole object, so an untouched value survives it")
-				.isEqualTo("coffee at home");
+			EObject stored = single(resource, QueryBuilder.from(product).where(path(id()).eq("p-1")).build());
+			assertThat(stored.eGet(name())).isEqualTo("Renamed");
+			assertThat(stored.eGet(description()))
+					.as("the rewrite read the whole object, so an untouched value survives it")
+					.isEqualTo("coffee at home");
+		}
 	}
 
 	@Test
 	void updateIsRefusedWithoutStoredObjectMaterialization() throws Exception {
-		SearchResource resource = indexed(partial());
-		UpdateCommand update = update(QueryBuilder.from(product).build(),
-				entry(DeltaKind.SET, name(), "Renamed"));
+		try (SearchResource resource = indexed(partial())) {
+			UpdateCommand update = update(QueryBuilder.from(product).build(),
+					entry(DeltaKind.SET, name(), "Renamed"));
 
-		assertThatThrownBy(() -> resource.execute(update))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("UPDATE_BY_SELECTOR")
-				.hasMessageContaining("STORED_OBJECT");
-		unit.refresh();
-		assertThat(names(resource, all()))
-				.as("a refused update leaves every document as it was")
-				.containsExactlyInAnyOrder("Espresso Machine", "Grinder", "Kettle");
+			assertThatThrownBy(() -> resource.execute(update))
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("UPDATE_BY_SELECTOR")
+					.hasMessageContaining("STORED_OBJECT");
+			unit.refresh();
+			assertThat(names(resource, all()))
+					.as("a refused update leaves every document as it was")
+					.containsExactlyInAnyOrder("Espresso Machine", "Grinder", "Kettle");
+		}
 	}
 
 	@Test
 	void aTemplateTheTypeCannotTakeIsRefusedBeforeAnythingIsWritten() throws Exception {
-		SearchResource resource = indexed(complete());
-		ChangeEntry alien = StreamFactory.eINSTANCE.createChangeEntry();
-		alien.setKind(DeltaKind.SET);
-		alien.setFeatureId(4711);
-		alien.setValueNew("nonsense");
-		UpdateCommand update = update(QueryBuilder.from(product).build(), alien);
+		try (SearchResource resource = indexed(complete())) {
+			ChangeEntry alien = StreamFactory.eINSTANCE.createChangeEntry();
+			alien.setKind(DeltaKind.SET);
+			alien.setFeatureId(4711);
+			alien.setValueNew("nonsense");
+			UpdateCommand update = update(QueryBuilder.from(product).build(), alien);
 
-		assertThatThrownBy(() -> resource.execute(update))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("Update rejected");
-		unit.refresh();
-		assertThat(names(resource, all()))
-				.containsExactlyInAnyOrder("Espresso Machine", "Grinder", "Kettle");
+			assertThatThrownBy(() -> resource.execute(update))
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("Update rejected");
+			unit.refresh();
+			assertThat(names(resource, all()))
+					.containsExactlyInAnyOrder("Espresso Machine", "Grinder", "Kettle");
+		}
 	}
 
 	// --- the bracket that is not there ---------------------------------------------------------
 
 	@Test
 	void beginRefusesWithADiagnosticRatherThanPretendingToBracket() throws Exception {
-		SearchResource resource = indexed(complete());
-
-		assertThatThrownBy(resource::begin)
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("TRANSACTION_BRACKET");
-		assertThat(resource.getErrors())
-				.as("a refusal is a diagnostic, not a generic exception")
-				.anySatisfy(error -> assertThat(error.getMessage()).contains("TRANSACTION_BRACKET"));
-		assertThat(resource.capabilities().store()
-				.supports(org.eclipse.fennec.persistence.capabilities.StoreFeature.TRANSACTION_BRACKET))
-				.as("and it is declared, not discovered")
-				.isFalse();
+		try (SearchResource resource = indexed(complete())) {
+			assertThatThrownBy(resource::begin)
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("TRANSACTION_BRACKET");
+			assertThat(resource.getErrors())
+					.as("a refusal is a diagnostic, not a generic exception")
+					.anySatisfy(error -> assertThat(error.getMessage()).contains("TRANSACTION_BRACKET"));
+			assertThat(resource.capabilities().store()
+					.supports(org.eclipse.fennec.persistence.capabilities.StoreFeature.TRANSACTION_BRACKET))
+					.as("and it is declared, not discovered")
+					.isFalse();
+		}
 	}
 
 	// --- fixture ----------------------------------------------------------------------------------
@@ -438,14 +452,16 @@ class WriteCommandTest {
 	}
 
 	private List<Object> names(SearchResource resource, Query query) throws Exception {
-		try (QueryResult result = resource.query(query)) {
-			return result.objects().map(object -> object.eGet(name())).toList();
+		try (QueryResult result = resource.query(query);
+				Stream<EObject> objects = result.objects()) {
+			return objects.map(object -> object.eGet(name())).toList();
 		}
 	}
 
 	private EObject single(SearchResource resource, Query query) throws Exception {
-		try (QueryResult result = resource.query(query)) {
-			return result.objects().findFirst().orElseThrow();
+		try (QueryResult result = resource.query(query);
+				Stream<EObject> objects = result.objects()) {
+			return objects.findFirst().orElseThrow();
 		}
 	}
 

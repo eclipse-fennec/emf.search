@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EClass;
@@ -163,50 +164,53 @@ class SearchResourceTest {
 
 	@Test
 	void savingWritesTheObjectAndCountFindsIt() throws Exception {
-		PersistenceResource resource = resource("lucene://catalog/Product/p-1");
-		resource.getContents().add(product("p-1", "Espresso Machine"));
+		try (PersistenceResource resource = resource("lucene://catalog/Product/p-1")) {
+			resource.getContents().add(product("p-1", "Espresso Machine"));
 
-		resource.save(Map.of());
-		unit.refresh();
+			resource.save(Map.of());
+			unit.refresh();
 
-		assertThat(resource.count()).isEqualTo(1);
-		assertThat(resource.exist()).isTrue();
+			assertThat(resource.count()).isEqualTo(1);
+			assertThat(resource.exist()).isTrue();
+		}
 	}
 
 	@Test
 	void savingTwiceReplacesRatherThanDuplicates() throws Exception {
-		PersistenceResource resource = resource("lucene://catalog/Product/p-1");
-		resource.getContents().add(product("p-1", "first"));
-		resource.save(Map.of());
+		try (PersistenceResource resource = resource("lucene://catalog/Product/p-1")) {
+			resource.getContents().add(product("p-1", "first"));
+			resource.save(Map.of());
 
-		resource.getContents().clear();
-		resource.getContents().add(product("p-1", "second"));
-		resource.save(Map.of());
-		unit.refresh();
+			resource.getContents().clear();
+			resource.getContents().add(product("p-1", "second"));
+			resource.save(Map.of());
+			unit.refresh();
 
-		assertThat(resource.count()).as("one object, not two").isEqualTo(1);
+			assertThat(resource.count()).as("one object, not two").isEqualTo(1);
+		}
 	}
 
 	@Test
 	void deletingByUriRemovesTheObject() throws Exception {
-		PersistenceResource resource = resource("lucene://catalog/Product/p-1");
-		resource.getContents().add(product("p-1", "Espresso Machine"));
-		resource.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource resource = resource("lucene://catalog/Product/p-1")) {
+			resource.getContents().add(product("p-1", "Espresso Machine"));
+			resource.save(Map.of());
+			unit.refresh();
 
-		resource.delete(Map.of());
-		unit.refresh();
+			resource.delete(Map.of());
+			unit.refresh();
 
-		assertThat(resource.exist()).isFalse();
+			assertThat(resource.exist()).isFalse();
+		}
 	}
 
 	@Test
-	void deletingWithoutAnIdAndWithoutContentsIsRefused() {
-		PersistenceResource resource = resource("lucene://catalog/Product");
-
-		assertThatThrownBy(() -> resource.delete(Map.of()))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("nothing to delete");
+	void deletingWithoutAnIdAndWithoutContentsIsRefused() throws Exception {
+		try (PersistenceResource resource = resource("lucene://catalog/Product")) {
+			assertThatThrownBy(() -> resource.delete(Map.of()))
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("nothing to delete");
+		}
 	}
 
 	// --- counting -----------------------------------------------------------------------
@@ -224,85 +228,95 @@ class SearchResourceTest {
 		reviews.add(review("r-1", "ada"));
 		reviews.add(review("r-2", "linus"));
 
-		PersistenceResource resource = resource("lucene://catalog/Product/p-1");
-		resource.getContents().add(withReviews);
-		resource.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource resource = resource("lucene://catalog/Product/p-1")) {
+			resource.getContents().add(withReviews);
+			resource.save(Map.of());
+			unit.refresh();
 
-		// Three documents were written; one object was saved. Counting documents here
-		// would be off by the number of nested children — silently, and only for models
-		// that use NESTED.
-		assertThat(resource.count()).isEqualTo(1);
+			// Three documents were written; one object was saved. Counting documents here
+			// would be off by the number of nested children — silently, and only for models
+			// that use NESTED.
+			assertThat(resource.count()).isEqualTo(1);
+		}
 	}
 
 	@Test
 	void countOverATypeCountsEveryObjectOfThatType() throws Exception {
-		PersistenceResource first = resource("lucene://catalog/Product/p-1");
-		first.getContents().add(product("p-1", "one"));
-		first.save(Map.of());
-		PersistenceResource second = resource("lucene://catalog/Product/p-2");
-		second.getContents().add(product("p-2", "two"));
-		second.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource first = resource("lucene://catalog/Product/p-1");
+				PersistenceResource second = resource("lucene://catalog/Product/p-2")) {
+			first.getContents().add(product("p-1", "one"));
+			first.save(Map.of());
+			second.getContents().add(product("p-2", "two"));
+			second.save(Map.of());
+			unit.refresh();
+		}
 
-		assertThat(resource("lucene://catalog/Product").count()).isEqualTo(2);
-		assertThat(resource("lucene://catalog/Product/p-1").count()).isEqualTo(1);
-		assertThat(resource("lucene://catalog/Manufacturer").count()).as("a type nobody wrote").isZero();
+		try (PersistenceResource all = resource("lucene://catalog/Product");
+				PersistenceResource one = resource("lucene://catalog/Product/p-1");
+				PersistenceResource none = resource("lucene://catalog/Manufacturer")) {
+			assertThat(all.count()).isEqualTo(2);
+			assertThat(one.count()).isEqualTo(1);
+			assertThat(none.count()).as("a type nobody wrote").isZero();
+		}
 	}
 
 	// --- loading ------------------------------------------------------------------------
 
 	@Test
 	void loadingReconstructsThePartialObjectAndSaysWhatIsMissing() throws Exception {
-		PersistenceResource saved = resource("lucene://catalog/Product/p-1");
-		saved.getContents().add(product("p-1", "Espresso Machine"));
-		saved.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource saved = resource("lucene://catalog/Product/p-1");
+				PersistenceResource loaded = resource("lucene://catalog/Product/p-1")) {
+			saved.getContents().add(product("p-1", "Espresso Machine"));
+			saved.save(Map.of());
+			unit.refresh();
 
-		PersistenceResource loaded = resource("lucene://catalog/Product/p-1");
-		loaded.load(Map.of());
+			loaded.load(Map.of());
 
-		assertThat(loaded.getContents()).hasSize(1);
-		EObject back = loaded.getContents().get(0);
-		assertThat(back.eGet(back.eClass().getEStructuralFeature("name"))).isEqualTo("Espresso Machine");
-		assertThat(loaded.getWarnings())
-				.as("partiality is stated, not hidden: the unmapped references cannot come back")
-				.anySatisfy(warning -> assertThat(warning.getMessage())
-						.contains("manufacturer").contains("STORED_OBJECT"));
+			assertThat(loaded.getContents()).hasSize(1);
+			EObject back = loaded.getContents().get(0);
+			assertThat(back.eGet(back.eClass().getEStructuralFeature("name"))).isEqualTo("Espresso Machine");
+			assertThat(loaded.getWarnings())
+					.as("partiality is stated, not hidden: the unmapped references cannot come back")
+					.anySatisfy(warning -> assertThat(warning.getMessage())
+							.contains("manufacturer").contains("STORED_OBJECT"));
+		}
 	}
 
 	@Test
 	void loadingATypeUriLoadsEveryObjectOfTheType() throws Exception {
-		PersistenceResource first = resource("lucene://catalog/Product/p-1");
-		first.getContents().add(product("p-1", "one"));
-		first.save(Map.of());
-		PersistenceResource second = resource("lucene://catalog/Product/p-2");
-		second.getContents().add(product("p-2", "two"));
-		second.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource first = resource("lucene://catalog/Product/p-1");
+				PersistenceResource second = resource("lucene://catalog/Product/p-2")) {
+			first.getContents().add(product("p-1", "one"));
+			first.save(Map.of());
+			second.getContents().add(product("p-2", "two"));
+			second.save(Map.of());
+			unit.refresh();
+		}
 
-		PersistenceResource all = resource("lucene://catalog/Product");
-		all.load(Map.of());
-		PersistenceResource one = resource("lucene://catalog/Product/p-2");
-		one.load(Map.of());
+		try (PersistenceResource all = resource("lucene://catalog/Product");
+				PersistenceResource one = resource("lucene://catalog/Product/p-2")) {
+			all.load(Map.of());
+			one.load(Map.of());
 
-		assertThat(all.getContents()).hasSize(2);
-		assertThat(one.getContents()).hasSize(1);
+			assertThat(all.getContents()).hasSize(2);
+			assertThat(one.getContents()).hasSize(1);
+		}
 	}
 
 	@Test
 	void loadingAfterASaveOnTheSameResourceKeepsTheAttachedObject() throws Exception {
-		PersistenceResource resource = resource("lucene://catalog/Product/p-1");
-		EObject original = product("p-1", "Espresso Machine");
-		resource.getContents().add(original);
-		resource.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource resource = resource("lucene://catalog/Product/p-1")) {
+			EObject original = product("p-1", "Espresso Machine");
+			resource.getContents().add(original);
+			resource.save(Map.of());
+			unit.refresh();
 
-		resource.load(Map.of());
+			resource.load(Map.of());
 
-		assertThat(resource.getContents()).hasSize(1);
-		assertThat(resource.getContents().get(0)).as("identity survives for anyone holding it")
-				.isSameAs(original);
+			assertThat(resource.getContents()).hasSize(1);
+			assertThat(resource.getContents().get(0)).as("identity survives for anyone holding it")
+					.isSameAs(original);
+		}
 	}
 
 	@Test
@@ -316,21 +330,22 @@ class SearchResourceTest {
 				.eGet((EStructuralFeature) productClass.getEStructuralFeature("reviews"));
 		reviews.add(review("r-1", "ada"));
 		reviews.add(review("r-2", "linus"));
-		PersistenceResource saved = resource("lucene://catalog/Product/p-1");
-		saved.getContents().add(withReviews);
-		saved.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource saved = resource("lucene://catalog/Product/p-1");
+				PersistenceResource loaded = resource("lucene://catalog/Product/p-1")) {
+			saved.getContents().add(withReviews);
+			saved.save(Map.of());
+			unit.refresh();
 
-		PersistenceResource loaded = resource("lucene://catalog/Product/p-1");
-		loaded.load(Map.of());
+			loaded.load(Map.of());
 
-		EObject back = loaded.getContents().get(0);
-		@SuppressWarnings("unchecked")
-		List<EObject> reviewsBack = (List<EObject>) back
-				.eGet((EStructuralFeature) productClass.getEStructuralFeature("reviews"));
-		assertThat(reviewsBack).hasSize(2);
-		assertThat(reviewsBack.get(0).eGet(reviewsBack.get(0).eClass().getEStructuralFeature("author")))
-				.isEqualTo("ada");
+			EObject back = loaded.getContents().get(0);
+			@SuppressWarnings("unchecked")
+			List<EObject> reviewsBack = (List<EObject>) back
+					.eGet((EStructuralFeature) productClass.getEStructuralFeature("reviews"));
+			assertThat(reviewsBack).hasSize(2);
+			assertThat(reviewsBack.get(0).eGet(reviewsBack.get(0).eClass().getEStructuralFeature("author")))
+					.isEqualTo("ada");
+		}
 	}
 
 	@Test
@@ -342,24 +357,25 @@ class SearchResourceTest {
 		EObject acme = EcoreUtil.create((EClass) catalog.getEClassifier("Manufacturer"));
 		acme.eSet(acme.eClass().getEStructuralFeature("id"), "m-1");
 		acme.eSet(acme.eClass().getEStructuralFeature("name"), "Acme");
-		PersistenceResource manufacturers = resource("lucene://catalog/Manufacturer/m-1");
-		manufacturers.getContents().add(acme);
-		manufacturers.save(Map.of());
+		try (PersistenceResource manufacturers = resource("lucene://catalog/Manufacturer/m-1");
+				PersistenceResource products = resource("lucene://catalog/Product/p-1");
+				PersistenceResource loaded = resource("lucene://catalog/Product/p-1")) {
+			manufacturers.getContents().add(acme);
+			manufacturers.save(Map.of());
 
-		EObject withManufacturer = product("p-1", "Espresso Machine");
-		withManufacturer.eSet(withManufacturer.eClass().getEStructuralFeature("manufacturer"), acme);
-		PersistenceResource products = resource("lucene://catalog/Product/p-1");
-		products.getContents().add(withManufacturer);
-		products.save(Map.of());
-		unit.refresh();
+			EObject withManufacturer = product("p-1", "Espresso Machine");
+			withManufacturer.eSet(withManufacturer.eClass().getEStructuralFeature("manufacturer"), acme);
+			products.getContents().add(withManufacturer);
+			products.save(Map.of());
+			unit.refresh();
 
-		PersistenceResource loaded = resource("lucene://catalog/Product/p-1");
-		loaded.load(Map.of());
-		EObject back = loaded.getContents().get(0);
-		EObject resolved = (EObject) back.eGet(back.eClass().getEStructuralFeature("manufacturer"));
+			loaded.load(Map.of());
+			EObject back = loaded.getContents().get(0);
+			EObject resolved = (EObject) back.eGet(back.eClass().getEStructuralFeature("manufacturer"));
 
-		assertThat(resolved.eIsProxy()).as("resolution went through the ResourceSet").isFalse();
-		assertThat(resolved.eGet(resolved.eClass().getEStructuralFeature("name"))).isEqualTo("Acme");
+			assertThat(resolved.eIsProxy()).as("resolution went through the ResourceSet").isFalse();
+			assertThat(resolved.eGet(resolved.eClass().getEStructuralFeature("name"))).isEqualTo("Acme");
+		}
 	}
 
 	@Test
@@ -380,20 +396,21 @@ class SearchResourceTest {
 		List<EObject> reviews = (List<EObject>) withReviews
 				.eGet((EStructuralFeature) productClass.getEStructuralFeature("reviews"));
 		reviews.add(review("r-1", "ada"));
-		PersistenceResource saved = resource("lucene://catalog/Product/p-1");
-		saved.getContents().add(withReviews);
-		saved.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource saved = resource("lucene://catalog/Product/p-1");
+				PersistenceResource loaded = resource("lucene://catalog/Product/p-1")) {
+			saved.getContents().add(withReviews);
+			saved.save(Map.of());
+			unit.refresh();
 
-		PersistenceResource loaded = resource("lucene://catalog/Product/p-1");
-		loaded.load(Map.of());
+			loaded.load(Map.of());
 
-		EObject back = loaded.getContents().get(0);
-		@SuppressWarnings("unchecked")
-		List<EObject> reviewsBack = (List<EObject>) back
-				.eGet((EStructuralFeature) productClass.getEStructuralFeature("reviews"));
-		assertThat(reviewsBack).as("the stored object carries its whole tree").hasSize(1);
-		assertThat(loaded.getWarnings()).as("a complete object needs no partiality warning").isEmpty();
+			EObject back = loaded.getContents().get(0);
+			@SuppressWarnings("unchecked")
+			List<EObject> reviewsBack = (List<EObject>) back
+					.eGet((EStructuralFeature) productClass.getEStructuralFeature("reviews"));
+			assertThat(reviewsBack).as("the stored object carries its whole tree").hasSize(1);
+			assertThat(loaded.getWarnings()).as("a complete object needs no partiality warning").isEmpty();
+		}
 	}
 
 	@Test
@@ -401,10 +418,11 @@ class SearchResourceTest {
 		// Written without materialization, read with a mapping that declares STORED_OBJECT:
 		// the reconstruction refuses (rebuild), and the resource carries that as an error
 		// diagnostic plus a checked IOException — not a raw runtime exception.
-		PersistenceResource saved = resource("lucene://catalog/Product/p-1");
-		saved.getContents().add(product("p-1", "Espresso Machine"));
-		saved.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource saved = resource("lucene://catalog/Product/p-1")) {
+			saved.getContents().add(product("p-1", "Espresso Machine"));
+			saved.save(Map.of());
+			unit.refresh();
+		}
 
 		IndexUnitMapping declared = ESEARCH.createIndexUnitMapping();
 		declared.setName("catalog");
@@ -413,13 +431,13 @@ class SearchResourceTest {
 		productMapping.setEClass((EClass) catalog.getEClassifier("Product"));
 		productMapping.setMaterialization(ESEARCH.createMaterialization());
 		declared.getDocuments().add(productMapping);
-		SearchResource drifted = new SearchResource(URI.createURI("lucene://catalog/Product/p-1"),
-				unit, DocumentMapper.of(declared));
-
-		assertThatThrownBy(() -> drifted.load(Map.of()))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("rebuild");
-		assertThat(drifted.getErrors()).isNotEmpty();
+		try (SearchResource drifted = new SearchResource(URI.createURI("lucene://catalog/Product/p-1"),
+				unit, DocumentMapper.of(declared))) {
+			assertThatThrownBy(() -> drifted.load(Map.of()))
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("rebuild");
+			assertThat(drifted.getErrors()).isNotEmpty();
+		}
 	}
 
 	/** Product with NESTED reviews and an ID_ONLY manufacturer — the reference round trip. */
@@ -440,45 +458,52 @@ class SearchResourceTest {
 	// --- declaring ----------------------------------------------------------------------
 
 	@Test
-	void capabilitiesAreOneAggregateWithHonestViews() {
-		PersistenceCapabilities capabilities = resource("lucene://catalog/Product").capabilities();
+	void capabilitiesAreOneAggregateWithHonestViews() throws Exception {
+		try (PersistenceResource resource = resource("lucene://catalog/Product")) {
+			PersistenceCapabilities capabilities = resource.capabilities();
 
-		assertThat(capabilities.query().supported())
-				.as("the query view is the processor's declaration, not a second list")
-				.isEqualTo(LuceneQueryProcessor.declaredCapabilities().supported());
-		assertThat(capabilities.command().supported())
-				.as("the write vocabulary of #29 — declared backend-wide, narrowed per class")
-				.containsExactlyInAnyOrder(CommandFeature.INSERT, CommandFeature.DELETE_BY_SELECTOR,
-						CommandFeature.UPDATE_BY_SELECTOR);
-		EClass product = (EClass) catalog.getEClassifier("Product");
-		assertThat(capabilities.command().supports(CommandFeature.UPDATE_BY_SELECTOR, product))
-				.as("but not for a class whose mapping keeps no complete object")
-				.isFalse();
-		assertThat(capabilities.store().supports(StoreFeature.TRANSACTION_BRACKET))
-				.as("no transaction bracket in v1 (#30)")
-				.isFalse();
+			assertThat(capabilities.query().supported())
+					.as("the query view is the processor's declaration, not a second list")
+					.isEqualTo(LuceneQueryProcessor.declaredCapabilities().supported());
+			assertThat(capabilities.command().supported())
+					.as("the write vocabulary of #29 — declared backend-wide, narrowed per class")
+					.containsExactlyInAnyOrder(CommandFeature.INSERT, CommandFeature.DELETE_BY_SELECTOR,
+							CommandFeature.UPDATE_BY_SELECTOR);
+			EClass product = (EClass) catalog.getEClassifier("Product");
+			assertThat(capabilities.command().supports(CommandFeature.UPDATE_BY_SELECTOR, product))
+					.as("but not for a class whose mapping keeps no complete object")
+					.isFalse();
+			assertThat(capabilities.store().supports(StoreFeature.TRANSACTION_BRACKET))
+					.as("no transaction bracket in v1 (#30)")
+					.isFalse();
+		}
 	}
 
 	// --- streaming ------------------------------------------------------------------------
 
 	@Test
 	void streamingReturnsDetachedObjects() throws Exception {
-		PersistenceResource first = resource("lucene://catalog/Product/p-1");
-		first.getContents().add(product("p-1", "one"));
-		first.save(Map.of());
-		PersistenceResource second = resource("lucene://catalog/Product/p-2");
-		second.getContents().add(product("p-2", "two"));
-		second.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource first = resource("lucene://catalog/Product/p-1");
+				PersistenceResource second = resource("lucene://catalog/Product/p-2")) {
+			first.getContents().add(product("p-1", "one"));
+			first.save(Map.of());
+			second.getContents().add(product("p-2", "two"));
+			second.save(Map.of());
+			unit.refresh();
+		}
 
-		SearchResource streaming = (SearchResource) resource("lucene://catalog/Product");
-		List<EObject> streamed = streaming.stream().toList();
+		try (SearchResource streaming = (SearchResource) resource("lucene://catalog/Product")) {
+			List<EObject> streamed;
+			try (Stream<EObject> objects = streaming.stream()) {
+				streamed = objects.toList();
+			}
 
-		assertThat(streamed).hasSize(2);
-		assertThat(streamed.get(0).eResource())
-				.as("a stream hands out values, not contents ownership")
-				.isNull();
-		assertThat(streaming.getContents()).as("streaming does not load the resource").isEmpty();
+			assertThat(streamed).hasSize(2);
+			assertThat(streamed.get(0).eResource())
+					.as("a stream hands out values, not contents ownership")
+					.isNull();
+			assertThat(streaming.getContents()).as("streaming does not load the resource").isEmpty();
+		}
 	}
 
 	// --- composite ids ----------------------------------------------------------------------
@@ -490,19 +515,20 @@ class SearchResourceTest {
 		line.eSet(orderLine.getEStructuralFeature("orderId"), "A");
 		line.eSet(orderLine.getEStructuralFeature("lineNo"), 2);
 		line.eSet(orderLine.getEStructuralFeature("quantity"), 5);
-		PersistenceResource saved = resource("lucene://catalog/OrderLine");
-		saved.getContents().add(line);
-		saved.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource saved = resource("lucene://catalog/OrderLine");
+				SearchResource loaded = (SearchResource) resource("lucene://catalog/OrderLine")) {
+			saved.getContents().add(line);
+			saved.save(Map.of());
+			unit.refresh();
 
-		SearchResource loaded = (SearchResource) resource("lucene://catalog/OrderLine");
-		loaded.load(Map.of());
+			loaded.load(Map.of());
 
-		// keyed access is order-free; the canonical form is the id-attribute order
-		EObject found = loaded.getEObject("lineNo=2,orderId=A");
-		assertThat(found).isNotNull();
-		assertThat(found.eGet(orderLine.getEStructuralFeature("quantity"))).isEqualTo(5);
-		assertThat(loaded.getURIFragment(found)).isEqualTo("orderId=A,lineNo=2");
+			// keyed access is order-free; the canonical form is the id-attribute order
+			EObject found = loaded.getEObject("lineNo=2,orderId=A");
+			assertThat(found).isNotNull();
+			assertThat(found.eGet(orderLine.getEStructuralFeature("quantity"))).isEqualTo(5);
+			assertThat(loaded.getURIFragment(found)).isEqualTo("orderId=A,lineNo=2");
+		}
 	}
 
 	// --- URIs ---------------------------------------------------------------------------
@@ -540,10 +566,11 @@ class SearchResourceTest {
 
 	@Test
 	void aUriNamingASupertypeReadsItsSubtypes() throws Exception {
-		PersistenceResource written = resource("lucene://catalog/Bundle/b-1");
-		written.getContents().add(bundle("b-1", "Starter set"));
-		written.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource written = resource("lucene://catalog/Bundle/b-1")) {
+			written.getContents().add(bundle("b-1", "Starter set"));
+			written.save(Map.of());
+			unit.refresh();
+		}
 
 		// The type segment scopes by class, as a type predicate does — a Bundle is a
 		// Product, and reading Products that skipped it would be a lie about the model.
@@ -589,19 +616,21 @@ class SearchResourceTest {
 		EObject machine = product("p-1", "Espresso Machine");
 		machine.eSet(((EClass) catalog.getEClassifier("Product")).getEStructuralFeature("manufacturer"),
 				acme);
-		PersistenceResource products = resource("lucene://catalog/Product/p-1");
-		products.getContents().add(machine);
-		products.save(Map.of());
-		unit.refresh();
+		try (PersistenceResource products = resource("lucene://catalog/Product/p-1")) {
+			products.getContents().add(machine);
+			products.save(Map.of());
+			unit.refresh();
 
-		assertThatThrownBy(() -> makers.delete(Map.of()))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("manufacturer");
-		assertThat(makers.getErrors()).as("the refusal says why").isNotEmpty();
-		unit.refresh();
-		assertThat(((PersistenceResource) resourceSet
-				.createResource(URI.createURI("lucene://catalog/Manufacturer/m-1"))).exist())
-						.as("a refused delete changes nothing").isTrue();
+			assertThatThrownBy(() -> makers.delete(Map.of()))
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("manufacturer");
+			assertThat(makers.getErrors()).as("the refusal says why").isNotEmpty();
+			unit.refresh();
+			try (PersistenceResource check = (PersistenceResource) resourceSet
+					.createResource(URI.createURI("lucene://catalog/Manufacturer/m-1"))) {
+				assertThat(check.exist()).as("a refused delete changes nothing").isTrue();
+			}
+		}
 	}
 
 	@Test
@@ -616,7 +645,9 @@ class SearchResourceTest {
 		makers.delete(Map.of());
 		unit.refresh();
 
-		assertThat(((PersistenceResource) resourceSet
-				.createResource(URI.createURI("lucene://catalog/Manufacturer/m-2"))).exist()).isFalse();
+		try (PersistenceResource check = (PersistenceResource) resourceSet
+				.createResource(URI.createURI("lucene://catalog/Manufacturer/m-2"))) {
+			assertThat(check.exist()).isFalse();
+		}
 	}
 }

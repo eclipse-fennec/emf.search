@@ -193,9 +193,9 @@ class MaterializationTest {
 		document(mapping, "Product").setMaterialization(materialization);
 		DocumentMapper mapper = DocumentMapper.of(IndexSchema.of(mapping));
 
-		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("catalog").build())) {
-			SearchResource resource = new SearchResource(
-					URI.createURI(SearchUris.SCHEME + "://catalog/Product/p-1"), unit, mapper);
+		try (IndexUnit unit = IndexUnit.open(IndexUnitConfig.inMemory("catalog").build());
+				SearchResource resource = new SearchResource(
+						URI.createURI(SearchUris.SCHEME + "://catalog/Product/p-1"), unit, mapper)) {
 			resource.getContents().add(catalog.create("Product", "id", "p-1"));
 
 			assertThatThrownBy(() -> mapper.map(resource.getContents().get(0)))

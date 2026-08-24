@@ -127,8 +127,9 @@ class ScoreSortTest {
 				.withScores()
 				.build();
 
-		try (var result = resource.query(query)) {
-			var hits = result.hits().toList();
+		try (var result = resource.query(query);
+				var scored = result.hits()) {
+			var hits = scored.toList();
 			assertThat(hits).extracting(hit -> hit.object().eGet(
 					hit.object().eClass().getEStructuralFeature("name")))
 					.as("without an explicit sort, iteration order is rank order")
@@ -156,7 +157,11 @@ class ScoreSortTest {
 	void withScoresOnACountShapeIsRefused() {
 		Query query = QueryBuilder.from(product).withScores().countOnly().build();
 
-		assertThatThrownBy(() -> resource.query(query))
+		assertThatThrownBy(() -> {
+			try (QueryResult unexpected = resource.query(query)) {
+				// must throw before a result exists
+			}
+		})
 				.isInstanceOf(IOException.class)
 				.hasMessageContaining("withScores");
 	}
@@ -170,7 +175,11 @@ class ScoreSortTest {
 				.orderByDesc(path(price()).plus(1).toExpression())
 				.build();
 
-		assertThatThrownBy(() -> resource.query(query))
+		assertThatThrownBy(() -> {
+			try (QueryResult unexpected = resource.query(query)) {
+				// must throw before a result exists
+			}
+		})
 				.isInstanceOf(IOException.class)
 				.hasMessageContaining("SORT_EXPRESSION");
 	}
@@ -181,7 +190,11 @@ class ScoreSortTest {
 				.where(score().gt(0.5))
 				.build();
 
-		assertThatThrownBy(() -> resource.query(query))
+		assertThatThrownBy(() -> {
+			try (QueryResult unexpected = resource.query(query)) {
+				// must throw before a result exists
+			}
+		})
 				.isInstanceOf(IOException.class)
 				.hasMessageContaining("sort key");
 	}
@@ -189,8 +202,9 @@ class ScoreSortTest {
 	// --- helpers --------------------------------------------------------------------------
 
 	private List<Object> names(Query query) throws Exception {
-		try (QueryResult result = resource.query(query)) {
-			return result.objects()
+		try (QueryResult result = resource.query(query);
+				var objects = result.objects()) {
+			return objects
 					.map(hit -> hit.eGet(hit.eClass().getEStructuralFeature("name")))
 					.toList();
 		}

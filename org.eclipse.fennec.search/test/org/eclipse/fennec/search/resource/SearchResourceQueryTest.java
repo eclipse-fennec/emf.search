@@ -22,6 +22,7 @@ import static org.eclipse.fennec.model.query.builder.Expressions.propertyPath;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EAttribute;
@@ -36,6 +37,7 @@ import org.eclipse.fennec.model.query.builder.QueryBuilder;
 import org.eclipse.fennec.persistence.api.ConverterService;
 import org.eclipse.fennec.persistence.api.TypeConverter;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
+import org.eclipse.fennec.persistence.query.api.QueryResultRow;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
 import org.eclipse.fennec.persistence.query.api.QueryableResource;
 import org.eclipse.fennec.persistence.query.support.RegistryNamedOperations;
@@ -105,9 +107,10 @@ class SearchResourceQueryTest {
 				.orderByDesc(price())
 				.build();
 
-		try (QueryResult result = resource.query(query)) {
+		try (QueryResult result = resource.query(query);
+				Stream<EObject> objects = result.objects()) {
 			assertThat(result.shape()).isEqualTo(QueryShape.OBJECTS);
-			assertThat(result.objects().map(hit -> hit.eGet(name())))
+			assertThat(objects.map(hit -> hit.eGet(name())))
 					.containsExactly("Espresso Machine", "Grinder");
 		}
 	}
@@ -131,9 +134,10 @@ class SearchResourceQueryTest {
 				.orderByDesc(price())
 				.build();
 
-		try (QueryResult result = resource.query(query)) {
+		try (QueryResult result = resource.query(query);
+				Stream<QueryResultRow> resultRows = result.rows()) {
 			assertThat(result.shape()).isEqualTo(QueryShape.PROJECTION);
-			List<List<Object>> rows = result.rows()
+			List<List<Object>> rows = resultRows
 					.map(row -> List.of(row.get("productName"), row.get(1)))
 					.toList();
 			assertThat(rows).containsExactly(
@@ -148,8 +152,9 @@ class SearchResourceQueryTest {
 	void topAndSkipWindowTheSortedResult() throws Exception {
 		Query query = QueryBuilder.from(product).orderByDesc(price()).skip(1).top(1).build();
 
-		try (QueryResult result = resource.query(query)) {
-			assertThat(result.objects().map(hit -> hit.eGet(name()))).containsExactly("Grinder");
+		try (QueryResult result = resource.query(query);
+				Stream<EObject> objects = result.objects()) {
+			assertThat(objects.map(hit -> hit.eGet(name()))).containsExactly("Grinder");
 		}
 	}
 
@@ -159,8 +164,9 @@ class SearchResourceQueryTest {
 				.where(any(propertyPath(reviews()), it -> it.path(rating()).ge(4)))
 				.build();
 
-		try (QueryResult result = resource.query(query)) {
-			assertThat(result.objects().map(hit -> hit.eGet(name())))
+		try (QueryResult result = resource.query(query);
+				Stream<EObject> objects = result.objects()) {
+			assertThat(objects.map(hit -> hit.eGet(name())))
 					.containsExactly("Espresso Machine");
 		}
 	}
@@ -189,11 +195,11 @@ class SearchResourceQueryTest {
 		Query stored = QueryBuilder.from(product).named("expensive")
 				.where(path(price()).gt(100.0)).countOnly().build();
 		queries.put("test", "expensive", stored, Map.of());
-		SearchResource readOnly = new SearchResource(URI.createURI("lucene://catalog/Product"), unit,
-				DocumentMapper.of(mapping()), new RegistryNamedOperations(queries.getRegistry()), null);
-
-		try (QueryResult byName = readOnly.query("expensive", null, null)) {
-			assertThat(byName.count()).isEqualTo(2);
+		try (SearchResource readOnly = new SearchResource(URI.createURI("lucene://catalog/Product"), unit,
+				DocumentMapper.of(mapping()), new RegistryNamedOperations(queries.getRegistry()), null)) {
+			try (QueryResult byName = readOnly.query("expensive", null, null)) {
+				assertThat(byName.count()).isEqualTo(2);
+			}
 		}
 	}
 
@@ -218,26 +224,35 @@ class SearchResourceQueryTest {
 
 	@Test
 	void anUnknownQueryNameIsRefusedByName() {
-		assertThatThrownBy(() -> resource.query("nobody-saved-this", null, null))
+		assertThatThrownBy(() -> {
+			try (QueryResult unexpected = resource.query("nobody-saved-this", null, null)) {
+				// must throw before a result exists
+			}
+		})
 				.isInstanceOf(IOException.class)
 				.hasMessageContaining("nobody-saved-this");
 	}
 
 	@Test
 	void withoutACatalogANamedQueryRunsButSaysItWasNotPersisted() throws Exception {
-		SearchResource detached = new SearchResource(URI.createURI("lucene://catalog/Product"), unit,
-				DocumentMapper.of(mapping()));
-		Query query = QueryBuilder.from(product).named("expensive")
-				.where(path(price()).gt(100.0)).countOnly().build();
+		try (SearchResource detached = new SearchResource(URI.createURI("lucene://catalog/Product"), unit,
+				DocumentMapper.of(mapping()))) {
+			Query query = QueryBuilder.from(product).named("expensive")
+					.where(path(price()).gt(100.0)).countOnly().build();
 
-		try (QueryResult result = detached.query(query)) {
-			assertThat(result.count()).isEqualTo(2);
+			try (QueryResult result = detached.query(query)) {
+				assertThat(result.count()).isEqualTo(2);
+			}
+			assertThat(detached.getWarnings())
+					.anySatisfy(warning -> assertThat(warning.getMessage()).contains("not persisted"));
+			assertThatThrownBy(() -> {
+				try (QueryResult unexpected = detached.query("expensive", null, null)) {
+					// must throw before a result exists
+				}
+			})
+					.isInstanceOf(IOException.class)
+					.hasMessageContaining("catalog");
 		}
-		assertThat(detached.getWarnings())
-				.anySatisfy(warning -> assertThat(warning.getMessage()).contains("not persisted"));
-		assertThatThrownBy(() -> detached.query("expensive", null, null))
-				.isInstanceOf(IOException.class)
-				.hasMessageContaining("catalog");
 	}
 
 	@Test
@@ -300,7 +315,11 @@ class SearchResourceQueryTest {
 				.where(path(price()).plus(1).gt(10))
 				.build();
 
-		assertThatThrownBy(() -> resource.query(query))
+		assertThatThrownBy(() -> {
+			try (QueryResult unexpected = resource.query(query)) {
+				// must throw before a result exists
+			}
+		})
 				.isInstanceOf(IOException.class)
 				.hasMessageContaining("Query rejected");
 		assertThat(resource.getErrors()).isNotEmpty();
