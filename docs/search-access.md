@@ -702,14 +702,21 @@ working, wrapped in `RegistryNamedOperations` — the contract's own default imp
 over exactly that registry. Without either, a named query still runs and the resource warns
 that it was not kept; lookup by name refuses.
 
-## 6. Suggest — own API, shared machinery
+## 6. The own-API family — shared machinery beside the contract
 
-Suggest/completion (Lucene `suggest` module: analyzing/fuzzy suggesters, weighted
-completion fields) is **not** query-IR vocabulary — it is its own small service API in
-`search.suggest`: suggestion sources declared in the mapping model (field + weight +
-context), built from the same index lifecycle, exposed as a DS service per index unit.
-The old stack's separate-suggest-stack mistake is avoided by sharing the mapping model
-and lifecycle, not by forcing suggest through the query IR.
+What began as "suggest is not query-IR vocabulary" grew into a family rule: a capability
+whose *request* or *result* has a shape the shared contracts do not know gets **its own
+small API beside them** — same mapping model, same index lifecycle, same canonical query
+as the base wherever a query is involved, one DS service per mapped unit under
+`search.unit.alias`, a plain-Java `of(...)` constructor first. Members: suggest (this
+section), highlighting (§6.1), similarity (§6.2), grouping (§6.3), facets (#11), and the
+family's query-side anchor, the direct search API (§6.4).
+
+**Suggest**: Lucene's `suggest` module (analyzing/fuzzy suggesters, weighted completion
+fields) as its own service API in `search.suggest` — suggestion sources declared in the
+mapping model (field + weight + context), built from the same index lifecycle. The old
+stack's separate-suggest-stack mistake is avoided by sharing the mapping model and
+lifecycle, not by forcing suggest through the query IR.
 
 ### 6.1 Highlighting
 
@@ -763,6 +770,35 @@ no group** — it is filtered out of the match set rather than collected into a 
 which is also what keeps the group count honest. Lucene's `TermGroupSelector` reads
 `SORTED` doc values while every keyword field here is `SORTED_SET`, so the values are
 wrapped (`SortedSetSelector`) rather than the mapping bent. See the grouping guide.
+
+### 6.4 The direct search API (`IndexSearch`)
+
+The family's query-side anchor (#41, design round 2026-08-24). The resource road is
+correct and stays — but it carries EMF resource mechanics a search consumer often does not
+want: `getContents()` ownership (adding a hit to a resource *moves* it), URI addressing,
+an ambient `ResourceSet` behind `SOURCE_URI` resolution. `IndexSearch` answers the same
+canonical queries with **hits as plain objects**. Four calls fixed the shape:
+
+1. **The carrier is the upstream `Hit`** (object + score, emf.persistence-jpa#165 — the
+   envelope explicitly designed to grow per-hit payloads). No second hit type appears, and
+   scores are always filled, sort or not (`doDocScores`): the carrier promises one.
+2. **OBJECTS only.** A count, projection or aggregation is refused naming
+   `QueryableResource` as the way out — those shapes already have a correct carrier there,
+   and duplicating them would buy nothing but surface.
+3. **The primary store is an explicit, attachable collaborator** (`PrimaryStore`):
+   URI-keyed — what the index stores under `SOURCE_URI` — and **batched per window**, so a
+   JPA-backed store answers one search with one query. Without a store, a `SOURCE_URI` hit
+   is an EMF proxy; a URI the store cannot answer keeps its proxy — the hit carries exactly
+   what the index knows, and hiding it would misreport the search.
+4. **The write-side coupling** (save to the primary store, index on success, Transaction
+   Control) **split into #50** — it touches the v2 feed (#22) and stays read-only here.
+
+Collaborators attach as immutable `with*` copies (converter, `NamedOperations` catalog,
+primary store, serializers, package registry). Named queries resolve through the catalog;
+a `saveQuery` name without one is *refused* — the direct API has no warnings channel to
+note a silently dropped promise on. In OSGi the component republishes its services when a
+catalog or store arrives late, because a JPA store starting after an in-memory index is
+the ordinary case, not the odd one. See the search-api guide.
 
 ## 7. Feature radar
 

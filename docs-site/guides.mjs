@@ -13,9 +13,12 @@
 // ships its documentation (see docs/search-access.md §2.2).
 export const GUIDES = [
   { file: 'overview.md', slug: 'overview', title: 'Overview' },
+  { file: 'getting-started.md', slug: 'getting-started', title: 'Getting started' },
   { file: 'architecture.md', slug: 'architecture', title: 'Architecture' },
   { file: 'index-units.md', slug: 'index-units', title: 'Index units' },
   { file: 'materialization.md', slug: 'materialization', title: 'Loading & materialization' },
+  { file: 'query-path.md', slug: 'query-path', title: 'Querying the index' },
+  { file: 'search-api.md', slug: 'search-api', title: 'Direct search API' },
   { file: 'facets.md', slug: 'facets', title: 'Facets' },
   { file: 'geo.md', slug: 'geo', title: 'Geographic queries' },
   { file: 'mapping-delivery.md', slug: 'mapping-delivery', title: 'Mapping delivery' },
