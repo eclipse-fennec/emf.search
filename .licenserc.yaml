@@ -31,6 +31,8 @@ header:
     - '**/*.ecore'
     - '**/*.xcore'
     - '**/*.genmodel'
+    # Authored mapping documents — XMI like *.ecore and *.xmi beside them.
+    - '**/*.esearch'
     - '**/*.md'
     - '**/*.MD'
     - '**/.keep'
