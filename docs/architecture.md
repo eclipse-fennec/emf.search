@@ -45,7 +45,8 @@ configuration and publish it — plus the `Resource.Factory` registration that l
 | `org.eclipse.fennec.search.workspace.library` | bnd workspace library for downstream consumption. |
 
 The `.osgi` bundles inline their core packages, so a consumer needs one bundle at runtime
-rather than two.
+rather than two. The Maven coordinates and a ready-made `-buildpath` are in
+[getting started](./getting-started.md#getting-the-bundles).
 
 ## The mapping model — "eorm for the index"
 

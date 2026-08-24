@@ -5,9 +5,12 @@ that shows a snippet with the search terms marked. In `emf.search` it is **an ow
 to the persistence contract**: the result contract of `QueryableResource` is "EObjects or
 rows out", and an EObject has no slot for per-hit passages. Snippets ride on a
 search-local hit type instead, keeping the shared query IR free of search-only vocabulary
-— the same reasoning as facets and suggest. Unlike those, the API lives in the core
-bundle: the `UnifiedHighlighter` needs the executed Lucene query and the unit's live
-searcher, which only the core has.
+— the same reasoning as facets and suggest. Unlike suggest, the API lives in the core
+bundle — `HighlightSearch` in `org.eclipse.fennec.search` — because the
+`UnifiedHighlighter` needs the executed Lucene query and the unit's live searcher, which
+only the core has.
+
+All examples use the [shared catalog model](./getting-started.md#the-example-model).
 
 ## What is highlightable
 
@@ -24,14 +27,29 @@ Declared term vectors (`TextFieldMapping termVectors="true"`) make highlighting 
 long fields, because the highlighter reads positions and offsets instead of re-analyzing
 the stored value. They are never required — an accelerator, not a prerequisite.
 
+For the `description` the example below highlights, **convention already gives all of
+this**: a string attribute is analyzed text with its original value stored, no declaration
+needed. The explicit form only exists to add the accelerator:
+
+```xml
+<documents eClass="https://example.org/catalog#//Product">
+  <fields xsi:type="esearch:TextFieldMapping"
+      feature="https://example.org/catalog#//Product/description" termVectors="true"/>
+</documents>
+```
+
 ## Requesting snippets
 
+`unit` and `mapping` are set up exactly as in [getting started](./getting-started.md) —
+this page only adds the request:
+
 ```java
+IndexSchema schema = IndexSchema.of(mapping);
 HighlightSearch highlights = HighlightSearch.of(unit, schema);
 
 List<HighlightedHit> hits = highlights.search(HighlightRequest
-    .over(QueryBuilder.from(product)
-        .where(path(description).contains("coffee"))
+    .over(QueryBuilder.from(product)                       // the Product EClass
+        .where(path(description).contains("coffee"))       // its description EAttribute
         .build())
     .field(description)          // the EAttribute to highlight; repeatable
     .maxPassages(2));            // passages joined into one snippet, default 1
@@ -71,7 +89,7 @@ The thin DS layer publishes one `HighlightSearch` per configured index unit that
 mapping, addressable by the unit's alias — same shape as suggest:
 
 ```java
-@Reference(target = "(search.unit.alias=products)")
+@Reference(target = "(search.unit.alias=catalog)")
 HighlightSearch highlights;
 ```
 

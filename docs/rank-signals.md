@@ -8,7 +8,7 @@ Two properties make this backend's version of it different from a scoring script
 
 - **The formula lives in the mapping, not in the query.** A consumer selects a declared
   signal *by name*; it can never send an expression. That is what keeps the refusal of
-  arithmetic pushdown honest — see [the query capabilities](./overview.md) — and it means a
+  arithmetic pushdown honest — see [the query path](./query-path.md) — and it means a
   relevance decision is reviewable, versionable and testable, in the same model as the rest
   of the mapping.
 - **A signal can only add score, never change what matches.** It joins the query as an
@@ -72,7 +72,9 @@ When the number is both a signal and an ordinary value, declare the signal as a
 ## Selecting one in a query
 
 Signals are chosen per query, through the backend options of the persistence contract —
-the same `options` map every `query(…)` call already takes:
+the same `options` map every `query(…)` call already takes. `SearchOptions` lives in the
+core bundle `org.eclipse.fennec.search`; `resource` is a `lucene://` resource as on the
+[query path](./query-path.md) page:
 
 ```java
 Map<String, Object> options = Map.of(

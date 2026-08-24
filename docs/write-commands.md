@@ -6,14 +6,19 @@ Delete everything cheaper than ten euros; raise the price of every discontinued 
 The vocabulary is the stack's, so the same command runs over JPA, Mongo and this index.
 
 ```java
+// resourceSet: wired with the lucene factory as in getting started
 CommandResource commands = (CommandResource) resourceSet.createResource(
         URI.createURI("lucene://catalog/Product"));
 
 DeleteCommand delete = CommandFactory.eINSTANCE.createDeleteCommand();
-delete.setSelector(QueryBuilder.from(product).where(path(price).lt(10.0)).build());
+delete.setSelector(QueryBuilder.from(product)              // the Product EClass
+        .where(path(price).lt(10.0)).build());             // its price EAttribute
 
 long affected = commands.execute(delete);
 ```
+
+The examples use the [shared catalog model](./getting-started.md#the-example-model); the
+`lucene://` addressing is explained on the [query path](./query-path.md) page.
 
 | Command | Over Lucene |
 |---|---|
@@ -34,9 +39,17 @@ mapping never stored, and a lossy write is worse than a refusal.
 
 So `UPDATE_BY_SELECTOR` is declared **narrowed**: the backend serves it for the classes whose
 mapping declares [`STORED_OBJECT` materialization](./materialization.md), and refuses it for
-the rest — before any work, with a diagnostic that names the feature and the way out.
+the rest — before any work, with a diagnostic that names the feature and the way out. The
+declaration that opens the gate is one line in the mapping:
+
+```xml
+<documents eClass="https://example.org/catalog#//Product">
+  <materialization/>                      <!-- kind defaults to STORED_OBJECT -->
+</documents>
+```
 
 ```java
+PersistenceCapabilities capabilities = commands.capabilities();  // the resource answers
 capabilities.command().supports(UPDATE_BY_SELECTOR);            // true — the backend can
 capabilities.command().supports(UPDATE_BY_SELECTOR, product);   // depends on the mapping
 ```
