@@ -36,6 +36,7 @@ import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectProvider;
 import org.eclipse.fennec.model.query.builder.Expressions;
 import org.eclipse.fennec.model.query.builder.QueryBuilder;
+import org.eclipse.fennec.persistence.query.api.Hit;
 import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistry;
 import org.eclipse.fennec.emf.osgi.eobject.registry.FileEObjectProvider;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
@@ -46,6 +47,7 @@ import org.eclipse.fennec.search.esearch.SuggestSource;
 import org.eclipse.fennec.search.highlight.HighlightRequest;
 import org.eclipse.fennec.search.highlight.HighlightSearch;
 import org.eclipse.fennec.search.osgi.SearchConstants;
+import org.eclipse.fennec.search.query.IndexSearch;
 import org.eclipse.fennec.search.similarity.SimilarityRequest;
 import org.eclipse.fennec.search.group.GroupRequest;
 import org.eclipse.fennec.search.group.GroupResults;
@@ -223,6 +225,18 @@ class MappingDeliveryWiringTest {
 			assertThat(groups.groups()).extracting(GroupResults.Group::key)
 					.containsExactlyInAnyOrder("i-1", "i-2");
 			assertThat(groups.totalGroups()).isEqualTo(2);
+
+			// The direct search service of the same unit (#41) — hits without resource
+			// mechanics; what the search does is a plain-JUnit question (IndexSearchTest).
+			IndexSearch direct = await(context, IndexSearch.class,
+					"(" + SearchConstants.UNIT_ALIAS + "=wired)");
+			assertThat(direct).as("the direct search service is published per unit").isNotNull();
+			List<Hit> directHits = direct.search(QueryBuilder.from(item)
+					.where(Expressions.path(label).contains("through"))
+					.build());
+			assertThat(directHits).hasSize(2);
+			assertThat(directHits.get(0).object().eResource())
+					.as("a direct hit is owned by no resource").isNull();
 		} finally {
 			registryConfiguration.delete();
 			unitConfiguration.delete();
