@@ -21,6 +21,7 @@ export const GUIDES = [
   { file: 'search-api.md', slug: 'search-api', title: 'Direct search API' },
   { file: 'facets.md', slug: 'facets', title: 'Facets' },
   { file: 'geo.md', slug: 'geo', title: 'Geographic queries' },
+  { file: 'mapping-generator.md', slug: 'mapping-generator', title: 'Generating a mapping' },
   { file: 'mapping-delivery.md', slug: 'mapping-delivery', title: 'Mapping delivery' },
   { file: 'computed-fields.md', slug: 'computed-fields', title: 'Computed fields' },
   { file: 'suggest.md', slug: 'suggest', title: 'Suggest' },
