@@ -19,6 +19,7 @@ import static org.eclipse.fennec.model.query.builder.Expressions.geoDistance;
 import static org.eclipse.fennec.model.query.builder.Expressions.geoPoint;
 import static org.eclipse.fennec.model.query.builder.Expressions.geoPolygon;
 import static org.eclipse.fennec.model.query.builder.Expressions.geoSubject;
+import static org.eclipse.fennec.model.query.builder.Expressions.geoSubjectLatLon;
 import static org.eclipse.fennec.model.query.builder.Expressions.geoWithin;
 import static org.eclipse.fennec.model.query.builder.Expressions.not;
 import static org.eclipse.fennec.model.query.builder.Expressions.propertyPath;
@@ -253,8 +254,11 @@ class GeoSearchTest {
 
 	@Test
 	void anUndeclaredBindingRefusesByNameInsteadOfGuessing() {
-		// lon/lat swapped: not the pair any declared position was mapped over.
-		GeoSubject swapped = geoSubject(propertyPath(models.feature("Place", "lon")),
+		// lon/lat swapped: not the pair any declared position was mapped over. Since
+		// emf.persistence-jpa#232 the axis order is in the method name, so the swap is
+		// visible in the source instead of hiding in an argument position — which is what
+		// the rename was for.
+		GeoSubject swapped = geoSubjectLatLon(propertyPath(models.feature("Place", "lon")),
 				propertyPath(models.feature("Place", "lat")));
 
 		assertThatThrownBy(() -> names(geoWithin(swapped,
@@ -322,7 +326,7 @@ class GeoSearchTest {
 	// --- helpers ----------------------------------------------------------------------------------
 
 	private GeoSubject split() {
-		return geoSubject(propertyPath(models.feature("Place", "lat")),
+		return geoSubjectLatLon(propertyPath(models.feature("Place", "lat")),
 				propertyPath(models.feature("Place", "lon")));
 	}
 

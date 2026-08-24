@@ -6,3 +6,7 @@ build/
 bin/
 bin_test/
 /cnf/cache
+
+# Claude Code's local settings and the temp files it writes beside them
+/.claude/settings.local.json
+/.claude/*.tmp.*
