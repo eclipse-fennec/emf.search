@@ -23,6 +23,11 @@
 # backend and needs no JPA/EclipseLink, so dropping fennecJPA is the fix here; the
 # collision itself is reported upstream (see issue #36). Test dependencies (JUnit,
 # AssertJ, Mockito) come from fennecTest, not from the JPA library.
+#
+# fennecPersistenceTest added 2026-08-24 (emf.persistence-jpa#216, closed issue #34):
+# the TCK as subclass API plus query.derived, under its own plugin key so it cannot
+# shadow fennecPersistence. Test-only by construction — a production -buildpath never
+# gains a test bundle from it.
 -library: \
 	fennec,\
 	fennecTest,\
@@ -31,7 +36,8 @@
 	fennecM2X,\
 	fennecEMFModels,\
 	fennecCodec,\
-	fennecPersistence
+	fennecPersistence,\
+	fennecPersistenceTest
 
 base-version: 1.0.0
 javac.source: 21

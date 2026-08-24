@@ -24,6 +24,12 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   exists. *Also revisit if* the upstream round decides the query names the bound pair
   (the `GeoSubject` precedent of #113) rather than the mapping declaring it: then
   `RangeFieldMapping` becomes an index-shape declaration only, not the subject.
+- **bnd plugin-key collision (#36 / emf.persistence-jpa#217)** — `fennecJPA` and
+  `fennecPersistence` declare their repository under one plugin key, so enabling both
+  silently drops one index. Worked around by not enabling `fennecJPA` here. *Revisit when*
+  upstream gives each library its own key — then the workaround note in
+  `cnf/ext/fennec.bnd` goes. (#34, the sibling report, is settled: `fennecPersistenceTest`
+  exists and this workspace consumes it since 2026-08-24.)
 
 ## Decided upstream, zero change here
 
@@ -33,54 +39,6 @@ Cleaned 2026-08-18 after the A/B/C review — everything reviewed there is gone 
   is exactly what this backend already does; the #114-by-analogy stance is now the stated
   upstream rule. *Revisit trigger (upstream's):* a real pre-validation router would make
   the `EStructuralFeature` overload a purely additive extension.
-
-## Autonomous calls re-syncing with the persistence update (2026-08-23)
-
-The upstream snapshot of 2026-08-22 added an abstract TCK method and eleven ungated §8
-core cases. Three of them failed here; all three were product defects, not binding gaps.
-Pinned by `SearchResourceTest` and the TCK binding.
-
-1. **The URI type segment widens to subtypes** (`typeFilter`, abstract classes included).
-   Previously a raw discriminator term — every polymorphic case had gone through a gated
-   type predicate, so the URI path had never been asked.
-2. **Delete refuses when an `ID_ONLY` reference still points at the object** (#195), by
-   probing before deleting. The known limit is the id model, not the probe: `_root` is the
-   bare id value, so two types sharing an id share a block identity — the same collision
-   the delete itself has. *Revisit if* a unit-wide unique document key ever replaces the
-   bare id.
-3. **The named-operation catalog is swapped, and the old registry reference survives as a
-   fallback** (#203/#163, done 2026-08-23 — the entry that used to sit under "open" is
-   settled). `SearchResource` and its factory take a `NamedOperations`; the OSGi component
-   prefers a bound service and otherwise wraps the registry it already referenced in
-   `RegistryNamedOperations`, so a deployment configured before the contract existed keeps
-   working without a second lookup road of our own. Documented in §5.6.
-4. **`PROJECTION_EXPRESSION` (#189) stays undeclared** — the projection counterpart of the
-   SORT_EXPRESSION refusal. The shared validator refuses it by name; the test pins that
-   nobody declares it by accident.
-
-## Housekeeping (2026-08-23)
-
-Not decisions so much as answers that had been left implicit, all pinned now.
-
-1. **`testOSGi` may not pass by having run nothing (#35).** Two guards: a run must leave a
-   report containing at least one test (previous reports are deleted first, or the guard
-   accepts yesterday's), and `resolve.test` no longer claims to be up to date, because Gradle
-   cannot see that a changed *bundle* invalidates a resolution. The committed `-runbundles`
-   is checked against what the resolver produces — the note asking for a hand-refresh had
-   already gone stale once, so it is a gate now. Verified by reproducing the original symptom.
-2. **References across resources (#33): the index stores ids, not URIs.** Two behaviours were
-   wrong and are refusals now — a proxy whose fragment addresses a *position* (no EMF id on
-   the target's class) used to be written into the index as if it were an id, and an
-   unresolved child of a NESTED block used to be written as an empty document. And indexing
-   no longer resolves proxies at all: a write must not load the model it points at.
-3. **The read side sees sub-fields (#39).** `FieldUse` decides which projection answers —
-   declared where a modeller must say it, derived from the kind otherwise. Two projections
-   claiming one use are refused at mapping time. A mapping with one projection per attribute
-   behaves exactly as before, which is what made this safe to change late.
-4. **#34 and #36 are upstream reports**, raised as emf.persistence-jpa#216 (the TCK is not in
-   the `fennecPersistence` library — a `fennecPersistenceTest` library is the shape that
-   matches the existing `fennec`/`fennecTest` split) and #217 (two libraries sharing one bnd
-   plugin key, so the older index silently wins). Both stay worked around here.
 
 ## Computed fields (S20/#28, 2026-08-23)
 

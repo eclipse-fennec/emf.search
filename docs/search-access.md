@@ -171,11 +171,12 @@ emf.persistence-jpa README §consuming). Everything below is API there as of 202
   a GeoJSON-style point EObject with a many-valued numeric `coordinates` feature in
   `[lon, lat]` order. **G-P3 is this repository's translation** (S9, #13).
 
-**One artifact is not in the library:** `org.eclipse.fennec.persistence.tck` is published
-separately, but the `fennecPersistence` repository index is generated from the library's
-own `-buildpath` (= the `-runbundles` of its `required.bndrun`), and the TCK is not in that
-set. Its coordinate therefore sits directly in `cnf/ext/central.mvn` here; the upstream
-question — library entry or a separate `fennecPersistenceTest` library — is #34.
+**The test-only side is its own library:** `org.eclipse.fennec.persistence.tck` (and the
+`query.derived` support its cases register) comes through `fennecPersistenceTest`
+(`org.eclipse.fennec.persistence.test.workspace.library`, emf.persistence-jpa#216 — the
+answer to #34, closed 2026-08-24), enabled beside `fennecPersistence` in
+`cnf/ext/fennec.bnd`. Kept apart deliberately, so a production `-buildpath` never gains a
+test bundle.
 
 **Ground rule:** missing query vocabulary is never invented in `emf.search` — it goes
 to `emf.persistence-jpa` as an IR issue (the SCORE/geo route). Protocol- or
@@ -836,8 +837,7 @@ from the first cut; S11–S19 are the wave-1 additions from §7.
    answer the gates that exist today: `supportsTypePredicates`,
    `supportsFilteredCollectionCounts`, `supportsSortExpressions`, `supportsExpand`,
    `supportsGeo`, `supportsCommandTransactions`, `supportsCompositeIds`. The TCK
-   coordinate comes from
-   `cnf/ext/central.mvn`, not from the `fennecPersistence` library (§3, #34).
+   comes through the `fennecPersistenceTest` library (§3, #34).
 6. **S23 (#32) — mapping delivery** (§4.1): a `MappingSource` resolving an
    `IndexUnitMapping` for a unit, from an authored `*.esearch` in an EObject registry or
    from the metadata aspect. Blocks the OSGi half of S4 — the mapper needs a mapping and
