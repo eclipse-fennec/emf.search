@@ -53,7 +53,6 @@ import org.eclipse.fennec.search.mapping.DocumentMapper;
 import org.eclipse.fennec.search.mapping.IndexSchema;
 import org.eclipse.fennec.search.mapping.MappedDocument;
 import org.eclipse.fennec.search.mapping.MappingException;
-import org.eclipse.fennec.search.mapping.SearchFields;
 import org.eclipse.fennec.search.mapping.TestModels;
 import org.eclipse.fennec.search.unit.IndexUnit;
 import org.eclipse.fennec.search.unit.IndexUnitConfig;

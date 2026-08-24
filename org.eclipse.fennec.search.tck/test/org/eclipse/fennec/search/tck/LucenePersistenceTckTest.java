@@ -14,6 +14,7 @@ package org.eclipse.fennec.search.tck;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 
@@ -138,10 +139,13 @@ public class LucenePersistenceTckTest extends AbstractPersistenceTCK {
 	@Override
 	protected Resource provokeLoadDiagnostic() throws Exception {
 		Resource resource = createBackendResourceSet().createResource(uriFor("NoSuchType"));
-		resource.load(null);
-		// This backend populates eagerly, unlike JPA and Mongo — the touch is here so the
-		// trigger stays correct if that ever changes.
-		resource.getContents();
+		try {
+			resource.load(null);
+		} catch (IOException refused) {
+			// This backend refuses loudly (IOException → QueryException → Diagnostic) —
+			// conforming per the case's contract. The diagnostics are on the resource
+			// either way, so it is handed back for the assertion instead of the throw.
+		}
 		return resource;
 	}
 

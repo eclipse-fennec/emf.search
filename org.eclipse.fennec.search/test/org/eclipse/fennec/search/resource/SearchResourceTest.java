@@ -34,6 +34,7 @@ import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import org.eclipse.fennec.persistence.capabilities.CommandFeature;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
 import org.eclipse.fennec.persistence.capabilities.StoreFeature;
+import org.eclipse.fennec.persistence.query.QueryException;
 import org.eclipse.fennec.persistence.resource.PersistenceResource;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
@@ -554,14 +555,23 @@ class SearchResourceTest {
 	}
 
 	@Test
-	void loadingATypeTheUnitDoesNotMapSaysSoInsteadOfAnsweringEmpty() throws Exception {
+	void loadingATypeTheUnitDoesNotMapRefusesInsteadOfAnsweringEmpty() {
 		Resource resource = resourceSet.createResource(URI.createURI("lucene://catalog/Sprocket"));
 
-		resource.load(Map.of());
-
+		// The refusal is loud (an empty view would bury the mistake), and it speaks the
+		// command contract: IOException → cause QueryException → getDiagnostic()
+		// (emf.persistence-jpa#197).
+		assertThatThrownBy(() -> resource.load(Map.of()))
+				.as("an unknown type is a refusal, not an empty result (emf.persistence-jpa#197)")
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("Sprocket")
+				.cause()
+				.isInstanceOf(QueryException.class)
+				.satisfies(cause -> assertThat(((QueryException) cause).getDiagnostic())
+						.as("the refusal carries its diagnostic in the exception").isNotNull());
 		assertThat(resource.getContents()).isEmpty();
 		assertThat(resource.getErrors())
-				.as("an unknown type is a refusal, not an empty result (emf.persistence-jpa#197)")
+				.as("the diagnostic also lands on the resource, where the TCK reads it")
 				.isNotEmpty();
 		assertThat(resource.getErrors().get(0).getMessage()).contains("Sprocket");
 	}

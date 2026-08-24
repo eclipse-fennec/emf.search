@@ -438,7 +438,9 @@ Three properties of the resource path that the mapping model does not state, pin
 - **A type this unit does not map is a refusal, not an empty answer** (emf.persistence-jpa#197).
   An index has no schema to reject a write with, so an unknown type name would otherwise
   read back as a successful, empty load — indistinguishable from "nothing indexed yet".
-  The read leaves an error diagnostic on the resource instead and returns nothing.
+  The load fails loudly instead, speaking the same contract as a refused command:
+  `IOException` → cause `QueryException` → `getDiagnostic()`, with the error diagnostic
+  also on the resource, where the TCK reads it.
 - **A delete that would leave a reference pointing at nothing is refused**
   (emf.persistence-jpa#195). Lucene has no foreign key, so the resource looks before it
   deletes: every `ID_ONLY` reference field that could carry the object's id is probed, the

@@ -40,27 +40,21 @@ The upstream snapshot of 2026-08-22 added an abstract TCK method and eleven unga
 core cases. Three of them failed here; all three were product defects, not binding gaps.
 Pinned by `SearchResourceTest` and the TCK binding.
 
-1. **An unmapped type name is an error diagnostic, and the read stays empty** — the trigger
-   this backend gives `provokeLoadDiagnostic()` (emf.persistence-jpa#197). The alternative
-   trigger, the partial-reconstruction warning that §4.3 already emits, would have needed
-   no product change and was rejected as ducking the point (Mark's call, 2026-08-23).
-   Not thrown: a resource that addresses an unknown type is still a legitimate, empty view,
-   and the TCK case is only meaningful when the resource comes back.
-2. **The URI type segment widens to subtypes** (`typeFilter`, abstract classes included).
+1. **The URI type segment widens to subtypes** (`typeFilter`, abstract classes included).
    Previously a raw discriminator term — every polymorphic case had gone through a gated
    type predicate, so the URI path had never been asked.
-3. **Delete refuses when an `ID_ONLY` reference still points at the object** (#195), by
+2. **Delete refuses when an `ID_ONLY` reference still points at the object** (#195), by
    probing before deleting. The known limit is the id model, not the probe: `_root` is the
    bare id value, so two types sharing an id share a block identity — the same collision
    the delete itself has. *Revisit if* a unit-wide unique document key ever replaces the
    bare id.
-4. **The named-operation catalog is swapped, and the old registry reference survives as a
+3. **The named-operation catalog is swapped, and the old registry reference survives as a
    fallback** (#203/#163, done 2026-08-23 — the entry that used to sit under "open" is
    settled). `SearchResource` and its factory take a `NamedOperations`; the OSGi component
    prefers a bound service and otherwise wraps the registry it already referenced in
    `RegistryNamedOperations`, so a deployment configured before the contract existed keeps
    working without a second lookup road of our own. Documented in §5.6.
-5. **`PROJECTION_EXPRESSION` (#189) stays undeclared** — the projection counterpart of the
+4. **`PROJECTION_EXPRESSION` (#189) stays undeclared** — the projection counterpart of the
    SORT_EXPRESSION refusal. The shared validator refuses it by name; the test pins that
    nobody declares it by accident.
 
@@ -384,7 +378,3 @@ plan:
 15. **One index, one field type per name** — Person.name keyword forces Company.name
     keyword; Lucene refuses a field analyzed in one document and keyword in the next.
     Worth remembering when mappings grow: the field-name universe is per unit.
-
-## Tracked gaps (issues exist, nothing to decide)
-
-- The read side still ignores `FieldUse`/`subFields` — #39.

@@ -26,9 +26,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;

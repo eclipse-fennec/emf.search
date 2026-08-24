@@ -27,7 +27,6 @@ import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.fennec.model.query.Query;
 import org.eclipse.fennec.model.query.builder.QueryBuilder;
-import org.eclipse.fennec.persistence.query.QueryException;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
 import org.eclipse.fennec.search.esearch.IndexUnitMapping;

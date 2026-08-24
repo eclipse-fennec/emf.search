@@ -20,9 +20,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.EcoreFactory;
 import org.eclipse.emf.ecore.EcorePackage;
-import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistries;
 import org.eclipse.fennec.emf.osgi.eobject.registry.EObjectRegistryWriter;
 import org.eclipse.fennec.search.esearch.DocumentMapping;

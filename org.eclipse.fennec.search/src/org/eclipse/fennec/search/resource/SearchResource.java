@@ -37,8 +37,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -59,31 +57,31 @@ import org.eclipse.fennec.model.command.DeleteCommand;
 import org.eclipse.fennec.model.command.InsertCommand;
 import org.eclipse.fennec.model.command.UpdateCommand;
 import org.eclipse.fennec.model.query.Selection;
+import org.eclipse.fennec.persistence.api.ConverterService;
 import org.eclipse.fennec.persistence.capabilities.CommandCapabilities;
 import org.eclipse.fennec.persistence.capabilities.CommandCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.capabilities.CommandFeature;
 import org.eclipse.fennec.persistence.capabilities.PersistenceCapabilities;
-import org.eclipse.fennec.persistence.api.ConverterService;
 import org.eclipse.fennec.persistence.capabilities.StoreCapabilitiesBuilder;
 import org.eclipse.fennec.persistence.capabilities.StoreFeature;
 import org.eclipse.fennec.persistence.converter.DefaultConverterService;
 import org.eclipse.fennec.persistence.diagnostic.PersistenceDiagnostic;
 import org.eclipse.fennec.persistence.helper.CompositeIds;
 import org.eclipse.fennec.persistence.query.QueryException;
+import org.eclipse.fennec.persistence.query.api.CommandResource;
 import org.eclipse.fennec.persistence.query.api.Hit;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
 import org.eclipse.fennec.persistence.query.api.QueryResultRow;
 import org.eclipse.fennec.persistence.query.api.QueryShape;
-import org.eclipse.fennec.persistence.query.api.CommandResource;
 import org.eclipse.fennec.persistence.query.api.QueryableResource;
-import org.eclipse.fennec.persistence.query.support.NamedOperations;
 import org.eclipse.fennec.persistence.query.support.ChangeTemplates;
 import org.eclipse.fennec.persistence.query.support.CommandTransaction;
+import org.eclipse.fennec.persistence.query.support.NamedOperations;
 import org.eclipse.fennec.persistence.query.support.PersistedQueries;
-import org.eclipse.fennec.persistence.query.support.ReferenceResolver;
 import org.eclipse.fennec.persistence.query.support.QueryContexts;
 import org.eclipse.fennec.persistence.query.support.QueryResultRows;
 import org.eclipse.fennec.persistence.query.support.QueryResults;
+import org.eclipse.fennec.persistence.query.support.ReferenceResolver;
 import org.eclipse.fennec.persistence.resource.PersistenceResource;
 import org.eclipse.fennec.persistence.resource.StreamingResource;
 import org.eclipse.fennec.search.esearch.Materialization;
@@ -661,9 +659,7 @@ public class SearchResource extends ResourceImpl
 
 	/** Reconstructs everything the URI addresses; the shared read of load and stream. */
 	private List<EObject> readScope() throws IOException {
-		if (!scopeIsMapped()) {
-			return List.of();
-		}
+		refuseUnmappedScope();
 		DocumentReader reader = DocumentReader.of(mapper.schema(), mapper.serializers(), packages());
 		try {
 			return unit.search(searcher -> {
@@ -693,23 +689,28 @@ public class SearchResource extends ResourceImpl
 
 
 	/**
-	 * Whether this unit maps the type the URI names at all. A type nobody indexes is not an
-	 * empty result: the read cannot answer for it, and a caller has to be able to tell the
-	 * two apart — so the refusal goes on the resource as an error diagnostic
-	 * (emf.persistence-jpa#197) and the read stays empty rather than throwing, because the
-	 * resource is still a perfectly good, and empty, view of what the URI addresses.
+	 * Refuses a read whose URI names a type this unit does not map. A type nobody indexes is
+	 * not an empty result: the read cannot answer for it, and a caller has to be able to tell
+	 * the two apart (emf.persistence-jpa#197) — a quiet empty view would bury a configuration
+	 * mistake for anyone who never reads the diagnostics. The refusal speaks the same contract
+	 * as the command path ({@link #refused(String, Exception)}): the diagnostic lands on the
+	 * resource <em>and</em> travels inside the exception as {@code IOException} → cause
+	 * {@link QueryException} → {@code getDiagnostic()}.
 	 */
-	private boolean scopeIsMapped() {
+	private void refuseUnmappedScope() throws IOException {
 		if (address.type() == null || mapper.schema().eClassOfOrNull(address.type()) != null) {
-			return true;
+			return;
 		}
-		getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
-				"Unit '" + address.unit() + "' maps no type named '" + address.type() + "', so '"
-						+ getURI() + "' addresses nothing this index can read. The answer is empty "
-						+ "because the type is unknown here, not because the index holds no such "
-						+ "objects.",
+		String message = "Unit '" + address.unit() + "' maps no type named '" + address.type()
+				+ "', so '" + getURI() + "' addresses nothing this index can read. The refusal is "
+				+ "loud because the type is unknown here — an empty answer would be "
+				+ "indistinguishable from an index that simply holds no such objects.";
+		getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE, message,
 				getURI()));
-		return false;
+		throw new IOException(message, new QueryException(message, null,
+				new BasicDiagnostic(org.eclipse.emf.common.util.Diagnostic.ERROR,
+						LuceneQueryProcessor.DIAGNOSTIC_SOURCE, 0, message,
+						new Object[] { getURI() })));
 	}
 
 	/** One warning per loaded class whose reconstruction is incomplete, naming what is not there. */
