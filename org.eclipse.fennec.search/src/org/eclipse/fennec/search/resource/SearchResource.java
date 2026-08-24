@@ -295,8 +295,10 @@ public class SearchResource extends ResourceImpl
 				+ (ids.size() == 1 ? "it" : "them") + " through " + String.join(", ", fields)
 				+ ". A reference this index wrote must not end up pointing at nothing — clear the "
 				+ "referencing objects first, or delete them together with these.";
-		getErrors().add(PersistenceDiagnostic.error(LuceneQueryProcessor.DIAGNOSTIC_SOURCE, message,
-				getURI()));
+		// Classified, not just prose (emf.persistence-jpa#229): a consumer routing this onto a
+		// protocol must not have to match message text.
+		getErrors().add(PersistenceDiagnostic.error(PersistenceDiagnostic.CODE_REFERENTIAL_INTEGRITY,
+				LuceneQueryProcessor.DIAGNOSTIC_SOURCE, message, getURI(), null));
 		throw new IOException(message);
 	}
 
