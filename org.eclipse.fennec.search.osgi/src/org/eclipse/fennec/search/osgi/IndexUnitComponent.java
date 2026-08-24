@@ -212,10 +212,6 @@ public class IndexUnitComponent {
 				.orElse(null);
 	}
 
-	private static IndexUnitConfig toUnitConfig(UnitConfig config, AnalyzerRegistry registry) {
-		return toUnitConfig(config, registry, null);
-	}
-
 	private static IndexUnitConfig toUnitConfig(UnitConfig config, AnalyzerRegistry registry, Sort indexSort) {
 		IndexLocation location = "memory".equalsIgnoreCase(config.location())
 				? IndexLocation.inMemory()

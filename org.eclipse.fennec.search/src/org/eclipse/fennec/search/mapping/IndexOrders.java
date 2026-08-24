@@ -16,6 +16,7 @@ import java.util.Objects;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.fennec.search.esearch.IndexSort;
@@ -79,9 +80,8 @@ public final class IndexOrders {
 		boolean descending = entry.isDescending();
 		boolean missingLast = entry.isMissingLast();
 		if (field.kind() == IndexSchema.FieldKind.KEYWORD) {
-			SortedSetSortField sortField = new SortedSetSortField(field.name(), descending);
-			sortField.setMissingValue(missingLast ? SortField.STRING_LAST : SortField.STRING_FIRST);
-			return sortField;
+			return new SortedSetSortField(field.name(), descending, SortedSetSelector.Type.MIN,
+					missingLast ? SortField.STRING_LAST : SortField.STRING_FIRST);
 		}
 		return numericSortField(field, descending, missingLast);
 	}
@@ -92,21 +92,16 @@ public final class IndexOrders {
 		// sentinel flips with it: ascending-last is the maximum, descending-last the minimum.
 		boolean missingIsMax = missingLast != descending;
 		return switch (field.numericKind()) {
-			case INT -> withMissing(new SortField(field.name(), SortField.Type.INT, descending),
+			case INT -> new SortField(field.name(), SortField.Type.INT, descending,
 					missingIsMax ? Integer.MAX_VALUE : Integer.MIN_VALUE);
-			case LONG, DATE -> withMissing(new SortField(field.name(), SortField.Type.LONG, descending),
+			case LONG, DATE -> new SortField(field.name(), SortField.Type.LONG, descending,
 					missingIsMax ? Long.MAX_VALUE : Long.MIN_VALUE);
-			case FLOAT -> withMissing(new SortField(field.name(), SortField.Type.FLOAT, descending),
+			case FLOAT -> new SortField(field.name(), SortField.Type.FLOAT, descending,
 					missingIsMax ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY);
-			case DOUBLE -> withMissing(new SortField(field.name(), SortField.Type.DOUBLE, descending),
+			case DOUBLE -> new SortField(field.name(), SortField.Type.DOUBLE, descending,
 					missingIsMax ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
 			default -> throw new MappingException("Numeric kind " + field.numericKind()
 					+ " has no index sort encoding");
 		};
-	}
-
-	private static SortField withMissing(SortField sortField, Object missingValue) {
-		sortField.setMissingValue(missingValue);
-		return sortField;
 	}
 }
