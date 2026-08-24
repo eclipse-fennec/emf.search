@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The authored mapping of the documentation's shared catalog model — the file the
+     EXAMPLES pages show and the example tests load. One declaration per feature the
+     examples exercise; everything undeclared maps by convention. -->
+<esearch:IndexUnitMapping xmi:version="2.0"
+    xmlns:xmi="http://www.omg.org/XMI"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:esearch="https://eclipse.org/fennec/search/esearch/1.0.0"
+    name="catalog" ePackage="https://example.org/catalog#/">
+  <documents eClass="https://example.org/catalog#//Product">
+    <!-- name additionally as a sortable keyword beside the analyzed text -->
+    <fields xsi:type="esearch:KeywordFieldMapping"
+        feature="https://example.org/catalog#//Product/name" docValues="true"/>
+    <!-- condition and tags as facet dimensions; tags is many-valued -->
+    <fields xsi:type="esearch:KeywordFieldMapping"
+        feature="https://example.org/catalog#//Product/condition" docValues="true">
+      <facet/>
+    </fields>
+    <fields xsi:type="esearch:KeywordFieldMapping"
+        feature="https://example.org/catalog#//Product/tags">
+      <facet multiValued="true"/>
+    </fields>
+    <!-- views stays a comparable number (and the suggest weight below reads it);
+         the rank signal rides beside it as a sub-field, selected as "views.signal" -->
+    <fields xsi:type="esearch:NumericFieldMapping"
+        feature="https://example.org/catalog#//Product/views" docValues="true">
+      <subFields xsi:type="esearch:RankSignalFieldMapping" name="signal"
+          function="SATURATION" pivot="500.0"/>
+    </fields>
+    <!-- reviews as a block: parent and children indexed together -->
+    <references eReference="https://example.org/catalog#//Product/reviews" strategy="NESTED"/>
+    <!-- suggestions from product names, popular ones first -->
+    <suggestions name="names"
+        feature="https://example.org/catalog#//Product/name"
+        weight="https://example.org/catalog#//Product/views"/>
+  </documents>
+  <documents eClass="https://example.org/catalog#//Manufacturer">
+    <!-- the packed geo shape: the location reference and its [lon, lat] coordinates -->
+    <fields xsi:type="esearch:GeoPointFieldMapping"
+        pointReference="https://example.org/catalog#//Manufacturer/location"
+        coordinates="https://example.org/catalog#//GeoPoint/coordinates" docValues="true"/>
+  </documents>
+</esearch:IndexUnitMapping>

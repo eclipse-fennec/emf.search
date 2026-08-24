@@ -72,6 +72,13 @@ live in [`docs/`](docs/):
 | [The direct search API](docs/search-api.md) | Hits as objects, the attachable primary store |
 | [Write commands](docs/write-commands.md) | Selector-addressed writes, and the honest transaction answer |
 
+**Worked examples** — each one an executable test in
+[`org.eclipse.fennec.search.examples`](org.eclipse.fennec.search.examples/), so it cannot
+rot: [a product search box](docs/example-search-box.md),
+[a secondary index beside a primary store](docs/example-secondary-index.md),
+[relevance from your data](docs/example-relevance.md),
+[search by position](docs/example-geo.md).
+
 The internal design blueprint is [`docs/search-access.md`](docs/search-access.md) — the
 source of truth for the capability profile and the feature radar.
 
