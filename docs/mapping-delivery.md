@@ -33,13 +33,20 @@ configurations, nothing search-specific:
 ```json
 "FileEObjectProvider~search": {
   "emf.eobject.provider.name": "search-mapping-files",
-  "locations": [ "/etc/myapp/mappings" ]
+  "locations": [ "/etc/myapp/mappings" ],
+  "file.extensions": [ "esearch" ]
 },
 "EObjectRegistry~search": {
   "name": "search-mappings",
   "initialProvider.target": "(emf.eobject.provider.name=search-mapping-files)"
 }
 ```
+
+`file.extensions` matters: a directory walk only loads the extensions it is told about
+(the provider's default is `xmi`, `ecore`, `json`, `xml`), and a file it passes over is
+logged at FINE only — a forgotten `esearch` shows up as a unit refused for a missing
+mapping, not as a warning. A location that names a file directly is loaded whatever it is
+called.
 
 The lucene `Resource.Factory` binds the registry named `search-mappings` (override with
 the `mappingRegistry.target` property) and resolves a unit's mapping the moment the first
@@ -67,7 +74,7 @@ runs without a framework:
 ```java
 EObjectRegistryWriter writer = EObjectRegistries.createRegistry("search-mappings",
     new FileEObjectProvider("files", resourceSet, List.of(mappingDir),
-        FileEObjectProvider.featureKeys("name")));
+        FileEObjectProvider.featureKeys("name"), List.of("esearch")));
 MappingSource source = RegistryMappingSource.of(writer.getRegistry());
 ```
 
