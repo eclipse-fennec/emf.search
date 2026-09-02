@@ -128,8 +128,11 @@ class MappingDeliveryWiringTest {
 		// The authored file speaks the esearch namespace; the provider's ResourceSet must
 		// be able to resolve it, or the file is skipped as unloadable.
 		loader.getPackageRegistry().put(ESearchPackage.eNS_URI, ESearchPackage.eINSTANCE);
+		// A directory walk only picks up the extensions it is told about (emf.osgi 167a07e,
+		// default xmi/ecore/json/xml) — an authored *.esearch has to be named, or it is
+		// passed over without a word above FINE.
 		FileEObjectProvider provider = new FileEObjectProvider("wiring-files", loader,
-				List.of(directory), FileEObjectProvider.featureKeys("name"));
+				List.of(directory), FileEObjectProvider.featureKeys("name"), List.of("esearch"));
 		ServiceRegistration<EObjectProvider> providerRegistration = context.registerService(
 				EObjectProvider.class, provider, providerProperties());
 
