@@ -531,6 +531,38 @@ class SearchResourceTest {
 		}
 	}
 
+	@Test
+	void aFragmentResolvesAgainstTheIndexWithoutLoadingTheResource() throws Exception {
+		EClass orderLine = (EClass) catalog.getEClassifier("OrderLine");
+		try (PersistenceResource saved = resource("lucene://catalog/OrderLine")) {
+			for (int lineNo = 1; lineNo <= 2; lineNo++) {
+				EObject line = EcoreUtil.create(orderLine);
+				line.eSet(orderLine.getEStructuralFeature("orderId"), "A");
+				line.eSet(orderLine.getEStructuralFeature("lineNo"), lineNo);
+				line.eSet(orderLine.getEStructuralFeature("quantity"), lineNo * 10);
+				saved.getContents().add(line);
+			}
+			saved.save(Map.of());
+			unit.refresh();
+		}
+
+		try (SearchResource unloaded = (SearchResource) resource("lucene://catalog/OrderLine")) {
+			EObject found = unloaded.getEObject("lineNo=2,orderId=A");
+
+			assertThat(found).as("keyed read, pair order free").isNotNull();
+			assertThat(found.eGet(orderLine.getEStructuralFeature("quantity"))).isEqualTo(20);
+			assertThat(unloaded.getContents()).as("only the keyed object is attached").containsExactly(found);
+			assertThat(unloaded.getEObject("orderId=A,lineNo=2")).as("identity on the second ask").isSameAs(found);
+			assertThat(unloaded.getEObject("orderId=A,lineNo=3")).as("no such row").isNull();
+			assertThat(unloaded.getEObject("orderId=A")).as("an incomplete composite id").isNull();
+			assertThat(unloaded.isLoaded()).isFalse();
+
+			unloaded.load(Map.of());
+			assertThat(unloaded.getContents()).as("load keeps the keyed object and adds the rest")
+					.hasSize(2).contains(found);
+		}
+	}
+
 	// --- URIs ---------------------------------------------------------------------------
 
 	@Test

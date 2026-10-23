@@ -662,10 +662,14 @@ public class SearchResource extends ResourceImpl
 	/** Reconstructs everything the URI addresses; the shared read of load and stream. */
 	private List<EObject> readScope() throws IOException {
 		refuseUnmappedScope();
+		return read(scopeQuery());
+	}
+
+	/** Reconstructs the root documents a query matches, inside one searcher lease. */
+	private List<EObject> read(Query scope) throws IOException {
 		DocumentReader reader = DocumentReader.of(mapper.schema(), mapper.serializers(), packages());
 		try {
 			return unit.search(searcher -> {
-				Query scope = scopeQuery();
 				int total = searcher.count(scope);
 				List<EObject> objects = new ArrayList<>(total);
 				if (total == 0) {
@@ -739,6 +743,10 @@ public class SearchResource extends ResourceImpl
 	 * the mapping's id attribute, which need not be the intrinsic EMF ID the default
 	 * implementation looks for — and the keyed-access contract for composite ids: a
 	 * {@code k1=v1,k2=v2} fragment resolves order-free.
+	 * <p>
+	 * On a resource that was never loaded, a fragment no attached object answers is asked of
+	 * the index: a keyed read of that one document, attached without loading the rest — the
+	 * way the JPA and Mongo backends resolve it (emf.persistence-jpa#370).
 	 */
 	@Override
 	public EObject getEObject(String uriFragment) {
@@ -751,7 +759,60 @@ public class SearchResource extends ResourceImpl
 				return object;
 			}
 		}
-		return null;
+		return isLoaded ? null : readById(uriFragment);
+	}
+
+	/**
+	 * The keyed read behind {@link #getEObject(String)}: the document of this URI's type whose
+	 * id is the fragment, or {@code null} when there is none or the fragment cannot be one.
+	 */
+	private EObject readById(String fragment) {
+		EClass type = address.type() == null ? null : mapper.schema().eClassOfOrNull(address.type());
+		String id = type == null || fragment == null || fragment.isEmpty() ? null : canonicalId(type, fragment);
+		if (id == null) {
+			return null;
+		}
+		try {
+			Query keyed = new BooleanQuery.Builder()
+					.add(scopeQuery(), Occur.FILTER)
+					.add(new TermQuery(new Term(SearchFields.ID, id)), Occur.FILTER)
+					.build();
+			List<EObject> found = read(keyed);
+			if (found.isEmpty()) {
+				return null;
+			}
+			EObject object = found.get(0);
+			getContents().add(object);
+			// EMF marks a resource loaded the moment it gains contents; this one is not, so a
+			// later load still reads the rest — and keeps this object by its id
+			isLoaded = false;
+			return object;
+		} catch (IOException e) {
+			getWarnings().add(PersistenceDiagnostic.warning(LuceneQueryProcessor.DIAGNOSTIC_SOURCE,
+					"Failed to resolve fragment " + fragment + ": " + e.getMessage(), getURI(), e));
+			return null;
+		}
+	}
+
+	/**
+	 * The document id a fragment names: a composite fragment in canonical attribute order,
+	 * since its pairs may arrive in any order; {@code null} for a fragment that is no id of
+	 * the type, such as a positional path.
+	 */
+	private static String canonicalId(EClass type, String fragment) {
+		if (!CompositeIds.isComposite(type)) {
+			return fragment.startsWith("/") ? null : fragment;
+		}
+		if (!CompositeIds.isCompositeFragment(fragment) || type.isAbstract() || type.isInterface()) {
+			return null;
+		}
+		try {
+			EObject probe = EcoreUtil.create(type);
+			CompositeIds.setId(probe, fragment);
+			return CompositeIds.fragment(probe);
+		} catch (IllegalArgumentException malformedOrForeign) {
+			return null;
+		}
 	}
 
 	private boolean matchesId(EObject object, String fragment) {
