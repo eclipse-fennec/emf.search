@@ -28,13 +28,20 @@
 # the TCK as subclass API plus query.derived, under its own plugin key so it cannot
 # shadow fennecPersistence. Test-only by construction — a production -buildpath never
 # gains a test bundle from it.
+#
+# fennecEMFModels → fennecEMFCommonModels 2026-10-23 (eclipse-fennec/common.models#71):
+# the 0.1.0 common.models library carries only the external standard models under the new
+# name; the Fennec-own models moved to eclipse-fennec/fennec.models, whose library now owns
+# the name fennecEMFModels. This repository uses neither set directly, so the fennec.models
+# library is not enabled. The old 0.0.1 library also shipped an outdated
+# org.eclipse.fennec.query.model — the one from fennecPersistence is now the only copy.
 -library: \
 	fennec,\
 	fennecTest,\
 	fennecJacoco,\
 	fennecEMF,\
 	fennecM2X,\
-	fennecEMFModels,\
+	fennecEMFCommonModels,\
 	fennecCodec,\
 	fennecPersistence,\
 	fennecPersistenceTest

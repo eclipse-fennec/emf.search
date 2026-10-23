@@ -64,8 +64,8 @@ consequence: *bnd owns the dependencies and the project graph, Gradle only drive
   project's `bnd.bnd`, typically with `;version=latest`. The `dependencies` block in `build.gradle` exists only
   to supply JUnit/Mockito/AssertJ to plain (non-OSGi) Gradle tests.
 - **Fennec bnd libraries** are enabled through `-library:` in `cnf/ext/fennec.bnd` (`fennec`, `fennecTest`,
-  `fennecJacoco`, `fennecEMF`, `fennecM2X`, `fennecJPA`, `fennecEMFModels`, `fennecCodec`) and resolved from
-  Maven Central via `central.mvn`.
+  `fennecJacoco`, `fennecEMF`, `fennecM2X`, `fennecEMFCommonModels`, `fennecCodec`, `fennecPersistence`,
+  `fennecPersistenceTest`) and resolved from Maven Central via `central.mvn`.
 - **Project coordinates have a single source: `gradle.properties`** (`github_org`, `github_repository`,
   `maven_group_id`). Gradle reads it natively; bnd imports the same file via `-include` in `cnf/ext/fennec.bnd`,
   which derives `github-orga`, `github-project` and `-groupid`. Never duplicate these values elsewhere.

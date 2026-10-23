@@ -11,6 +11,7 @@ Bundle-Description: Binds the published persistence TCK to the Lucene backend: o
 -testpath: \
 	assertj-core,\
 	org.eclipse.fennec.persistence.tck;version=latest,\
+	org.eclipse.fennec.persistence.repository;version=latest,\
 	org.eclipse.fennec.persistence;version=latest,\
 	org.eclipse.fennec.persistence.capabilities;version=latest,\
 	org.eclipse.fennec.persistence.query;version=latest,\
