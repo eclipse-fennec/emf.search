@@ -205,6 +205,11 @@ org.geckoprojects.libraries:org.apache.lucene.memory:10.5.0-SNAPSHOT
 # Enabled as the `fennecPersistence` bnd library in fennec.bnd.
 org.eclipse.fennec.persistence:org.eclipse.fennec.persistence.workspace.library:0.1.0-SNAPSHOT
 
+# org.eclipse.fennec.stream.model moved from emf.persistence-jpa to eclipse-fennec/emf.streaming
+# and is no longer in the fennecPersistence index; emf.streaming publishes no bnd library yet,
+# so the model bundle is taken directly (group org.eclipse.fennec.streaming).
+org.eclipse.fennec.streaming:org.eclipse.fennec.stream.model:0.1.0-SNAPSHOT
+
 # The test-only side of the stack (the TCK and what its cases need) ships as its own
 # library since emf.persistence-jpa#216 — enabled as `fennecPersistenceTest` in fennec.bnd;
 # the TCK and query.derived coordinates come through its index, not through this one.
