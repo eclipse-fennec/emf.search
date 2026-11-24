@@ -21,7 +21,6 @@ Bundle-Description: The worked examples of the documentation, executable: every 
 	org.eclipse.fennec.query.model;version=latest,\
 	org.eclipse.fennec.expression.model;version=latest,\
 	org.eclipse.fennec.command.model;version=latest,\
-	org.eclipse.fennec.stream.model;version=latest,\
 	org.eclipse.emf.common;version=latest,\
 	org.eclipse.emf.ecore;version=latest,\
 	org.eclipse.emf.ecore.xmi;version=latest,\

@@ -153,7 +153,7 @@ emf.persistence-jpa README §consuming). Everything below is API there as of 202
   `QueryFeature`, validation (`QueryValidator`, `ExpressionAnalyzer`).
 - `PersistenceResource`/`QueryableResource`/`CommandResource` contracts (`persistence`,
   `persistence.query`) and the write vocabulary of `command.model` — `InsertCommand`,
-  `DeleteCommand` (selector), `UpdateCommand` (selector + ChangeSet template).
+  `DeleteCommand` (selector), `UpdateCommand` (selector + `UpdateTemplate`).
 - The **command-side capability surface** (emf.persistence-jpa#114): `CommandFeature`,
   `CommandCapabilities`, `CommandResource.capabilities()`, and
   `CommandCapabilitiesBuilder` in `query.support` with its per-EClass `narrow()` hook.
@@ -584,7 +584,7 @@ writes that are addressed by a *selector* rather than by an object.
 
 The update case is the interesting one and it is not a matter of effort. Lucene has no
 partial update: changing one field means rewriting the document, so the backend must be able
-to reconstruct it first. With the stored EObject present it can — read, apply the ChangeSet,
+to reconstruct it first. With the stored EObject present it can — read, apply the template,
 re-map, replace. Without it, the index holds only the mapped fields, and rebuilding from
 those would silently drop everything unmapped — the partial reconstruction of §4.3 is fine
 as a *read* result, and disqualified as a *write* source for exactly that reason. A lossy
