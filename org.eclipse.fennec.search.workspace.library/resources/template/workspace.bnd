@@ -1,0 +1,9 @@
+-plugin.fennecSearch: \
+	aQute.bnd.repository.maven.provider.MavenBndRepository;\
+		releaseUrl			= " https://repo.maven.apache.org/maven2/"; \
+        snapshotUrl         = "https://central.sonatype.com/repository/maven-snapshots/";\
+		index               = "\${.}/fennecSearch.maven" ;\
+		readOnly            = true;\
+		name="Eclipse Fennec Search - ${Bundle-Version}"
+
+-require-bnd: "(version>=7.2.0)"
