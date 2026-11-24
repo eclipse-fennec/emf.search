@@ -27,18 +27,19 @@ import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
 import org.eclipse.emf.ecore.EStructuralFeature;
+import org.eclipse.emf.ecore.EcoreFactory;
+import org.eclipse.emf.ecore.EcorePackage;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.fennec.model.command.CommandFactory;
 import org.eclipse.fennec.model.command.DeleteCommand;
 import org.eclipse.fennec.model.command.InsertCommand;
 import org.eclipse.fennec.model.command.UpdateCommand;
+import org.eclipse.fennec.model.command.UpdateEntry;
+import org.eclipse.fennec.model.command.UpdateKind;
+import org.eclipse.fennec.model.command.UpdateTemplate;
 import org.eclipse.fennec.model.query.Query;
 import org.eclipse.fennec.model.query.builder.Expressions;
 import org.eclipse.fennec.model.query.builder.QueryBuilder;
-import org.eclipse.fennec.model.stream.ChangeEntry;
-import org.eclipse.fennec.model.stream.ChangeSet;
-import org.eclipse.fennec.model.stream.DeltaKind;
-import org.eclipse.fennec.model.stream.StreamFactory;
 import org.eclipse.fennec.persistence.query.api.QueryResult;
 import org.eclipse.fennec.search.esearch.DocumentMapping;
 import org.eclipse.fennec.search.esearch.ESearchFactory;
@@ -263,7 +264,7 @@ class WriteCommandTest {
 	void updateAppliesTheTemplateToEveryMatch() throws Exception {
 		try (SearchResource resource = indexed(complete())) {
 			UpdateCommand update = update(QueryBuilder.from(product).where(path(price()).gt(100.0)).build(),
-					entry(DeltaKind.SET, name(), "Reduced"));
+					entry(UpdateKind.SET, name(), "Reduced"));
 
 			assertThat(resource.execute(update)).isEqualTo(2);
 			unit.refresh();
@@ -277,7 +278,7 @@ class WriteCommandTest {
 	void anUpdateKeepsWhatTheMappingNeverIndexed() throws Exception {
 		try (SearchResource resource = indexed(complete())) {
 			UpdateCommand update = update(QueryBuilder.from(product).where(path(id()).eq("p-1")).build(),
-					entry(DeltaKind.SET, name(), "Renamed"));
+					entry(UpdateKind.SET, name(), "Renamed"));
 			resource.execute(update);
 			unit.refresh();
 
@@ -293,7 +294,7 @@ class WriteCommandTest {
 	void updateIsRefusedWithoutStoredObjectMaterialization() throws Exception {
 		try (SearchResource resource = indexed(partial())) {
 			UpdateCommand update = update(QueryBuilder.from(product).build(),
-					entry(DeltaKind.SET, name(), "Renamed"));
+					entry(UpdateKind.SET, name(), "Renamed"));
 
 			assertThatThrownBy(() -> resource.execute(update))
 					.isInstanceOf(IOException.class)
@@ -309,10 +310,11 @@ class WriteCommandTest {
 	@Test
 	void aTemplateTheTypeCannotTakeIsRefusedBeforeAnythingIsWritten() throws Exception {
 		try (SearchResource resource = indexed(complete())) {
-			ChangeEntry alien = StreamFactory.eINSTANCE.createChangeEntry();
-			alien.setKind(DeltaKind.SET);
-			alien.setFeatureId(4711);
-			alien.setValueNew("nonsense");
+			// a feature Product does not own: the template names it, the type cannot take it
+			EAttribute foreign = EcoreFactory.eINSTANCE.createEAttribute();
+			foreign.setName("nonsense");
+			foreign.setEType(EcorePackage.Literals.ESTRING);
+			UpdateEntry alien = entry(UpdateKind.SET, foreign, "nonsense");
 			UpdateCommand update = update(QueryBuilder.from(product).build(), alien);
 
 			assertThatThrownBy(() -> resource.execute(update))
@@ -410,22 +412,22 @@ class WriteCommandTest {
 		return mapping;
 	}
 
-	private UpdateCommand update(Query selector, ChangeEntry... entries) {
+	private UpdateCommand update(Query selector, UpdateEntry... entries) {
 		UpdateCommand update = CommandFactory.eINSTANCE.createUpdateCommand();
 		update.setSelector(selector);
-		ChangeSet template = StreamFactory.eINSTANCE.createChangeSet();
-		for (ChangeEntry entry : entries) {
+		UpdateTemplate template = CommandFactory.eINSTANCE.createUpdateTemplate();
+		for (UpdateEntry entry : entries) {
 			template.getEntries().add(entry);
 		}
 		update.setTemplate(template);
 		return update;
 	}
 
-	private ChangeEntry entry(DeltaKind kind, EStructuralFeature feature, String value) {
-		ChangeEntry entry = StreamFactory.eINSTANCE.createChangeEntry();
+	private UpdateEntry entry(UpdateKind kind, EStructuralFeature feature, String value) {
+		UpdateEntry entry = CommandFactory.eINSTANCE.createUpdateEntry();
 		entry.setKind(kind);
-		entry.setFeatureId(product.getFeatureID(feature));
-		entry.setValueNew(value);
+		entry.setFeature(feature);
+		entry.setValue(value);
 		return entry;
 	}
 

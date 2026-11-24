@@ -25,7 +25,6 @@ Bundle-Description: Binds the published persistence TCK to the Lucene backend: o
 	org.eclipse.fennec.query.model;version=latest,\
 	org.eclipse.fennec.expression.model;version=latest,\
 	org.eclipse.fennec.command.model;version=latest,\
-	org.eclipse.fennec.stream.model;version=latest,\
 	org.eclipse.fennec.search;version=snapshot,\
 	org.eclipse.fennec.search.model;version=snapshot,\
 	org.eclipse.fennec.emf.osgi.eobject.registry;version=latest,\

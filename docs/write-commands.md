@@ -83,7 +83,7 @@ not block it; they disappear together.
 
 ## Updating
 
-Every match is read complete, patched with the `ChangeSet` template and re-mapped **before
+Every match is read complete, patched with the `UpdateTemplate` and re-mapped **before
 the first document is written**. A template that fails on the third of five matches leaves
 the index as it was, rather than half-applied.
 
